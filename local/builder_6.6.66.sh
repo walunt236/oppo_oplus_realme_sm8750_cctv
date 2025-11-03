@@ -94,6 +94,77 @@ sudo sed -i 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-'${CUSTOM_SUFFIX}'"
 sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
 
+# ===== 拉取 KSU 并设置版本号 =====
+if [[ "$KSU_BRANCH" == "y" ]]; then
+  echo ">>> 拉取 SukiSU-Ultra 并设置版本..."
+  curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+  cd KernelSU
+  KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) "+" 10700)
+  export KSU_VERSION=$KSU_VERSION
+  sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
+else
+  echo ">>> 拉取 KernelSU Next 并设置版本..."
+  curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/next-susfs/kernel/setup.sh" | bash -s next-susfs
+  cd KernelSU-Next
+  KSU_VERSION=$(expr $(curl -sI "https://api.github.com/repos/pershoot/KernelSU-Next/commits?sha=next&per_page=1" | grep -i "link:" | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p') "+" 10200)
+  sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
+fi
+
+# ===== 克隆补丁仓库&应用 SUSFS 补丁 =====
+echo ">>> 克隆补丁仓库..."
+cd "$WORKDIR/kernel_workspace"
+echo ">>> 应用 SUSFS&hook 补丁..."
+if [[ "$KSU_BRANCH" == "y" ]]; then
+  git clone https://github.com/shirkneko/susfs4ksu.git -b gki-android15-6.6
+  git clone https://github.com/ShirkNeko/SukiSU_patch.git
+  cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./common/
+  if [[ "$APPLY_HOOKS" == "m" || "$APPLY_HOOKS" == "M" ]]; then
+    cp ./SukiSU_patch/hooks/scope_min_manual_hooks_v1.5.patch ./common/
+  fi
+  if [[ "$APPLY_HOOKS" == "s" || "$APPLY_HOOKS" == "S" ]]; then
+    cp ./SukiSU_patch/hooks/syscall_hooks.patch ./common/
+  fi
+  cp ./SukiSU_patch/69_hide_stuff.patch ./common/
+  cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
+  cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+  cd ./common
+  patch -p1 < 50_add_susfs_in_gki-android15-6.6.patch || true
+  if [[ "$APPLY_HOOKS" == "m" || "$APPLY_HOOKS" == "M" ]]; then
+    patch -p1 < scope_min_manual_hooks_v1.5.patch || true
+  fi
+  if [[ "$APPLY_HOOKS" == "s" || "$APPLY_HOOKS" == "S" ]]; then
+    patch -p1 < syscall_hooks.patch || true
+  fi
+  patch -p1 -F 3 < 69_hide_stuff.patch || true
+else
+  git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6
+  git clone https://github.com/WildKernels/kernel_patches.git
+  cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./common/
+  cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
+  cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+  if [[ "$APPLY_HOOKS" == "m" || "$APPLY_HOOKS" == "M" ]]; then
+    cp ./kernel_patches/next/scope_min_manual_hooks_v1.5.patch ./common/
+  fi
+  if [[ "$APPLY_HOOKS" == "s" || "$APPLY_HOOKS" == "S" ]]; then
+    cp ./kernel_patches/next/syscall_hooks.patch ./common/
+  fi
+  cp ./kernel_patches/69_hide_stuff.patch ./common/
+  cd ./common
+  patch -p1 < 50_add_susfs_in_gki-android15-6.6.patch || true
+  if [[ "$APPLY_HOOKS" == "m" || "$APPLY_HOOKS" == "M" ]]; then
+    patch -p1 -N -F 3 < scope_min_manual_hooks_v1.5.patch || true
+  fi
+  if [[ "$APPLY_HOOKS" == "s" || "$APPLY_HOOKS" == "S" ]]; then
+    patch -p1 -N -F 3 < syscall_hooks.patch || true
+  fi
+  patch -p1 -N -F 3 < 69_hide_stuff.patch || true
+  #为KernelSU Next添加WildKSU管理器支持
+  cd ./drivers/kernelsu
+  wget https://github.com/WildKernels/kernel_patches/raw/refs/heads/main/next/susfs_fix_patches/v1.5.12/fix_apk_sign.c.patch
+  patch -p2 -N -F 3 < fix_apk_sign.c.patch || true
+  cd ../../
+fi
+cd ../
 
 # ===== 应用 LZ4 & ZSTD 补丁 =====
 if [[ "$APPLY_LZ4" == "y" || "$APPLY_LZ4" == "Y" ]]; then
@@ -133,7 +204,38 @@ fi
 echo ">>> 添加 defconfig 配置项..."
 DEFCONFIG_FILE=./common/arch/arm64/configs/gki_defconfig
 
+# 写入通用 SUSFS/KSU 配置
+cat >> "$DEFCONFIG_FILE" <<EOF
+CONFIG_KSU=y
+CONFIG_KSU_SUSFS=y
+CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_PATH=y
+CONFIG_KSU_SUSFS_SUS_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_KSTAT=y
+#CONFIG_KSU_SUSFS_SUS_OVERLAYFS is not set
+CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+CONFIG_KSU_SUSFS_ENABLE_LOG=y
+CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+CONFIG_KSU_SUSFS_SUS_MAP=y
+#添加对 Mountify (backslashxx/mountify) 模块的支持
+CONFIG_TMPFS_XATTR=y
+CONFIG_TMPFS_POSIX_ACL=y
+EOF
 
+if [[ "$APPLY_HOOKS" == "k" || "$APPLY_HOOKS" == "K" ]]; then
+  echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> "$DEFCONFIG_FILE"
+  echo "CONFIG_KSU_MANUAL_HOOK=n" >> "$DEFCONFIG_FILE"
+  echo "CONFIG_KSU_KPROBES_HOOK=y" >> "$DEFCONFIG_FILE"
+else
+  echo "CONFIG_KSU_MANUAL_HOOK=y" >> "$DEFCONFIG_FILE"
+  echo "CONFIG_KSU_SUSFS_SUS_SU=n" >>  "$DEFCONFIG_FILE"
+fi
 # 开启O2编译优化配置
 echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> "$DEFCONFIG_FILE"
 #跳过将uapi标准头安装到 usr/include 目录的不必要操作，节省编译时间
