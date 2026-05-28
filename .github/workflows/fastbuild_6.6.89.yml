@@ -395,6 +395,21 @@ jobs:
         if: inputs.better_net
         run: |
           cd kernel_workspace
+          # ==========================================
+          # 【手动追加：新一代 nftables 全家桶支持】
+          # ==========================================
+          echo "CONFIG_NF_TABLES=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_NF_TABLES_INET=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_NFT_TPROXY=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_NFT_CHAIN_NAT_IPV4=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_NFT_CHAIN_NAT_IPV6=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_NFT_FIB_INET=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_NFT_NAT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_NFT_MASQ=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+          # ==========================================
+          # 以下为原有基础网络配置
+          # ==========================================
           #启用  BPF 流解析器,实现高性能网络流量处理,增强网络监控和分析能力
           echo "CONFIG_BPF_STREAM_PARSER=y" >> ./common/arch/arm64/configs/gki_defconfig
           #开启增强 Netfilter 防火墙扩展模块,支持基于地址类型的匹配规则,启用 IP 集合支持,提高防火墙规则灵活性,支持更复杂的流量过滤策略
@@ -422,6 +437,9 @@ jobs:
           #启用 IPv6 网络地址转换
           echo "CONFIG_IP6_NF_NAT=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_IP6_NF_TARGET_MASQUERADE=y" >> ./common/arch/arm64/configs/gki_defconfig
+          # 【手动追加：补齐原脚本漏掉的 IPv6 重定向，防透明代理回退无网】
+          echo "CONFIG_IP6_NF_TARGET_REDIRECT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          
           #由于部分机型的vintf兼容性检测规则，在开启CONFIG_IP6_NF_NAT后开机会出现"您的设备内部出现了问题。请联系您的设备制造商了解详情。"的提示，故添加一个配置修复补丁，在编译内核时隐藏CONFIG_IP6_NF_NAT=y但不影响对应功能编译
           cd common
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/config.patch
