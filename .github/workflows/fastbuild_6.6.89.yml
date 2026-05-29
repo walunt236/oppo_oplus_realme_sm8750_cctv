@@ -477,24 +477,7 @@ jobs:
           else
             echo "[WARN] config.patch 无法干净应用（可能内核已更新），跳过。IPv6 NAT 功能不受影响，vintf 告警忽略即可。"
           fi
-      - name: 诊断 IPv6 NAT 配置
-        if: inputs.better_net
-        run: |
-          cd kernel_workspace/common
-          echo "============================================"
-          echo "IP6_NF_NAT Kconfig 原文:"
-          grep -A 10 'config IP6_NF_NAT' net/ipv6/netfilter/Kconfig
-          echo "---"
-          echo "IP6_NF_TARGET_REDIRECT Kconfig 原文:"
-          grep -A 8 'config IP6_NF_TARGET_REDIRECT' net/ipv6/netfilter/Kconfig
-          echo "---"
-          echo "当前 .config 中的关键值:"
-          grep -E 'CONFIG_IP6_NF_NAT|CONFIG_IP6_NF_TARGET_REDIRECT|CONFIG_NF_NAT[^_]' .config
-          echo "---"
-          echo "检查是否有其他 fragment 覆盖:"
-          find arch/arm64/configs -name '*.cfg' -o -name '*fragment*' | xargs grep -l 'IP6_NF_NAT' 2>/dev/null || echo "(无覆盖文件)"
-          echo "============================================"
-
+      
       - name: 添加 BBR 等一系列拥塞控制算法
         run: |
           if [[ "${{ github.event.inputs.bbr_enable }}" != "false" ]]; then
