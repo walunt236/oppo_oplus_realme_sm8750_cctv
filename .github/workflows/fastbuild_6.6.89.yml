@@ -435,8 +435,16 @@ jobs:
           cp ./$GITHUB_ACTOR/zram_patch/lz4armv8.S ./common/lib
           cp ./$GITHUB_ACTOR/zram_patch/002-zstd.patch ./common/
           cd ./common
-          git apply -p1 < 001-lz4.patch || true
-          patch -p1 < 002-zstd.patch || true
+          if git apply -p1 < 001-lz4.patch 2>/dev/null; then
+            echo "✅ LZ4 1.10.0 + ARM64 NEON ASM 应用成功"
+          else
+            echo "⚠️ LZ4 patch 应用失败（上游 merge 可能改变了相关文件），回退到内核自带 LZ4"
+          fi
+          if patch -p1 -F 3 < 002-zstd.patch 2>/dev/null; then
+            echo "✅ ZSTD 1.5.7 应用成功"
+          else
+            echo "⚠️ ZSTD patch 应用失败，回退到内核自带 ZSTD"
+          fi
 
       - name: 应用 lz4kd 补丁
         if: inputs.lz4kd_enable
@@ -800,6 +808,14 @@ jobs:
           echo "--- 编译后环境文件时间戳: ---"
           LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
           echo "内核编译完成！"
+          # 验证 LZ4 NEON ASM 是否编译进内核
+          echo "========== LZ4 NEON ASM 验证 =========="
+          if nm out/vmlinux 2>/dev/null | grep -q "_lz4_decompress_asm"; then
+            echo "✅ _lz4_decompress_asm 已编译 — ARM64 NEON 加速生效"
+          else
+            echo "⚠️ _lz4_decompress_asm 未找到 — 使用内核自带 LZ4"
+          fi
+          echo "========================================="
                     # IPv6 NAT 配置诊断
           echo "============================================"
           echo "========== gki_defconfig 中 IP6_NF_NAT 的预置值 =========="
