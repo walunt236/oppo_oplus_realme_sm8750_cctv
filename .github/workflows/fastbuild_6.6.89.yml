@@ -641,25 +641,27 @@ fi
           curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
-      - name: 添加制作名称
-        run: |
-          cd kernel_workspace
-          echo "替换内核版本后缀..."
-          if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
-            echo "当前内核版本后缀：${{ github.event.inputs.kernel_suffix }}"
-            for f in ./common/scripts/setlocalversion; do
-              sed -i "\$s|echo \"\\\$res\"|echo \"-${{ github.event.inputs.kernel_suffix }}\"|" "$f"
-            done
-            sudo sed -i 's/-4k/-${{ github.event.inputs.KERNEL_SUFFIX }}/g' ./common/arch/arm64/configs/gki_defconfig
-          else
-            echo "当前内核版本后缀：${{ env.KERNEL_NAME }}"
-            for f in ./common/scripts/setlocalversion; do
-              sed -i "\$s|echo \"\\\$res\"|echo \"-${{ env.KERNEL_NAME }}\"|" "$f"
-            done
-            sudo sed -i 's/-4k/-${{ env.KERNEL_NAME }}/g' ./common/arch/arm64/configs/gki_defconfig
-          fi
-          sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
-          echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
+- name: 添加制作名称
+  run: |
+    cd kernel_workspace
+    echo "替换内核版本后缀..."
+    if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
+      echo "当前内核版本后缀：${{ github.event.inputs.kernel_suffix }}"
+      for f in ./common/scripts/setlocalversion; do
+        sed -i "\$s|echo \"\\\$res\"|echo \"-${{ github.event.inputs.kernel_suffix }}\"|" "$f"
+      done
+      sudo sed -i "s/-4k/-${{ github.event.inputs.kernel_suffix }}/g" ./common/arch/arm64/configs/gki_defconfig
+    else
+      # 使用动态的 SUB_VERSION 和 UPSTREAM_TAG
+      echo "当前内核版本：6.6.${SUB_VERSION}-${UPSTREAM_TAG}"
+      for f in ./common/scripts/setlocalversion; do
+        sed -i "\$s|echo \"\\\$res\"|echo \"-${UPSTREAM_TAG}\"|" "$f"
+      done
+      sudo sed -i "s/-4k/-${UPSTREAM_TAG}/g" ./common/arch/arm64/configs/gki_defconfig
+    fi
+    sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
+    echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
+
            
       - name: 构建内核
         run: |
