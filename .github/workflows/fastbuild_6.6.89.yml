@@ -148,20 +148,41 @@ jobs:
           # 添加上游 Android Common Kernel 的 GitHub 镜像
           git remote add upstream https://github.com/aosp-mirror/kernel_common.git
           
-          # 获取上游最新的 android-6.6.x tag
+          # 获取上游最新的 android15-6.6.x tag
           echo "正在获取上游最新 6.6 tag..."
-          LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
-            https://github.com/aosp-mirror/kernel_common.git \
-            'refs/tags/android-6.6.*' \
-            | head -1 | awk -F'/' '{print $NF}')
+          # ACK 的 6.6 内核 tag 格式为 android15-6.6.xx
+          # 依次尝试不同模式，确保能匹配到
+          LATEST_TAG=""
+          for pattern in 'refs/tags/android15-6.6.*' 'refs/tags/android14-6.6.*' 'refs/tags/android-6.6.*'; do
+            echo "  尝试匹配模式: $pattern"
+            LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
+              https://github.com/aosp-mirror/kernel_common.git \
+              "$pattern" 2>/dev/null \
+              | head -1 | awk -F'/' '{print $NF}')
+            if [ -n "$LATEST_TAG" ]; then
+              echo "  ✅ 匹配成功: $LATEST_TAG"
+              break
+            fi
+          done
+          
+          if [ -z "$LATEST_TAG" ]; then
+            echo "❌ 错误：无法从上游获取任何 6.6 tag，请检查网络或 tag 命名"
+            exit 1
+          fi
           
           echo "上游最新 tag: $LATEST_TAG"
           
           # 写入环境变量供后续步骤使用
           echo "UPSTREAM_TAG=$LATEST_TAG" >> $GITHUB_ENV
-          # 提取版本号（例如 android-6.6.89 → 89）
-          SUB_VER=$(echo "$LATEST_TAG" | grep -oP '\d+$' || echo "unknown")
+          # 提取版本号（例如 android15-6.6.89 → 89，兼容多种格式）
+          SUB_VER=$(echo "$LATEST_TAG" | sed -E 's/.*\.([0-9]+)$/\1/')
+          if [ -z "$SUB_VER" ] || [ "$SUB_VER" = "$LATEST_TAG" ]; then
+            SUB_VER="unknown"
+            echo "⚠️ 无法从 tag 中提取版本号，tag 格式可能异常"
+          fi
           echo "SUB_VERSION=$SUB_VER" >> $GITHUB_ENV
+          echo "  提取的小版本号: $SUB_VER"
+          
           KERNEL_NAME_VAL="android15-8-gxxx-${LATEST_TAG}-4k"
           echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
           # 写入步骤输出供 release job 使用
@@ -169,14 +190,18 @@ jobs:
           echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
           
           # 浅获取该 tag
+          echo "正在拉取上游 tag: $LATEST_TAG ..."
           git fetch --depth=1 upstream tag "$LATEST_TAG" || {
             echo "⚠️ 浅获取失败，尝试完整获取..."
-            git fetch upstream "$LATEST_TAG"
+            git fetch upstream "$LATEST_TAG" || {
+              echo "❌ 无法获取 tag: $LATEST_TAG"
+              exit 1
+            }
           }
           
           # ★ 合并上游 tag 到 OEM 分支
-          # -X ours: 冲突时优先保留 OEM 的修改
           echo "正在合并上游 $LATEST_TAG 到 OEM 分支..."
+
           if git merge "$LATEST_TAG" --no-edit -X ours; then
             echo "✅ 合并成功，无冲突"
           else
