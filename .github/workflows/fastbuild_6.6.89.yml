@@ -150,16 +150,16 @@ jobs:
           
           # 获取上游最新的 android15-6.6.x tag
           echo "正在获取上游最新 6.6 tag..."
-          # ACK 的 6.6 内核 tag 格式为 android15-6.6.xx
-          # 依次尝试不同模式，确保能匹配到
           LATEST_TAG=""
           for pattern in 'refs/tags/android15-6.6.*' 'refs/tags/android14-6.6.*' 'refs/tags/android-6.6.*'; do
             echo "  尝试匹配模式: $pattern"
-            LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
+            RAW_LINE=$(git ls-remote --tags --sort=-v:refname \
               https://github.com/aosp-mirror/kernel_common.git \
               "$pattern" 2>/dev/null \
-              | head -1 | awk -F'/' '{print $NF}')
-            if [ -n "$LATEST_TAG" ]; then
+              | grep -v '\^{}' \
+              | head -1)
+            if [ -n "$RAW_LINE" ]; then
+              LATEST_TAG=$(echo "$RAW_LINE" | awk -F'/' '{print $NF}')
               echo "  ✅ 匹配成功: $LATEST_TAG"
               break
             fi
@@ -174,11 +174,11 @@ jobs:
           
           # 写入环境变量供后续步骤使用
           echo "UPSTREAM_TAG=$LATEST_TAG" >> $GITHUB_ENV
-          # 提取版本号（例如 android15-6.6.89 → 89，兼容多种格式）
-          SUB_VER=$(echo "$LATEST_TAG" | sed -E 's/.*\.([0-9]+)$/\1/')
+          # 提取版本号：从 android15-6.6.111_r00 中提取 111
+          SUB_VER=$(echo "$LATEST_TAG" | sed -E 's/.*6\.6\.([0-9]+).*/\1/')
           if [ -z "$SUB_VER" ] || [ "$SUB_VER" = "$LATEST_TAG" ]; then
             SUB_VER="unknown"
-            echo "⚠️ 无法从 tag 中提取版本号，tag 格式可能异常"
+            echo "⚠️ 无法从 tag 中提取版本号，tag: $LATEST_TAG"
           fi
           echo "SUB_VERSION=$SUB_VER" >> $GITHUB_ENV
           echo "  提取的小版本号: $SUB_VER"
@@ -191,16 +191,19 @@ jobs:
           
           # 浅获取该 tag
           echo "正在拉取上游 tag: $LATEST_TAG ..."
-          git fetch --depth=1 upstream tag "$LATEST_TAG" || {
+          if git fetch --depth=1 upstream tag "$LATEST_TAG" 2>&1; then
+            echo "✅ tag 拉取成功"
+          else
             echo "⚠️ 浅获取失败，尝试完整获取..."
             git fetch upstream "$LATEST_TAG" || {
               echo "❌ 无法获取 tag: $LATEST_TAG"
               exit 1
             }
-          }
+          fi
           
           # ★ 合并上游 tag 到 OEM 分支
           echo "正在合并上游 $LATEST_TAG 到 OEM 分支..."
+
 
           if git merge "$LATEST_TAG" --no-edit -X ours; then
             echo "✅ 合并成功，无冲突"
