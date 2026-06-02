@@ -8,6 +8,9 @@ env:
   KERNEL_NAME: 'android15-6.6-latest-4k'
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
+concurrency:
+  group: kernel-build-${{ github.ref_name }}
+  cancel-in-progress: false
 
 on:
   workflow_dispatch:
@@ -109,6 +112,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     outputs:
       ksuver: ${{ steps.ksu_version.outputs.ksuver }}
       ak3name: ${{ steps.create_zip.outputs.ak3name }}
@@ -127,11 +131,11 @@ jobs:
           echo "当前仓库：$GITHUB_REPOSITORY"
           echo "当前分支：$GITHUB_REF_NAME"
 
-          sudo apt-mark hold firefox &&
-          sudo apt-mark hold libc-bin &&
-          sudo apt purge man-db &&
-          sudo rm -rf /var/lib/man-db/auto-update &&
-          sudo apt update &&
+          sudo apt-mark hold firefox
+          sudo apt-mark hold libc-bin
+          sudo apt purge man-db
+          sudo rm -rf /var/lib/man-db/auto-update
+          sudo apt update
           sudo apt-get install -y --no-install-recommends binutils python-is-python3 libssl-dev libelf-dev &
 
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/ccache-x86-64 -O ccache &&
@@ -342,7 +346,7 @@ jobs:
             curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh" | bash -s main
             echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
             cd ./KernelSU
-            KSU_VERSION=$(expr $(git rev-list --count main) + 30700 2>/dev/null || echo 114514)
+            KSU_VERSION=$(expr $(git rev-list --count main) + 30700 2>/dev/null || echo 0)
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
           elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
@@ -889,6 +893,7 @@ jobs:
           else
             UPSTREAM_NOTE="上游补丁：未合并（使用 OEM 纯净 6.6.89）"
           fi
+          echo "UPSTREAM_NOTE=$UPSTREAM_NOTE" >> $GITHUB_ENV
           cat << 'EOF' > release_notes.md
           ### 📱 ${{ env.KSU_TYPENAME }} | 骁龙8Elite | ${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}
 
