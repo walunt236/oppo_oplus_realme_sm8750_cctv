@@ -94,7 +94,7 @@ on:
         type: boolean
         default: 'false'
       rcu_nocb_enable:
-        description: '开启 RCU_NOCB_CPU (实验性; 减少软中断抢占UI线程; 可能被GKI锁定)'
+        description: '开启 RCU_NOCB_CPU (实验性; 减少软中断抢占UI线程; 默认关闭)'
         required: true
         type: boolean
         default: 'false'
@@ -503,18 +503,18 @@ jobs:
           CONFIG_TCP_WMEM_MAX=8388608
           TUNECFG
 
-          # RCU_NOCB — 需要 RCU_EXPERT 作为前置依赖，默认关闭
+          # RCU_NOCB — 需要 RCU_EXPERT + DEFAULT_ALL 才能真正激活
           if [[ "${{ github.event.inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "⚠️ 正在开启 RCU_NOCB_CPU (实验性)..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'RCUCFG'
           CONFIG_RCU_EXPERT=y
           CONFIG_RCU_NOCB_CPU=y
+          CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y
           RCUCFG
           fi
 
-          # 容器基础 namespace（PID_NS 已验证会触发 OEM 安全模块导致重启，已移除）
+          # 容器基础 namespace（PID_NS 已验证触发死机，IPC_NS 被 GKI 锁定，已移除）
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'NSCFG'
-          CONFIG_IPC_NS=y
           CONFIG_UTS_NS=y
           CONFIG_DEVTMPFS=y
           NSCFG
