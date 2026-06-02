@@ -19,7 +19,7 @@ on:
         description: 'KernelSU分支(ReSukiSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认ReSukiSU)'
         required: true
         type: choice
-        default: 'none'
+        default: 'resukisu'
         options:
           - 'resukisu'
           - 'sukisu'
@@ -85,6 +85,11 @@ on:
         default: 'false'
       baseband_guard:
         description: '是否开启内核级基带保护(阻止一切对非用户分区的写入，有效防止格机)'
+        required: true
+        type: boolean
+        default: 'false'
+      compat_disable:
+        description: '关闭32位兼容层(纯64位内核; 若OEM有32位组件会导致bootloop, 请先验证)'
         required: true
         type: boolean
         default: 'false'
@@ -482,6 +487,33 @@ jobs:
           echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> ./common/arch/arm64/configs/gki_defconfig
           sed -i 's/check_defconfig//' ./common/build.config.gki
           echo "CONFIG_HEADERS_INSTALL=n" >> ./common/arch/arm64/configs/gki_defconfig
+
+          # ─── 通用优化配置 ───
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'TUNECFG'
+          CONFIG_ZRAM_DEF_COMP_LZ4=y
+          CONFIG_ZRAM_DEF_COMP="lz4"
+          CONFIG_LRU_GEN=y
+          CONFIG_LRU_GEN_ENABLED=y
+          CONFIG_RCU_NOCB_CPU=y
+          CONFIG_LOG_BUF_SHIFT=16
+          CONFIG_CONSOLE_LOGLEVEL_DEFAULT=3
+          CONFIG_TCP_RMEM_MAX=8388608
+          CONFIG_TCP_WMEM_MAX=8388608
+          TUNECFG
+
+          # 容器基础 namespace（不依赖 droidspaces 补丁）
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'NSCFG'
+          CONFIG_PID_NS=y
+          CONFIG_IPC_NS=y
+          CONFIG_UTS_NS=y
+          CONFIG_DEVTMPFS=y
+          NSCFG
+
+          # 32 位兼容层
+          if [[ "${{ github.event.inputs.compat_disable }}" == "true" ]]; then
+            echo "⚠️ 正在关闭 32 位兼容层 — 纯 64 位内核"
+            echo "CONFIG_COMPAT=n" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
 
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
