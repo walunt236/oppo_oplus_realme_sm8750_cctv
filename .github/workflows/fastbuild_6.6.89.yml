@@ -89,7 +89,12 @@ on:
         type: boolean
         default: 'false'
       compat_disable:
-        description: '关闭32位兼容层(纯64位内核; 若OEM有32位组件会导致bootloop, 请先验证)'
+        description: '关闭32位兼容层(⚠️已验证会导致bootloop, 不建议开启)'
+        required: true
+        type: boolean
+        default: 'false'
+      rcu_nocb_enable:
+        description: '开启 RCU_NOCB_CPU (实验性; 减少软中断抢占UI线程; 可能被GKI锁定)'
         required: true
         type: boolean
         default: 'false'
@@ -494,16 +499,21 @@ jobs:
           CONFIG_ZRAM_DEF_COMP="lz4"
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
-          CONFIG_RCU_NOCB_CPU=y
-          CONFIG_LOG_BUF_SHIFT=16
-          CONFIG_CONSOLE_LOGLEVEL_DEFAULT=3
           CONFIG_TCP_RMEM_MAX=8388608
           CONFIG_TCP_WMEM_MAX=8388608
           TUNECFG
 
-          # 容器基础 namespace（不依赖 droidspaces 补丁）
+          # RCU_NOCB — 需要 RCU_EXPERT 作为前置依赖，默认关闭
+          if [[ "${{ github.event.inputs.rcu_nocb_enable }}" == "true" ]]; then
+            echo "⚠️ 正在开启 RCU_NOCB_CPU (实验性)..."
+            cat >> ./common/arch/arm64/configs/gki_defconfig << 'RCUCFG'
+          CONFIG_RCU_EXPERT=y
+          CONFIG_RCU_NOCB_CPU=y
+          RCUCFG
+          fi
+
+          # 容器基础 namespace（PID_NS 已验证会触发 OEM 安全模块导致重启，已移除）
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'NSCFG'
-          CONFIG_PID_NS=y
           CONFIG_IPC_NS=y
           CONFIG_UTS_NS=y
           CONFIG_DEVTMPFS=y
@@ -511,7 +521,7 @@ jobs:
 
           # 32 位兼容层
           if [[ "${{ github.event.inputs.compat_disable }}" == "true" ]]; then
-            echo "⚠️ 正在关闭 32 位兼容层 — 纯 64 位内核"
+            echo "⚠️ 正在关闭 32 位兼容层 — 纯 64 位内核 (已验证会导致 bootloop)"
             echo "CONFIG_COMPAT=n" >> ./common/arch/arm64/configs/gki_defconfig
           fi
 
