@@ -496,6 +496,8 @@ jobs:
           CONFIG_LRU_GEN_ENABLED=y
           CONFIG_TCP_RMEM_MAX=8388608
           CONFIG_TCP_WMEM_MAX=8388608
+          CONFIG_NET_SCH_CAKE=y
+          CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
 
           # RCU_NOCB — 已验证安全，通过 rcuop/X 线程 offload RCU 回调
