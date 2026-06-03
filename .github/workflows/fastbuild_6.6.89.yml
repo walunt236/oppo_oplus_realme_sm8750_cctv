@@ -494,8 +494,6 @@ jobs:
           CONFIG_ZRAM_DEF_COMP="lz4"
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
-          CONFIG_TCP_RMEM_MAX=8388608
-          CONFIG_TCP_WMEM_MAX=8388608
           CONFIG_NET_SCH_CAKE=y
           CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
@@ -513,6 +511,7 @@ jobs:
           # 容器基础 namespace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'NSCFG'
           CONFIG_UTS_NS=y
+          CONFIG_USER_NS=y
           CONFIG_DEVTMPFS=y
           NSCFG
 
