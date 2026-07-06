@@ -392,7 +392,12 @@ jobs:
             cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             cd ./common
-            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch
+            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || { 
+               echo "========== 补丁打入失败，以下是 .rej 冲突内容 =========="; 
+               cat fs/proc/task_mmu.c.rej; 
+               echo "========================================================="; 
+               exit 1; 
+            }
             patch -p1 -N -F 3 < 69_hide_stuff.patch
             cd ..
           else
