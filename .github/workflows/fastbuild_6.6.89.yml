@@ -742,12 +742,6 @@ jobs:
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
-          # --- 核心手术：无视 Seccomp 校验错误补丁 ---
-          echo "========== 注入 Seccomp 绕过补丁 =========="
-          # 修改 kernel/seccomp.c，拦截 BPF 校验失败，强行返回 0 (成功)
-          sed -i 's/return -EINVAL;/return 0;/g' kernel/seccomp.c
-          echo "✅ Seccomp 校验已放行"
-          echo "==========================================="
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
 
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
