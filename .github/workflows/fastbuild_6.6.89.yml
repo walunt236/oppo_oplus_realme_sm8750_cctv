@@ -678,122 +678,20 @@ jobs:
 
       - name: 构建内核
         run: |
-          WORKDIR="$(pwd)"
-          export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
-          CLANG_DIR="$WORKDIR/kernel_workspace/clang18/bin"
-          CLANG_VERSION="$($CLANG_DIR/clang --version | head -n 1)"
-          LLD_VERSION="$($CLANG_DIR/ld.lld --version | head -n 1)"
-          echo "编译器信息:"
-          echo "Clang版本: $CLANG_VERSION"
-          echo "LLD版本: $LLD_VERSION"
-          pahole_version=$(pahole --version 2>/dev/null | head -n1); [ -z "$pahole_version" ] && echo "pahole版本：未安装" || echo "pahole版本：$pahole_version"
-
-          export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
-          export CCACHE_COMPILERCHECK="none"
-          export CCACHE_BASEDIR="${{ github.workspace }}"
-          export CCACHE_NOHASHDIR="true"
-          export CCACHE_NOHARDLINK="true"
-          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
-          export CCACHE_MAXSIZE="3G"
-          export CCACHE_IS_KERNEL_COMPILING="true"
-          echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
-
           cd kernel_workspace/common
-          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
-          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
-          chmod 777 ./*.so
-          export FAKESTAT="2025-05-25 12:00:00"
-          export FAKETIME="@2025-05-25 13:00:00"
-          echo "FAKESTAT=$FAKESTAT" >> $GITHUB_ENV
-          echo "FAKETIME=$FAKETIME" >> $GITHUB_ENV
-          SO_DIR=$(pwd)
-          export PRELOAD_LIBS="$SO_DIR/libfakestat.so $SO_DIR/libfaketimeMT.so"
-          echo '#!/bin/bash' > cc-wrapper
-          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> cc-wrapper
-          echo 'export FAKESTAT="'$FAKESTAT'"' >> cc-wrapper
-          echo 'export FAKETIME="'$FAKETIME'"' >> cc-wrapper
-          echo 'ccache clang "$@"' >> cc-wrapper
-          echo '#!/bin/bash' > ld-wrapper
-          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> ld-wrapper
-          echo 'export FAKESTAT="'$FAKESTAT'"' >> ld-wrapper
-          echo 'export FAKETIME="'$FAKETIME'"' >> ld-wrapper
-          echo 'ld.lld "$@"' >> ld-wrapper
-
-          echo "--- [Wrapper Test] 正在创建通用的时间劫持测试脚本 ---"
-          echo '#!/bin/bash' > test-wrapper.sh
-          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> test-wrapper.sh
-          echo 'export FAKESTAT="'$FAKESTAT'"' >> test-wrapper.sh
-          echo 'export FAKETIME="'$FAKETIME'"' >> test-wrapper.sh
-          echo 'echo ">>> Wrapper 内部环境检查完毕."' >> test-wrapper.sh
-          echo 'exec "$@"' >> test-wrapper.sh
-          chmod +x test-wrapper.sh
-          echo "--- [Wrapper Test] 正在测试 (date) 命令 ---"
-          ./test-wrapper.sh date
-          echo "--- [Wrapper Test] 正在测试 (stat) 命令 ---"
-          ./test-wrapper.sh stat ./Makefile
-          echo "--- [Wrapper Test] 测试完毕 ---"
-          chmod +x cc-wrapper ld-wrapper
-          echo "--- 编译前环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
-          echo "--- 编译前环境文件时间戳: ---"
-          LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
-
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /opt/ghc &
-          sudo rm -rf /opt/hostedtoolcache/CodeQL &
           
-          # ========== 智能合并一加原厂 Config ==========
-          echo "========== 智能合并一加原厂 Config =========="
-          make O=out gki_defconfig
+          # --- 寻找失踪的原厂 Config 扫描仪 ---
+          echo "========== 打印所有 ARM64 配置文件列表 =========="
+          find arch/arm64/configs -type f
+          echo "================================================="
           
-          # 优先寻找完整的厂商 defconfig
-          OPLUS_CONF=$(find arch/arm64/configs -type f \( -iname "*oplus*defconfig" -o -iname "*sun*defconfig" \) | head -n 1)
-          if [[ -z "$OPLUS_CONF" ]]; then
-              # 如果没有完整的，寻找配置碎片(fragment)
-              OPLUS_CONF=$(find arch/arm64/configs -type f \( -iname "*oplus*.config" -o -iname "*sun*.config" \) | head -n 1)
-          fi
+          echo "========== 打印可能藏在 vendor 目录的配置 =========="
+          find vendor -name "*.config" -o -name "*defconfig*" 2>/dev/null || true
+          echo "================================================="
           
-          if [[ -n "$OPLUS_CONF" ]]; then
-              REL_CONF=${OPLUS_CONF#arch/arm64/configs/}
-              echo "✅ 找到原厂配置：$REL_CONF"
-              if [[ "$REL_CONF" == *"defconfig"* ]]; then
-                  make O=out $REL_CONF
-              else
-                  ./scripts/kconfig/merge_config.sh -O out out/.config $OPLUS_CONF
-                  make O=out olddefconfig
-              fi
-          else
-              echo "⚠️ 未找到厂商配置，回退到纯净 GKI"
-          fi
-          
-          # 正式编译 Image
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
-          # ============================================
-
-          echo "--- [编译后环境检查与诊断] ---"
-          echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
-          echo "--- 编译后环境文件时间戳: ---"
-          LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
-          echo "内核编译完成！"
-          echo "========== LZ4 NEON ASM 验证 =========="
-          if nm out/vmlinux 2>/dev/null | grep -q "_lz4_decompress_asm"; then
-            echo "✅ _lz4_decompress_asm 已编译 — ARM64 NEON 加速生效"
-          else
-            echo "⚠️ _lz4_decompress_asm 未找到 — 使用内核自带 LZ4"
-          fi
-          echo "========================================="
-          echo "========== IP6_NF_NAT 诊断 =========="
-          grep 'IP6_NF_NAT' arch/arm64/configs/gki_defconfig || echo "(gki_defconfig 中无此项)"
-          echo ""
-          grep -E 'CONFIG_IP6_NF_NAT|CONFIG_NF_NAT[^_]|CONFIG_NETFILTER_XT_NAT' out/.config || echo "(无匹配)"
-          echo "========================================="
-          echo "ccache状态："
-          ccache -s
-          echo "编译后空间:"
-          df -h
-
+          # 找到配置前，强制中断编译，绝不妥协退回 GKI
+          echo "❌ 诊断结束：请查看上方日志中输出的配置文件列表，找到属于骁龙 8 Elite / OnePlus 的真实配置名称！"
+          exit 1
       - name: 保存新的 ccache 缓存
         if: inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
