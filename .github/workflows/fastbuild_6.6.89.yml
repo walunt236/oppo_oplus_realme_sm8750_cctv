@@ -393,14 +393,15 @@ jobs:
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             cd ./common
             
-            # 放行 50 补丁的部分失败 (因为我们要手动修复 task_mmu.c)
             patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
             
-            # 释放 Python 智能缝合脚本（Base64 免疫所有 YAML 缩进错误）
-            echo "aW1wb3J0IHJlCmltcG9ydCBzeXMKCnBhdGggPSAiZnMvcHJvYy90YXNrX21tdS5jIgp3aXRoIG9wZW4ocGF0aCwgInIiKSBhcyBmOgogICAgZGF0YSA9IGYucmVhZCgpCgpwYXR0ZXJuID0gciIoaWZccypcKFxzKnZtYS0+dm1fZW5kXHMqPlxzKmxhc3Rfdm1hX2VuZFxzKlwpXHMqXHs/XHMqKShzbWFwX2dhdGhlcl9zdGF0c1xzKlwoXHMqdm1hXHMqLFxzKiZtc3NccyosXHMqW2EtekEtWjAtOV9dK1xzKlwpXHMqOykoXHMqXH0/KSIKCm1hdGNoID0gcmUuc2VhcmNoKHBhdHRlcm4sIGRhdGEpCmlmIG1hdGNoOgogICAgb3JpZ2luYWxfY2FsbCA9IG1hdGNoLmdyb3VwKDIpCiAgICBuZXdfc3RyID0gZiJpZiAodm1hLT52bV9lbmQgPiBsYXN0X3ZtYV9lbmQpIHt7XG4jaWZkZWYgQ09ORklHX0tTVV9TVVNGU19TVVNfTUFQXG5cdFx0XHRcdGlmICghdm1hLT52bV9maWxlIHx8ICEoU1VTRlNfSVNfSU5PREVfU1VTX01BUChmaWxlX2lub2RlKHZtYS0+dm1fZmlsZSkpKSkge3tcblx0XHRcdFx0XHR7b3JpZ2luYWxfY2FsbH1cblx0XHRcdFx0fX1cbiNlbHNlXG5cdFx0XHRcdHtvcmlnaW5hbF9jYWxsfVxuI2VuZGlmXG5cdFx0XHR9fSIKICAgIGRhdGEgPSBkYXRhWzptYXRjaC5zdGFydCgpXSArIG5ld19zdHIgKyBkYXRhW21hdGNoLmVuZCgpOl0KICAgIHdpdGggb3BlbihwYXRoLCAidyIpIGFzIGY6CiAgICAgICAgZi53cml0ZShkYXRhKQogICAgcHJpbnQoIuKchSB0YXNrX21tdS5jIOWGsueqgeS/ruWkjeaIkOWKn++8gSIpCmVsc2U6CiAgICBwcmludCgi4p2MIOS/ruWkjeWksei0pe+8muacquWMuemFjeWIsOebruagh+S7o+egge+8gSIpCiAgICBzeXMuZXhpdCgxKQo=" | base64 -d > fix_mmu.py
-            python3 fix_mmu.py
+            # --- 终极代码诊断抓取：直接打印函数往下 120 行 ---
+            echo "========== 诊断开始：提取一加原厂完整代码 =========="
+            sed -n '/static int show_smaps_rollup/,+120p' fs/proc/task_mmu.c
+            echo "========== 提取结束 =========="
+            exit 1
+            # ----------------------------------------------------
             
-            # 继续打其他的补丁
             patch -p1 -N -F 3 < 69_hide_stuff.patch
             cd ..
           else
