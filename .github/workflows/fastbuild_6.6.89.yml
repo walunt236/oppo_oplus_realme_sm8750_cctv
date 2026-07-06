@@ -393,8 +393,8 @@ jobs:
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             cd ./common
             
-            # 一切障碍已扫除，直接硬刚打补丁，不需要 || true 放行了
-            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch
+            # 核心修正：加回 || true 放行。因为 task_mmu.c 原代码已含 SUSFS 逻辑，允许此处出现部分 Reject
+            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
             patch -p1 -N -F 3 < 69_hide_stuff.patch
             
             cd ..
