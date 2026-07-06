@@ -393,16 +393,10 @@ jobs:
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             cd ./common
             
-            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
-            
-            # --- 终极代码诊断抓取：直接打印函数往下 120 行 ---
-            echo "========== 诊断开始：提取一加原厂完整代码 =========="
-            sed -n '/static int show_smaps_rollup/,+120p' fs/proc/task_mmu.c
-            echo "========== 提取结束 =========="
-            exit 1
-            # ----------------------------------------------------
-            
+            # 一切障碍已扫除，直接硬刚打补丁，不需要 || true 放行了
+            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch
             patch -p1 -N -F 3 < 69_hide_stuff.patch
+            
             cd ..
           else
             echo "已选择无内置KernelSU模式，跳过susfs配置..."
