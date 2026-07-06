@@ -395,10 +395,13 @@ jobs:
             
             patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
             
-            # 使用 Base64 写入 Python 脚本，彻底免疫 YAML 缩进与 EOF 报错问题
-            echo "aW1wb3J0IHJlCmltcG9ydCBzeXMKCnBhdGggPSAiZnMvcHJvYy90YXNrX21tdS5jIgp3aXRoIG9wZW4ocGF0aCwgInIiKSBhcyBmOgogICAgZGF0YSA9IGYucmVhZCgpCgpwYXR0ZXJuID0gciIvXCpccypDYXNlIDQgYWJvdmVccypcKi9ccytpZlxzKlwodm1hLT52bV9lbmRccyo+XHMqbGFzdF92bWFfZW5kXClccytzbWFwX2dhdGhlcl9zdGF0c1wodm1hLFxzKiZtc3MsXHMqbGFzdF92bWFfZW5kXCk7IgoKbmV3X3N0ciA9ICIvKiBDYXNlIDQgYWJvdmUgKi9cblx0XHRcdGlmICh2bWEtPnZtX2VuZCA+IGxhc3Rfdm1hX2VuZCkge1xuI2lmZGVmIENPTkZJR19LU1VfU1VTRlNfU1VTX01BUFxuXHRcdFx0XHRpZiAoIXZtYS0+dm1fZmlsZSB8fCAhKFNVU0ZTX0lTX0lOT0RFX1NVU19NQVAoZmlsZV9pbm9kZSh2bWEtPnZtX2ZpbGUpKSkpIHtcblx0XHRcdFx0XHRzbWFwX2dhdGhlcl9zdGF0cyh2bWEsICZtc3MsIGxhc3Rfdm1hX2VuZCk7XG5cdFx0XHRcdH1cbiNlbHNlXG5cdFx0XHRcdHNtYXBfZ2F0aGVyX3N0YXRzKHZtYSwgJm1zcywgbGFzdF92bWFfZW5kKTtcbiNlbmRpZlxuXHRcdFx0fSIKCmlmIHJlLnNlYXJjaChwYXR0ZXJuLCBkYXRhKToKICAgIGRhdGEgPSByZS5zdWIocGF0dGVybiwgbmV3X3N0ciwgZGF0YSkKICAgIHdpdGggb3BlbihwYXRoLCAidyIpIGFzIGY6CiAgICAgICAgZi53cml0ZShkYXRhKQogICAgcHJpbnQoIuKchSB0YXNrX21tdS5jIOWGsueqgeW3sumAmui/hyBQeXRob24g6ISa5pys6Ieq5Yqo5L+u5aSN77yBIikKZWxzZToKICAgIHByaW50KCLinYwg5L+u5aSN5aSx6LSl77ya5pyq5Yy56YWN5YiwIHRhc2tfbW11LmMg5Lit55qE55uu5qCH5Luj56CB77yBIikKICAgIHN5cy5leGl0KDEpCg==" | base64 -d > fix_mmu.py
+            # --- 代码诊断抓取 ---
+            echo "========== 诊断开始：提取一加原厂代码 =========="
+            grep -n -A 60 "static int show_smaps_rollup" fs/proc/task_mmu.c
+            echo "========== 提取结束 =========="
+            exit 1
+            # --------------------
             
-            python3 fix_mmu.py
             patch -p1 -N -F 3 < 69_hide_stuff.patch
             cd ..
           else
