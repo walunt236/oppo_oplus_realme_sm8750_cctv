@@ -401,7 +401,7 @@ jobs:
             import sys
 
             path = "fs/proc/task_mmu.c"
-              with open(path, "r") as f:
+            with open(path, "r") as f:
             data = f.read()
 
             # 使用正则表达式模糊匹配，无视一加缩进或换行的差异
