@@ -744,9 +744,33 @@ jobs:
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
           
-          # 核心修复：引入一加原厂专属的系统调用与 seccomp 沙盒白名单配置
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig vendor/sun_GKI.config &&
+          # ========== 智能合并一加原厂 Config ==========
+          echo "========== 智能合并一加原厂 Config =========="
+          make O=out gki_defconfig
+          
+          # 优先寻找完整的厂商 defconfig
+          OPLUS_CONF=$(find arch/arm64/configs -type f \( -iname "*oplus*defconfig" -o -iname "*sun*defconfig" \) | head -n 1)
+          if [[ -z "$OPLUS_CONF" ]]; then
+              # 如果没有完整的，寻找配置碎片(fragment)
+              OPLUS_CONF=$(find arch/arm64/configs -type f \( -iname "*oplus*.config" -o -iname "*sun*.config" \) | head -n 1)
+          fi
+          
+          if [[ -n "$OPLUS_CONF" ]]; then
+              REL_CONF=${OPLUS_CONF#arch/arm64/configs/}
+              echo "✅ 找到原厂配置：$REL_CONF"
+              if [[ "$REL_CONF" == *"defconfig"* ]]; then
+                  make O=out $REL_CONF
+              else
+                  ./scripts/kconfig/merge_config.sh -O out out/.config $OPLUS_CONF
+                  make O=out olddefconfig
+              fi
+          else
+              echo "⚠️ 未找到厂商配置，回退到纯净 GKI"
+          fi
+          
+          # 正式编译 Image
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
+          # ============================================
 
           echo "--- [编译后环境检查与诊断] ---"
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
