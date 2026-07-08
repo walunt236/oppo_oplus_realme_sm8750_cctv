@@ -120,7 +120,7 @@ on:
         type: boolean
         default: true
       optimize_legacy_off:
-        description: '是否关闭废弃兼容层(ARMv7模拟/KUSER_HELPERS/休眠到磁盘等; 减少攻击面,现代Android不需要; 保守可关闭)'
+        description: '是否关闭废弃兼容层(ARMv7模拟/KUSER_HELPERS/COREDUMP/休眠到磁盘等; 减少攻击面; 现代Android不需要)'
         required: true
         type: boolean
         default: false
@@ -796,6 +796,14 @@ jobs:
           # CONFIG_ELF_CORE is not set
           # CONFIG_DEBUG_BUGVERBOSE is not set
           LEGEOF
+
+            echo "   🔧 修补 OEM 源码 binfmt_elf.c (缺少 CONFIG_COREDUMP 的 #ifdef 保护)..."
+            cd common
+            sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/i #ifdef CONFIG_COREDUMP' fs/binfmt_elf.c
+            sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/a #endif' fs/binfmt_elf.c
+            echo "   ✅ 源码补丁已应用"
+            cd ..
+
             echo "   ✅ 废弃兼容层已关闭"
           else
             echo "   ⏭️ 保留废弃兼容层（兼容性优先）"
