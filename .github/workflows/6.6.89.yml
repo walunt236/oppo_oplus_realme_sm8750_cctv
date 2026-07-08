@@ -281,7 +281,7 @@ jobs:
       - name: 配置ccache目录
         run: |
           echo "CCACHE_DIR=$HOME/.ccache_${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=3G" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=5G" >> $GITHUB_ENV
           echo "当前磁盘空间："
           df -h
           echo "当前构建内核版本：${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}"
@@ -348,12 +348,14 @@ jobs:
           export CCACHE_NOHARDLINK="true"
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="${{ env.CCACHE_MAXSIZE }}"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
 
           mkdir -p "$CCACHE_DIR"
 
           echo "配置ccache缓存大小为: $CCACHE_MAXSIZE"
           ccache -M "$CCACHE_MAXSIZE"
           ccache -o compression=true
+          ccache -o sloppiness="$CCACHE_SLOPPINESS"
 
           echo "ccache初始状态:"
           ccache -s
@@ -686,67 +688,86 @@ jobs:
           cd kernel_workspace
 
           if [[ "${{ github.event.inputs.optimize_perf }}" == "true" ]]; then
-            echo ">>> [1/4] 应用低风险性能优化..."
+            echo ">>> [1/4] 应用性能优化..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'PERFEOF'
-          # ===== 网络 ====="
+          # ===== 性能优化 =====
+          CONFIG_DEFAULT_TCP_CONG=bbr
+          CONFIG_DEFAULT_BBR=y
           CONFIG_MPTCP=y
           CONFIG_SYN_COOKIES=y
+          CONFIG_SCHED_CLUSTER=y
+          CONFIG_CFS_BANDWIDTH=y
+          CONFIG_SCHED_AUTOGROUP=y
+          CONFIG_BLK_WBT_MQ=y
+          CONFIG_BLK_CGROUP_IOLATENCY=y
+          CONFIG_BLK_DEV_THROTTLING_LOW=y
+          CONFIG_ZSWAP=y
+          CONFIG_ZPOOL=y
+          CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lz4"
+          CONFIG_ZSWAP_ZPOOL_DEFAULT="zsmalloc"
+          CONFIG_ZRAM_WRITEBACK=y
+          CONFIG_ZRAM_MULTI_COMP=y
+          CONFIG_IOMMU_DEFAULT_DMA_LAZY=y
+          CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
+          CONFIG_PM_WAKELOCKS_GC=y
+          CONFIG_RCU_NOCB_CPU_CB_BOOST=y
           CONFIG_TCP_FASTOPEN=y
-          # ===== 网络 QoS ====="
           CONFIG_NET_SCH_FQ=y
           CONFIG_DEFAULT_FQ_CODEL=y
           CONFIG_NET_SCH_DEFAULT=y
-          # ===== 块层优化（低风险）====="
-          CONFIG_BLK_WBT_MQ=y
-          CONFIG_BLK_DEV_THROTTLING_LOW=y
-          # ===== 内存 ====="
-          CONFIG_ZRAM_MULTI_COMP=y
-          # ===== RCU 回调加速（补充已有 NOCB）====="
-          CONFIG_RCU_NOCB_CPU_CB_BOOST=y
-          # ===== 电源 ====="
-          CONFIG_PM_WAKELOCKS_GC=y
-          # ===== 文件系统 ====="
           CONFIG_EROFS_FS_ZIP_LZMA=y
+          # ===== LTO (需显式关闭 NONE,与 Kconfig choice 互斥) =====
+          # CONFIG_LTO_NONE is not set
+          CONFIG_LTO_CLANG_THIN=y
           PERFEOF
-            echo "   ✅ 低风险性能优化已应用"
+            echo "   ✅ 性能优化已应用（含 LTO Thin）"
           else
             echo "   ⏭️ 跳过性能优化"
           fi
 
           if [[ "${{ github.event.inputs.optimize_security }}" == "true" ]]; then
-            echo ">>> [2/4] 应用零/低风险安全加固..."
+            echo ">>> [2/4] 应用安全加固..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'SECEOF'
-          # ===== 零风险安全加固 ====="
+          # ===== 安全加固 =====
+          CONFIG_ARM64_BTI_KERNEL=y
+          # ===== RANDSTRUCT (需显式关闭 NONE,与 Kconfig choice 互斥) =====
+          # CONFIG_RANDSTRUCT_NONE is not set
+          CONFIG_RANDSTRUCT_FULL=y
           CONFIG_INIT_ON_FREE_DEFAULT_ON=y
           CONFIG_ZERO_CALL_USED_REGS=y
           CONFIG_SECURITY_DMESG_RESTRICT=y
-          CONFIG_SECURITY_SAFESETID=y
-          # ===== 低风险安全加固 ====="
           CONFIG_SECURITY_YAMA=y
-          # ===== MODULE_SIG 换 SHA256 ====="
+          CONFIG_SECURITY_LOCKDOWN_LSM=y
+          CONFIG_SECURITY_LOADPIN=y
+          CONFIG_SECURITY_SAFESETID=y
+          # ===== MODULE_SIG (需显式关闭 SHA1,与 Kconfig choice 互斥) =====
           # CONFIG_MODULE_SIG_SHA1 is not set
           CONFIG_MODULE_SIG_SHA256=y
           CONFIG_MODULE_SIG_HASH="sha256"
+          CONFIG_MODULE_SIG_FORCE=y
           SECEOF
-            echo "   ✅ 零/低风险安全加固已应用"
+            echo "   ✅ 安全加固已应用（choice 组已修正）"
           else
             echo "   ⏭️ 跳过安全加固"
           fi
 
           if [[ "${{ github.event.inputs.optimize_debug_off }}" == "true" ]]; then
-            echo ">>> [3/4] 关闭调试特性（保留 BTF/FRAME_POINTER/KPROBES）..."
+            echo ">>> [3/4] 关闭调试特性（BTF 已保留,确保 BPF 兼容）..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGEOF'
-          # ===== 关闭调试开销 ====="
+          # ===== 关闭调试开销（BTF 已排除,保留 BPF CO-RE）=====
           # CONFIG_KASAN is not set
           # CONFIG_KASAN_HW_TAGS is not set
           # CONFIG_UBSAN is not set
           # CONFIG_UBSAN_TRAP is not set
           # CONFIG_DEBUG_INFO is not set
           # CONFIG_DEBUG_INFO_DWARF5 is not set
+          # CONFIG_FRAME_POINTER is not set
           # CONFIG_SLUB_DEBUG is not set
           # CONFIG_PAGE_OWNER is not set
           # CONFIG_SCHED_DEBUG is not set
           # CONFIG_SCHEDSTATS is not set
+          # CONFIG_FTRACE is not set
+          # CONFIG_KPROBES is not set
           # CONFIG_UPROBES is not set
           # CONFIG_PROFILING is not set
           # CONFIG_DETECT_HUNG_TASK is not set
@@ -762,7 +783,7 @@ jobs:
           # CONFIG_PM_ADVANCED_DEBUG is not set
           # CONFIG_PM_SLEEP_DEBUG is not set
           DBGEOF
-            echo "   ✅ 调试特性已关闭"
+            echo "   ✅ 调试特性已关闭（BTF 已保留）"
           else
             echo "   ⏭️ 保留调试特性"
           fi
@@ -770,11 +791,12 @@ jobs:
           if [[ "${{ github.event.inputs.optimize_legacy_off }}" == "true" ]]; then
             echo ">>> [4/4] 关闭废弃兼容层..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'LEGEOF'
-          # ===== 关闭废弃兼容层 ====="
+          # ===== 关闭废弃兼容层 =====
           # CONFIG_ARMV8_DEPRECATED is not set
           # CONFIG_SWP_EMULATION is not set
           # CONFIG_CP15_BARRIER_EMULATION is not set
           # CONFIG_SETEND_EMULATION is not set
+          # CONFIG_KUSER_HELPERS is not set
           # CONFIG_HIBERNATION is not set
           # CONFIG_CLEANCACHE is not set
           # CONFIG_COREDUMP is not set
@@ -782,7 +804,7 @@ jobs:
           # CONFIG_DEBUG_BUGVERBOSE is not set
           LEGEOF
 
-            echo "   🔧 修补 OEM 源码 binfmt_elf.c..."
+            echo "   🔧 修补 OEM 源码 binfmt_elf.c ..."
             cd common
             sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/i #ifdef CONFIG_COREDUMP' fs/binfmt_elf.c
             sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/a #endif' fs/binfmt_elf.c
@@ -847,6 +869,7 @@ jobs:
           chmod 777 ./*.so
           export FAKESTAT="2025-05-25 12:00:00"
           export FAKETIME="@2025-05-25 13:00:00"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
           echo "FAKESTAT=$FAKESTAT" >> $GITHUB_ENV
           echo "FAKETIME=$FAKETIME" >> $GITHUB_ENV
           SO_DIR=$(pwd)
@@ -885,7 +908,7 @@ jobs:
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache $(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
 
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
           echo "--- 编译后环境文件时间戳: ---"
