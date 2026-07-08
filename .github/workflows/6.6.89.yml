@@ -686,39 +686,49 @@ jobs:
           cd kernel_workspace
 
           if [[ "${{ github.event.inputs.optimize_perf }}" == "true" ]]; then
-            echo ">>> [1/4] 应用零风险性能优化..."
+            echo ">>> [1/4] 应用低风险性能优化..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'PERFEOF'
-          # ===== 网络 =====
-          CONFIG_DEFAULT_TCP_CONG=bbr
-          CONFIG_DEFAULT_BBR=y
+          # ===== 网络 ====="
           CONFIG_MPTCP=y
           CONFIG_SYN_COOKIES=y
-          # ===== 网络 QoS =====
+          CONFIG_TCP_FASTOPEN=y
+          # ===== 网络 QoS ====="
           CONFIG_NET_SCH_FQ=y
           CONFIG_DEFAULT_FQ_CODEL=y
           CONFIG_NET_SCH_DEFAULT=y
-          # ===== 文件系统 =====
+          # ===== 块层优化（低风险）====="
+          CONFIG_BLK_WBT_MQ=y
+          CONFIG_BLK_DEV_THROTTLING_LOW=y
+          # ===== 内存 ====="
+          CONFIG_ZRAM_MULTI_COMP=y
+          # ===== RCU 回调加速（补充已有 NOCB）====="
+          CONFIG_RCU_NOCB_CPU_CB_BOOST=y
+          # ===== 电源 ====="
+          CONFIG_PM_WAKELOCKS_GC=y
+          # ===== 文件系统 ====="
           CONFIG_EROFS_FS_ZIP_LZMA=y
           PERFEOF
-            echo "   ✅ 零风险性能优化已应用"
+            echo "   ✅ 低风险性能优化已应用"
           else
             echo "   ⏭️ 跳过性能优化"
           fi
 
           if [[ "${{ github.event.inputs.optimize_security }}" == "true" ]]; then
-            echo ">>> [2/4] 应用零风险安全加固..."
+            echo ">>> [2/4] 应用零/低风险安全加固..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'SECEOF'
-          # ===== 零风险安全加固 =====
+          # ===== 零风险安全加固 ====="
           CONFIG_INIT_ON_FREE_DEFAULT_ON=y
           CONFIG_ZERO_CALL_USED_REGS=y
           CONFIG_SECURITY_DMESG_RESTRICT=y
           CONFIG_SECURITY_SAFESETID=y
-          # ===== MODULE_SIG 换 SHA256 =====
+          # ===== 低风险安全加固 ====="
+          CONFIG_SECURITY_YAMA=y
+          # ===== MODULE_SIG 换 SHA256 ====="
           # CONFIG_MODULE_SIG_SHA1 is not set
           CONFIG_MODULE_SIG_SHA256=y
           CONFIG_MODULE_SIG_HASH="sha256"
           SECEOF
-            echo "   ✅ 零风险安全加固已应用"
+            echo "   ✅ 零/低风险安全加固已应用"
           else
             echo "   ⏭️ 跳过安全加固"
           fi
@@ -726,7 +736,7 @@ jobs:
           if [[ "${{ github.event.inputs.optimize_debug_off }}" == "true" ]]; then
             echo ">>> [3/4] 关闭调试特性（保留 BTF/FRAME_POINTER/KPROBES）..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGEOF'
-          # ===== 关闭调试开销 =====
+          # ===== 关闭调试开销 ====="
           # CONFIG_KASAN is not set
           # CONFIG_KASAN_HW_TAGS is not set
           # CONFIG_UBSAN is not set
@@ -760,7 +770,7 @@ jobs:
           if [[ "${{ github.event.inputs.optimize_legacy_off }}" == "true" ]]; then
             echo ">>> [4/4] 关闭废弃兼容层..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'LEGEOF'
-          # ===== 关闭废弃兼容层 =====
+          # ===== 关闭废弃兼容层 ====="
           # CONFIG_ARMV8_DEPRECATED is not set
           # CONFIG_SWP_EMULATION is not set
           # CONFIG_CP15_BARRIER_EMULATION is not set
