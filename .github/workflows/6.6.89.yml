@@ -1,4 +1,4 @@
-name: 6.6.89 欧加真OKI内核快速构建
+name: 6.6.89 kernel build
 
 env:
   TZ: Asia/Shanghai
