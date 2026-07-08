@@ -659,87 +659,87 @@ jobs:
           echo "正在应用内核性能与安全优化配置..."
           cd kernel_workspace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'OPTEOF'
-# ===== 性能优化 =====
-CONFIG_DEFAULT_TCP_CONG=bbr
-CONFIG_DEFAULT_BBR=y
-CONFIG_MPTCP=y
-CONFIG_SYN_COOKIES=y
-CONFIG_SCHED_CLUSTER=y
-CONFIG_CFS_BANDWIDTH=y
-CONFIG_SCHED_AUTOGROUP=y
-CONFIG_BLK_WBT_MQ=y
-CONFIG_BLK_CGROUP_IOLATENCY=y
-CONFIG_BLK_DEV_THROTTLING_LOW=y
-CONFIG_ZSWAP=y
-CONFIG_ZPOOL=y
-CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lz4"
-CONFIG_ZSWAP_ZPOOL_DEFAULT="zsmalloc"
-CONFIG_ZRAM_WRITEBACK=y
-CONFIG_ZRAM_MULTI_COMP=y
-CONFIG_IOMMU_DEFAULT_DMA_LAZY=y
-CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
-CONFIG_PM_WAKELOCKS_GC=y
-CONFIG_RCU_NOCB_CPU_CB_BOOST=y
-CONFIG_TCP_FASTOPEN=y
-CONFIG_LTO_CLANG_THIN=y
-CONFIG_NET_SCH_FQ=y
-CONFIG_DEFAULT_FQ_CODEL=y
-CONFIG_NET_SCH_DEFAULT=y
-CONFIG_EROFS_FS_ZIP_LZMA=y
-# ===== 安全加固 =====
-CONFIG_ARM64_BTI_KERNEL=y
-CONFIG_RANDSTRUCT_FULL=y
-CONFIG_INIT_ON_FREE_DEFAULT_ON=y
-CONFIG_ZERO_CALL_USED_REGS=y
-CONFIG_SECURITY_DMESG_RESTRICT=y
-CONFIG_SECURITY_YAMA=y
-CONFIG_SECURITY_LOCKDOWN_LSM=y
-CONFIG_SECURITY_LOADPIN=y
-CONFIG_SECURITY_SAFESETID=y
-CONFIG_MODULE_SIG_FORCE=y
-CONFIG_MODULE_SIG_SHA256=y
-CONFIG_MODULE_SIG_HASH="sha256"
-# ===== 关闭调试开销（显著性能提升）=====
-# CONFIG_KASAN is not set
-# CONFIG_KASAN_HW_TAGS is not set
-# CONFIG_UBSAN is not set
-# CONFIG_UBSAN_TRAP is not set
-# CONFIG_DEBUG_INFO is not set
-# CONFIG_DEBUG_INFO_BTF is not set
-# CONFIG_DEBUG_INFO_DWARF5 is not set
-# CONFIG_FRAME_POINTER is not set
-# CONFIG_SLUB_DEBUG is not set
-# CONFIG_PAGE_OWNER is not set
-# CONFIG_SCHED_DEBUG is not set
-# CONFIG_SCHEDSTATS is not set
-# CONFIG_FTRACE is not set
-# CONFIG_KPROBES is not set
-# CONFIG_UPROBES is not set
-# CONFIG_PROFILING is not set
-# CONFIG_DETECT_HUNG_TASK is not set
-# CONFIG_SOFTLOCKUP_DETECTOR is not set
-# CONFIG_IKCONFIG is not set
-# CONFIG_IKHEADERS is not set
-# CONFIG_KUNIT is not set
-# CONFIG_MAGIC_SYSRQ is not set
-# CONFIG_KALLSYMS_ALL is not set
-# CONFIG_BLK_DEBUG_FS is not set
-# CONFIG_CMA_DEBUGFS is not set
-# CONFIG_PM_DEBUG is not set
-# CONFIG_PM_ADVANCED_DEBUG is not set
-# CONFIG_PM_SLEEP_DEBUG is not set
-# ===== 关闭废弃兼容层（减少攻击面）=====
-# CONFIG_ARMV8_DEPRECATED is not set
-# CONFIG_SWP_EMULATION is not set
-# CONFIG_CP15_BARRIER_EMULATION is not set
-# CONFIG_SETEND_EMULATION is not set
-# CONFIG_KUSER_HELPERS is not set
-# CONFIG_HIBERNATION is not set
-# CONFIG_CLEANCACHE is not set
-# CONFIG_COREDUMP is not set
-# CONFIG_ELF_CORE is not set
-# CONFIG_DEBUG_BUGVERBOSE is not set
-OPTEOF
+          # ===== 性能优化 =====
+          CONFIG_DEFAULT_TCP_CONG=bbr
+          CONFIG_DEFAULT_BBR=y
+          CONFIG_MPTCP=y
+          CONFIG_SYN_COOKIES=y
+          CONFIG_SCHED_CLUSTER=y
+          CONFIG_CFS_BANDWIDTH=y
+          CONFIG_SCHED_AUTOGROUP=y
+          CONFIG_BLK_WBT_MQ=y
+          CONFIG_BLK_CGROUP_IOLATENCY=y
+          CONFIG_BLK_DEV_THROTTLING_LOW=y
+          CONFIG_ZSWAP=y
+          CONFIG_ZPOOL=y
+          CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lz4"
+          CONFIG_ZSWAP_ZPOOL_DEFAULT="zsmalloc"
+          CONFIG_ZRAM_WRITEBACK=y
+          CONFIG_ZRAM_MULTI_COMP=y
+          CONFIG_IOMMU_DEFAULT_DMA_LAZY=y
+          CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
+          CONFIG_PM_WAKELOCKS_GC=y
+          CONFIG_RCU_NOCB_CPU_CB_BOOST=y
+          CONFIG_TCP_FASTOPEN=y
+          CONFIG_LTO_CLANG_THIN=y
+          CONFIG_NET_SCH_FQ=y
+          CONFIG_DEFAULT_FQ_CODEL=y
+          CONFIG_NET_SCH_DEFAULT=y
+          CONFIG_EROFS_FS_ZIP_LZMA=y
+          # ===== 安全加固 =====
+          CONFIG_ARM64_BTI_KERNEL=y
+          CONFIG_RANDSTRUCT_FULL=y
+          CONFIG_INIT_ON_FREE_DEFAULT_ON=y
+          CONFIG_ZERO_CALL_USED_REGS=y
+          CONFIG_SECURITY_DMESG_RESTRICT=y
+          CONFIG_SECURITY_YAMA=y
+          CONFIG_SECURITY_LOCKDOWN_LSM=y
+          CONFIG_SECURITY_LOADPIN=y
+          CONFIG_SECURITY_SAFESETID=y
+          CONFIG_MODULE_SIG_FORCE=y
+          CONFIG_MODULE_SIG_SHA256=y
+          CONFIG_MODULE_SIG_HASH="sha256"
+          # ===== 关闭调试开销 =====
+          # CONFIG_KASAN is not set
+          # CONFIG_KASAN_HW_TAGS is not set
+          # CONFIG_UBSAN is not set
+          # CONFIG_UBSAN_TRAP is not set
+          # CONFIG_DEBUG_INFO is not set
+          # CONFIG_DEBUG_INFO_BTF is not set
+          # CONFIG_DEBUG_INFO_DWARF5 is not set
+          # CONFIG_FRAME_POINTER is not set
+          # CONFIG_SLUB_DEBUG is not set
+          # CONFIG_PAGE_OWNER is not set
+          # CONFIG_SCHED_DEBUG is not set
+          # CONFIG_SCHEDSTATS is not set
+          # CONFIG_FTRACE is not set
+          # CONFIG_KPROBES is not set
+          # CONFIG_UPROBES is not set
+          # CONFIG_PROFILING is not set
+          # CONFIG_DETECT_HUNG_TASK is not set
+          # CONFIG_SOFTLOCKUP_DETECTOR is not set
+          # CONFIG_IKCONFIG is not set
+          # CONFIG_IKHEADERS is not set
+          # CONFIG_KUNIT is not set
+          # CONFIG_MAGIC_SYSRQ is not set
+          # CONFIG_KALLSYMS_ALL is not set
+          # CONFIG_BLK_DEBUG_FS is not set
+          # CONFIG_CMA_DEBUGFS is not set
+          # CONFIG_PM_DEBUG is not set
+          # CONFIG_PM_ADVANCED_DEBUG is not set
+          # CONFIG_PM_SLEEP_DEBUG is not set
+          # ===== 关闭废弃兼容层 =====
+          # CONFIG_ARMV8_DEPRECATED is not set
+          # CONFIG_SWP_EMULATION is not set
+          # CONFIG_CP15_BARRIER_EMULATION is not set
+          # CONFIG_SETEND_EMULATION is not set
+          # CONFIG_KUSER_HELPERS is not set
+          # CONFIG_HIBERNATION is not set
+          # CONFIG_CLEANCACHE is not set
+          # CONFIG_COREDUMP is not set
+          # CONFIG_ELF_CORE is not set
+          # CONFIG_DEBUG_BUGVERBOSE is not set
+          OPTEOF
           echo "✅ 内核性能与安全优化配置已应用！"
 
       - name: 添加制作名称
