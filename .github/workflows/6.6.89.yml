@@ -9,7 +9,7 @@ env:
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
 concurrency:
-  group: kernel-build-${{ github.ref_name }}
+  group: kernel-build-${{ github.ref_name }}-${{ github.run_id }}
   cancel-in-progress: false
 
 on:
@@ -105,7 +105,7 @@ on:
         default: 'false'
 
       optimize_perf:
-        description: '是否启用内核性能优化(MPTCP/SCHED_CLUSTER/LTO/ZSWAP/BBR默认等; 日用提升明显,建议开启)'
+        description: '是否启用内核性能优化(MPTCP/SCHED_CLUSTER/ZSWAP/BBR默认等; 日用提升明显,建议开启)'
         required: true
         type: boolean
         default: true
@@ -710,7 +710,6 @@ jobs:
           CONFIG_PM_WAKELOCKS_GC=y
           CONFIG_RCU_NOCB_CPU_CB_BOOST=y
           CONFIG_TCP_FASTOPEN=y
-          CONFIG_LTO_CLANG_THIN=y
           CONFIG_NET_SCH_FQ=y
           CONFIG_DEFAULT_FQ_CODEL=y
           CONFIG_NET_SCH_DEFAULT=y
