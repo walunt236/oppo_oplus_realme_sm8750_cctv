@@ -103,6 +103,27 @@ on:
         required: true
         type: boolean
         default: 'false'
+
+      optimize_perf:
+        description: '是否启用内核性能优化(MPTCP/SCHED_CLUSTER/LTO/ZSWAP/BBR默认等; 日用提升明显,建议开启)'
+        required: true
+        type: boolean
+        default: true
+      optimize_security:
+        description: '是否启用内核安全加固(BTI_KERNEL/RANDSTRUCT/DMESG_RESTRICT等; 极小性能开销,建议开启)'
+        required: true
+        type: boolean
+        default: true
+      optimize_debug_off:
+        description: '是否关闭内核调试特性(KASAN/UBSAN/DEBUG_INFO/FTRACE等; 大幅提升性能,日用务必开启; 调试内核时请关闭此项)'
+        required: true
+        type: boolean
+        default: true
+      optimize_legacy_off:
+        description: '是否关闭废弃兼容层(ARMv7模拟/KUSER_HELPERS/休眠到磁盘等; 减少攻击面,现代Android不需要; 保守可关闭)'
+        required: true
+        type: boolean
+        default: false
       kernel_suffix:
         description: '内核后缀(留空默认,开头别加连字符,勿加空格等影响指令运行的保留字符)'
         required: false
@@ -655,10 +676,18 @@ jobs:
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
       - name: 应用内核性能与安全优化配置
+        if: |
+          inputs.optimize_perf == true ||
+          inputs.optimize_security == true ||
+          inputs.optimize_debug_off == true ||
+          inputs.optimize_legacy_off == true
         run: |
-          echo "正在应用内核性能与安全优化配置..."
+          echo "正在应用内核优化配置..."
           cd kernel_workspace
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'OPTEOF'
+
+          if [[ "${{ github.event.inputs.optimize_perf }}" == "true" ]]; then
+            echo ">>> [1/4] 应用性能优化..."
+            cat >> ./common/arch/arm64/configs/gki_defconfig << 'PERFEOF'
           # ===== 性能优化 =====
           CONFIG_DEFAULT_TCP_CONG=bbr
           CONFIG_DEFAULT_BBR=y
@@ -686,6 +715,15 @@ jobs:
           CONFIG_DEFAULT_FQ_CODEL=y
           CONFIG_NET_SCH_DEFAULT=y
           CONFIG_EROFS_FS_ZIP_LZMA=y
+          PERFEOF
+            echo "   ✅ 性能优化已应用"
+          else
+            echo "   ⏭️ 跳过性能优化"
+          fi
+
+          if [[ "${{ github.event.inputs.optimize_security }}" == "true" ]]; then
+            echo ">>> [2/4] 应用安全加固..."
+            cat >> ./common/arch/arm64/configs/gki_defconfig << 'SECEOF'
           # ===== 安全加固 =====
           CONFIG_ARM64_BTI_KERNEL=y
           CONFIG_RANDSTRUCT_FULL=y
@@ -699,6 +737,15 @@ jobs:
           CONFIG_MODULE_SIG_FORCE=y
           CONFIG_MODULE_SIG_SHA256=y
           CONFIG_MODULE_SIG_HASH="sha256"
+          SECEOF
+            echo "   ✅ 安全加固已应用"
+          else
+            echo "   ⏭️ 跳过安全加固"
+          fi
+
+          if [[ "${{ github.event.inputs.optimize_debug_off }}" == "true" ]]; then
+            echo ">>> [3/4] 关闭调试特性..."
+            cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGEOF'
           # ===== 关闭调试开销 =====
           # CONFIG_KASAN is not set
           # CONFIG_KASAN_HW_TAGS is not set
@@ -728,6 +775,15 @@ jobs:
           # CONFIG_PM_DEBUG is not set
           # CONFIG_PM_ADVANCED_DEBUG is not set
           # CONFIG_PM_SLEEP_DEBUG is not set
+          DBGEOF
+            echo "   ✅ 调试特性已关闭"
+          else
+            echo "   ⏭️ 保留调试特性（开发/调试用）"
+          fi
+
+          if [[ "${{ github.event.inputs.optimize_legacy_off }}" == "true" ]]; then
+            echo ">>> [4/4] 关闭废弃兼容层..."
+            cat >> ./common/arch/arm64/configs/gki_defconfig << 'LEGEOF'
           # ===== 关闭废弃兼容层 =====
           # CONFIG_ARMV8_DEPRECATED is not set
           # CONFIG_SWP_EMULATION is not set
@@ -739,8 +795,13 @@ jobs:
           # CONFIG_COREDUMP is not set
           # CONFIG_ELF_CORE is not set
           # CONFIG_DEBUG_BUGVERBOSE is not set
-          OPTEOF
-          echo "✅ 内核性能与安全优化配置已应用！"
+          LEGEOF
+            echo "   ✅ 废弃兼容层已关闭"
+          else
+            echo "   ⏭️ 保留废弃兼容层（兼容性优先）"
+          fi
+
+          echo "✅ 内核优化配置全部完成！"
 
       - name: 添加制作名称
         run: |
