@@ -833,12 +833,15 @@ jobs:
 
           echo ""
           echo "--- make gki_defconfig ---"
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- O=out gki_defconfig 2>&1 | tail -20
-          if [ $? -ne 0 ]; then
+          set -o pipefail
+          if ! make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- O=out gki_defconfig 2>&1; then
+            echo ""
             echo "❌ gki_defconfig 失败！"
             exit 1
           fi
+          echo ""
           echo "✅ gki_defconfig 通过"
+          ls -la out/.config
 
           echo ""
           echo "--- 关键配置验证 ---"
