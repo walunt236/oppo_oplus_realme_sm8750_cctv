@@ -101,12 +101,12 @@ on:
         default: 'false'
 
       debug_low:
-        description: "低危调试(纯日志/统计):UBSAN/SCHEDSTATS/IKCONFIG/KUNIT/PM_DEBUG等"
+        description: "低危调试(纯日志/统计):UBSAN/SCHEDSTATS/IKCONFIG/KUNIT/PM_DEBUG/ANDROID_DEBUG等"
         required: true
         type: boolean
         default: true
       debug_high:
-        description: "高危调试(改行为):SLUB_DEBUG/DEBUG_INFO/DETECT_HUNG/SOFTLOCKUP等"
+        description: "高危调试(改行为):KASAN/SLUB_DEBUG/SCHED_DEBUG/DETECT_HUNG/SOFTLOCKUP等"
         required: true
         type: boolean
         default: true
@@ -684,6 +684,8 @@ jobs:
           # CONFIG_KALLSYMS_ALL is not set
           # CONFIG_BLK_DEBUG_FS is not set
           # CONFIG_CMA_DEBUGFS is not set
+          # CONFIG_ANDROID_DEBUG_SYMBOLS is not set
+          # CONFIG_ANDROID_DEBUG_KINFO is not set
           # CONFIG_PM_DEBUG is not set
           # CONFIG_PM_ADVANCED_DEBUG is not set
           # CONFIG_PM_SLEEP_DEBUG is not set
@@ -697,10 +699,13 @@ jobs:
           cd kernel_workspace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGHI'
           # ===== 高危调试 =====
-          # CONFIG_DEBUG_INFO is not set
-          # CONFIG_DEBUG_INFO_DWARF5 is not set
+          # CONFIG_KASAN is not set
+          # CONFIG_KASAN_HW_TAGS is not set
+          # CONFIG_KASAN_VMALLOC is not set
           # CONFIG_SLUB_DEBUG is not set
           # CONFIG_SCHED_DEBUG is not set
+          # CONFIG_DEBUG_INFO is not set
+          # CONFIG_DEBUG_INFO_DWARF5 is not set
           # CONFIG_DETECT_HUNG_TASK is not set
           # CONFIG_SOFTLOCKUP_DETECTOR is not set
           DBGHI
@@ -914,6 +919,8 @@ jobs:
           echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
           echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
           echo "RCU_NOCB: ${{ github.event.inputs.rcu_nocb_enable }}" >> ./ak3.log
+          echo "低危调试清理: ${{ github.event.inputs.debug_low }}" >> ./ak3.log
+          echo "高危调试清理: ${{ github.event.inputs.debug_high }}" >> ./ak3.log
           zip -z ../$AK3_NAME < ./ak3.log
 
       - name: 上传 Ccache 调试日志
@@ -1004,6 +1011,8 @@ jobs:
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
           | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
+          | 低危调试清理 | ${{ github.event.inputs.debug_low }} |
+          | 高危调试清理 | ${{ github.event.inputs.debug_high }} |
 
           **刷入前请备份 boot 分区。**
           EOF
