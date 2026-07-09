@@ -8,10 +8,6 @@ env:
   KERNEL_NAME: 'android15-6.6-latest-4k'
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
-concurrency:
-  group: kernel-build-${{ github.ref_name }}-${{ github.run_id }}
-  cancel-in-progress: false
-
 on:
   workflow_dispatch:
     inputs:
