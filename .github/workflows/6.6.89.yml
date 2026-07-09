@@ -670,7 +670,6 @@ jobs:
           # CONFIG_DEBUG_INFO is not set
           # CONFIG_DEBUG_INFO_DWARF5 is not set
           # CONFIG_SLUB_DEBUG is not set
-          # CONFIG_PAGE_OWNER is not set
           # CONFIG_SCHED_DEBUG is not set
           # CONFIG_SCHEDSTATS is not set
           # CONFIG_PROFILING is not set
