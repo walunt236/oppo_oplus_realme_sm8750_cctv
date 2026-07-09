@@ -124,6 +124,12 @@ on:
         required: true
         type: boolean
         default: false
+
+      analysis_mode:
+        description: '解析模式: 仅跑 make gki_defconfig 并上传 .config(2-3分钟,验证配置; 不编译内核)'
+        required: true
+        type: boolean
+        default: false
       kernel_suffix:
         description: '内核后缀'
         required: false
@@ -690,37 +696,27 @@ jobs:
           if [[ "${{ github.event.inputs.optimize_perf }}" == "true" ]]; then
             echo ">>> [1/4] 应用性能优化..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'PERFEOF'
-          # ===== 性能优化 =====
-          CONFIG_DEFAULT_TCP_CONG=bbr
-          CONFIG_DEFAULT_BBR=y
+          # ===== 网络 ====="
           CONFIG_MPTCP=y
           CONFIG_SYN_COOKIES=y
-          CONFIG_SCHED_CLUSTER=y
-          CONFIG_CFS_BANDWIDTH=y
-          CONFIG_SCHED_AUTOGROUP=y
-          CONFIG_BLK_WBT_MQ=y
-          CONFIG_BLK_CGROUP_IOLATENCY=y
-          CONFIG_BLK_DEV_THROTTLING_LOW=y
-          CONFIG_ZSWAP=y
-          CONFIG_ZPOOL=y
-          CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lz4"
-          CONFIG_ZSWAP_ZPOOL_DEFAULT="zsmalloc"
-          CONFIG_ZRAM_WRITEBACK=y
-          CONFIG_ZRAM_MULTI_COMP=y
-          CONFIG_IOMMU_DEFAULT_DMA_LAZY=y
-          CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
-          CONFIG_PM_WAKELOCKS_GC=y
-          CONFIG_RCU_NOCB_CPU_CB_BOOST=y
           CONFIG_TCP_FASTOPEN=y
+          # ===== 网络 QoS ====="
           CONFIG_NET_SCH_FQ=y
           CONFIG_DEFAULT_FQ_CODEL=y
           CONFIG_NET_SCH_DEFAULT=y
+          # ===== 块层优化 ====="
+          CONFIG_BLK_WBT_MQ=y
+          CONFIG_BLK_DEV_THROTTLING_LOW=y
+          # ===== 内存 ====="
+          CONFIG_ZRAM_MULTI_COMP=y
+          # ===== RCU 回调加速（补充已有 NOCB）====="
+          CONFIG_RCU_NOCB_CPU_CB_BOOST=y
+          # ===== 电源 ====="
+          CONFIG_PM_WAKELOCKS_GC=y
+          # ===== 文件系统 ====="
           CONFIG_EROFS_FS_ZIP_LZMA=y
-          # ===== LTO (需显式关闭 NONE,与 Kconfig choice 互斥) =====
-          # CONFIG_LTO_NONE is not set
-          CONFIG_LTO_CLANG_THIN=y
           PERFEOF
-            echo "   ✅ 性能优化已应用（含 LTO Thin）"
+            echo "   ✅ 性能优化已应用"
           else
             echo "   ⏭️ 跳过性能优化"
           fi
@@ -728,46 +724,37 @@ jobs:
           if [[ "${{ github.event.inputs.optimize_security }}" == "true" ]]; then
             echo ">>> [2/4] 应用安全加固..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'SECEOF'
-          # ===== 安全加固 =====
-          CONFIG_ARM64_BTI_KERNEL=y
-          # ===== RANDSTRUCT (需显式关闭 NONE,与 Kconfig choice 互斥) =====
-          # CONFIG_RANDSTRUCT_NONE is not set
-          CONFIG_RANDSTRUCT_FULL=y
+          # ===== 零风险安全加固 ====="
           CONFIG_INIT_ON_FREE_DEFAULT_ON=y
           CONFIG_ZERO_CALL_USED_REGS=y
           CONFIG_SECURITY_DMESG_RESTRICT=y
-          CONFIG_SECURITY_YAMA=y
-          CONFIG_SECURITY_LOCKDOWN_LSM=y
-          CONFIG_SECURITY_LOADPIN=y
           CONFIG_SECURITY_SAFESETID=y
-          # ===== MODULE_SIG (需显式关闭 SHA1,与 Kconfig choice 互斥) =====
+          # ===== 低风险安全加固 ====="
+          CONFIG_SECURITY_YAMA=y
+          # ===== MODULE_SIG 换 SHA256 ====="
           # CONFIG_MODULE_SIG_SHA1 is not set
           CONFIG_MODULE_SIG_SHA256=y
           CONFIG_MODULE_SIG_HASH="sha256"
-          CONFIG_MODULE_SIG_FORCE=y
           SECEOF
-            echo "   ✅ 安全加固已应用（choice 组已修正）"
+            echo "   ✅ 安全加固已应用"
           else
             echo "   ⏭️ 跳过安全加固"
           fi
 
           if [[ "${{ github.event.inputs.optimize_debug_off }}" == "true" ]]; then
-            echo ">>> [3/4] 关闭调试特性（BTF 已保留,确保 BPF 兼容）..."
+            echo ">>> [3/4] 关闭调试特性..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGEOF'
-          # ===== 关闭调试开销（BTF 已排除,保留 BPF CO-RE）=====
+          # ===== 关闭调试开销（保留 BTF/FRAME_POINTER/KPROBES）====="
           # CONFIG_KASAN is not set
           # CONFIG_KASAN_HW_TAGS is not set
           # CONFIG_UBSAN is not set
           # CONFIG_UBSAN_TRAP is not set
           # CONFIG_DEBUG_INFO is not set
           # CONFIG_DEBUG_INFO_DWARF5 is not set
-          # CONFIG_FRAME_POINTER is not set
           # CONFIG_SLUB_DEBUG is not set
           # CONFIG_PAGE_OWNER is not set
           # CONFIG_SCHED_DEBUG is not set
           # CONFIG_SCHEDSTATS is not set
-          # CONFIG_FTRACE is not set
-          # CONFIG_KPROBES is not set
           # CONFIG_UPROBES is not set
           # CONFIG_PROFILING is not set
           # CONFIG_DETECT_HUNG_TASK is not set
@@ -783,7 +770,7 @@ jobs:
           # CONFIG_PM_ADVANCED_DEBUG is not set
           # CONFIG_PM_SLEEP_DEBUG is not set
           DBGEOF
-            echo "   ✅ 调试特性已关闭（BTF 已保留）"
+            echo "   ✅ 调试特性已关闭"
           else
             echo "   ⏭️ 保留调试特性"
           fi
@@ -791,12 +778,11 @@ jobs:
           if [[ "${{ github.event.inputs.optimize_legacy_off }}" == "true" ]]; then
             echo ">>> [4/4] 关闭废弃兼容层..."
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'LEGEOF'
-          # ===== 关闭废弃兼容层 =====
+          # ===== 关闭废弃兼容层 ====="
           # CONFIG_ARMV8_DEPRECATED is not set
           # CONFIG_SWP_EMULATION is not set
           # CONFIG_CP15_BARRIER_EMULATION is not set
           # CONFIG_SETEND_EMULATION is not set
-          # CONFIG_KUSER_HELPERS is not set
           # CONFIG_HIBERNATION is not set
           # CONFIG_CLEANCACHE is not set
           # CONFIG_COREDUMP is not set
@@ -804,7 +790,7 @@ jobs:
           # CONFIG_DEBUG_BUGVERBOSE is not set
           LEGEOF
 
-            echo "   🔧 修补 OEM 源码 binfmt_elf.c ..."
+            echo "   🔧 修补 OEM 源码 binfmt_elf.c..."
             cd common
             sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/i #ifdef CONFIG_COREDUMP' fs/binfmt_elf.c
             sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/a #endif' fs/binfmt_elf.c
@@ -839,7 +825,55 @@ jobs:
           echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
 
 
+      - name: 解析模式 — 仅生成 .config 并上传
+        if: inputs.analysis_mode == true
+        run: |
+          echo "============================================"
+          echo "  解析模式: 仅解析 Kconfig，不编译内核"
+          echo "============================================"
+          cd kernel_workspace/common
+
+          echo "--- 环境检查 ---"
+          clang --version | head -1
+          echo "ARCH=arm64, LLVM=1"
+
+          echo ""
+          echo "--- make gki_defconfig ---"
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- O=out gki_defconfig 2>&1 | tail -20
+          if [ $? -ne 0 ]; then
+            echo "❌ gki_defconfig 失败！"
+            exit 1
+          fi
+          echo "✅ gki_defconfig 通过"
+
+          echo ""
+          echo "--- 关键配置验证 ---"
+          for cfg in LTO_NONE LTO_CLANG_THIN LTO_CLANG_FULL RANDSTRUCT_NONE RANDSTRUCT_FULL MODULE_SIG_SHA1 MODULE_SIG_SHA256 DEBUG_INFO_BTF KASAN UBSAN ZSWAP TCP_CONG_BBR DEFAULT_TCP_CONG MPTCP SYN_COOKIES TCP_FASTOPEN BLK_WBT_MQ EROFS_FS_ZIP_LZMA INIT_ON_FREE_DEFAULT_ON ZERO_CALL_USED_REGS SECURITY_DMESG_RESTRICT SECURITY_YAMA PM_WAKELOCKS_GC RCU_NOCB_CPU_CB_BOOST COREDUMP HIBERNATION ARMV8_DEPRECATED; do
+            val=$(grep "CONFIG_${cfg}[= ]" out/.config | head -1 | tr -d '\n')
+            if [ -n "$val" ]; then
+              echo "  $val"
+            else
+              echo "  CONFIG_${cfg} — 未找到"
+            fi
+          done
+
+          echo ""
+          echo "--- 上传最终 .config ---"
+          cp out/.config ../final_config.txt
+          cd ..
+          echo "文件: kernel_workspace/final_config.txt ($(wc -l < final_config.txt) 行)"
+          echo "✅ 解析完成！下载 final_config.txt artifact 查看完整配置"
+
+      - name: 上传解析后的 .config
+        if: inputs.analysis_mode == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-final-config
+          path: kernel_workspace/final_config.txt
+          archive: false
+
       - name: 构建内核
+        if: inputs.analysis_mode != true
         run: |
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
@@ -932,6 +966,7 @@ jobs:
           df -h
 
       - name: 保存新的 ccache 缓存
+        if: inputs.analysis_mode != true
         if: inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
@@ -939,6 +974,7 @@ jobs:
           key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
 
       - name: 应用KPM并修补内核
+        if: inputs.analysis_mode != true
         run: |
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' && ( "${{ github.event.inputs.ksu_type }}" == "sukisu" || "${{ github.event.inputs.ksu_type }}" == "resukisu" ) ]]; then
             echo "正在应用KPM并修补内核..."
@@ -961,6 +997,7 @@ jobs:
           fi
 
       - name: 克隆 AnyKernel3 并打包
+        if: inputs.analysis_mode != true
         id: create_zip
         run: |
           cd kernel_workspace
@@ -1026,6 +1063,7 @@ jobs:
           zip -z ../$AK3_NAME < ./ak3.log
 
       - name: 上传 Ccache 调试日志
+        if: inputs.analysis_mode != true
         if: always() && inputs.ccache_debug
         uses: actions/upload-artifact@v7
         with:
@@ -1034,12 +1072,14 @@ jobs:
           archive: true
 
       - name: 上传 ZIP 工件
+        if: inputs.analysis_mode != true
         uses: actions/upload-artifact@v7
         with:
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
           archive: false
 
   release:
+    if: inputs.analysis_mode != true
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -1049,6 +1089,7 @@ jobs:
 
     steps:
       - name: 下载 ZIP 工件
+        if: inputs.analysis_mode != true
         uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build.outputs.ak3name }}
@@ -1056,6 +1097,7 @@ jobs:
           skip-decompress: true
 
       - name: 设置环境变量
+        if: inputs.analysis_mode != true
         run: |
           if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
             FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}-${{ github.event.inputs.kernel_suffix }}
@@ -1084,6 +1126,7 @@ jobs:
           echo "KSU_TYPENAME=$KSU_TYPENAME" >> $GITHUB_ENV
 
       - name: 创建发布
+        if: inputs.analysis_mode != true
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1113,6 +1156,10 @@ jobs:
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
           | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
+          | ⚡性能优化 | ${{ github.event.inputs.optimize_perf }} |
+          | 🛡️安全加固 | ${{ github.event.inputs.optimize_security }} |
+          | 🐛关闭调试 | ${{ github.event.inputs.optimize_debug_off }} |
+          | 🗑️关闭废弃 | ${{ github.event.inputs.optimize_legacy_off }} |
 
           **刷入前请备份 boot 分区。**
           EOF
