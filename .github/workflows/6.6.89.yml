@@ -684,7 +684,7 @@ jobs:
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
       - name: 应用内核性能与安全优化配置
-        if: ${{ inputs.optimize_perf || inputs.optimize_security || inputs.optimize_debug_off || inputs.optimize_legacy_off }}
+
         run: |
           echo "正在应用内核优化配置..."
           cd kernel_workspace
@@ -822,7 +822,6 @@ jobs:
 
 
       - name: 解析模式 — 仅生成 .config 并上传
-        if: ${{ inputs.analysis_mode }}
         run: |
           echo "============================================"
           echo "  解析模式: 仅解析 Kconfig，不编译内核"
@@ -861,7 +860,6 @@ jobs:
           echo "✅ 解析完成！下载 final_config.txt artifact 查看完整配置"
 
       - name: 上传解析后的 .config
-        if: ${{ inputs.analysis_mode }}
         uses: actions/upload-artifact@v7
         with:
           name: kernel-final-config
@@ -869,8 +867,11 @@ jobs:
           archive: false
 
       - name: 构建内核
-        if: ${{ inputs.analysis_mode == false }}
         run: |
+          if [[ "${{ github.event.inputs.analysis_mode }}" == "true" ]]; then
+            echo "解析模式，跳过内核编译"
+            exit 0
+          fi
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
           export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
@@ -962,7 +963,6 @@ jobs:
           df -h
 
       - name: 保存新的 ccache 缓存
-        if: ${{ inputs.analysis_mode == false }}
         if: inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
@@ -970,7 +970,6 @@ jobs:
           key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
 
       - name: 应用KPM并修补内核
-        if: ${{ inputs.analysis_mode == false }}
         run: |
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' && ( "${{ github.event.inputs.ksu_type }}" == "sukisu" || "${{ github.event.inputs.ksu_type }}" == "resukisu" ) ]]; then
             echo "正在应用KPM并修补内核..."
@@ -993,7 +992,6 @@ jobs:
           fi
 
       - name: 克隆 AnyKernel3 并打包
-        if: ${{ inputs.analysis_mode == false }}
         id: create_zip
         run: |
           cd kernel_workspace
@@ -1059,7 +1057,6 @@ jobs:
           zip -z ../$AK3_NAME < ./ak3.log
 
       - name: 上传 Ccache 调试日志
-        if: ${{ inputs.analysis_mode == false }}
         if: always() && inputs.ccache_debug
         uses: actions/upload-artifact@v7
         with:
@@ -1068,14 +1065,12 @@ jobs:
           archive: true
 
       - name: 上传 ZIP 工件
-        if: ${{ inputs.analysis_mode == false }}
         uses: actions/upload-artifact@v7
         with:
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
           archive: false
 
   release:
-    if: ${{ inputs.analysis_mode == false }}
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -1085,7 +1080,6 @@ jobs:
 
     steps:
       - name: 下载 ZIP 工件
-        if: ${{ inputs.analysis_mode == false }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build.outputs.ak3name }}
@@ -1093,7 +1087,6 @@ jobs:
           skip-decompress: true
 
       - name: 设置环境变量
-        if: ${{ inputs.analysis_mode == false }}
         run: |
           if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
             FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}-${{ github.event.inputs.kernel_suffix }}
@@ -1122,7 +1115,6 @@ jobs:
           echo "KSU_TYPENAME=$KSU_TYPENAME" >> $GITHUB_ENV
 
       - name: 创建发布
-        if: ${{ inputs.analysis_mode == false }}
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1133,6 +1125,10 @@ jobs:
             UPSTREAM_NOTE="上游补丁：未合并（使用 OEM 纯净 6.6.89）"
           fi
           echo "UPSTREAM_NOTE=$UPSTREAM_NOTE" >> $GITHUB_ENV
+          if [[ "${{ github.event.inputs.analysis_mode }}" == "true" ]]; then
+            echo "解析模式，跳过发布"
+            exit 0
+          fi
           cat << 'EOF' > release_notes.md
           ### 📱 ${{ env.KSU_TYPENAME }} | 骁龙8Elite | ${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}
 
