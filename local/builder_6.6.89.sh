@@ -388,16 +388,13 @@ fi
 # ===== 清理 OEM 调试配置 =====
 # 高危: KASAN + SLUB_DEBUG (极影响性能, 需验证稳定性)
 if [[ "$APPLY_DEBUG_HIGH" == "y" || "$APPLY_DEBUG_HIGH" == "Y" ]]; then
-  echo ">>> 关闭高危调试 (KASAN/SLUB_DEBUG)..."
+  echo ">>> 关闭高危调试 (SLUB_DEBUG，KASAN 保留-vendor .ko 需要)"
   cat >> "$DEFCONFIG_FILE" << 'DBGHI'
-# CONFIG_KASAN is not set
-# CONFIG_KASAN_HW_TAGS is not set
-# CONFIG_KASAN_VMALLOC is not set
+# KASAN: vendor .ko requires KASAN_HW_TAGS, CANNOT disable
 # CONFIG_SLUB_DEBUG is not set
 DBGHI
   echo "✅ 高危调试已关闭"
 fi
-
 # 中危: SCHED_DEBUG+SCHEDSTATS + FTRACE + LOCKUP + PROFILING+DEBUG_INFO + UBSAN
 if [[ "$APPLY_DEBUG_MED" == "y" || "$APPLY_DEBUG_MED" == "Y" ]]; then
   echo ">>> 关闭中危调试 (SCHED_DEBUG/FTRACE/LOCKUP/PROFILING/UBSAN)..."
@@ -412,10 +409,13 @@ if [[ "$APPLY_DEBUG_MED" == "y" || "$APPLY_DEBUG_MED" == "Y" ]]; then
 # CONFIG_DEBUG_INFO_DWARF5 is not set
 # CONFIG_UBSAN is not set
 # CONFIG_UBSAN_TRAP is not set
+# CONFIG_UBSAN_BOUNDS is not set
+# CONFIG_UBSAN_ARRAY_BOUNDS is not set
+# CONFIG_UBSAN_LOCAL_BOUNDS is not set
+# CONFIG_UBSAN_SANITIZE_ALL is not set
 DBGMED
   echo "✅ 中危调试已关闭"
 fi
-
 # 低危: PM_DEBUG + IKCONFIG + SYSRQ + ANDROID_DEBUG + KALLSYMS_ALL + BLK_DEBUG_FS + KUNIT
 if [[ "$APPLY_DEBUG_LOW" == "y" || "$APPLY_DEBUG_LOW" == "Y" ]]; then
   echo ">>> 关闭低危调试 (PM_DEBUG/IKCONFIG/SYSRQ/ANDROID_DEBUG...)..."
@@ -435,16 +435,20 @@ if [[ "$APPLY_DEBUG_LOW" == "y" || "$APPLY_DEBUG_LOW" == "Y" ]]; then
 DBGLO
   echo "✅ 低危调试已关闭"
 fi
+# 重新打开 GKI_HACKS，补偿无法关闭的 KASAN 开销
+if [[ "$APPLY_DEBUG_HIGH" == "y" || "$APPLY_DEBUG_HIGH" == "Y" || "$APPLY_DEBUG_MED" == "y" || "$APPLY_DEBUG_MED" == "Y" ]]; then
+  echo ">>> 重新启用 GKI_HACKS_FOR_DEBUG_CONFIG 对冲 KASAN..."
+  echo "CONFIG_GKI_HACKS_FOR_DEBUG_CONFIG=y" >> "$DEFCONFIG_FILE"
+  echo "✅ GKI_HACKS 已启用"
+fi
 # ===== 禁用 defconfig 检查 =====
 echo ">>> 禁用 defconfig 检查..."
 sed -i 's/check_defconfig//' ./common/build.config.gki
-
 # ===== 编译内核 =====
 echo ">>> 开始编译内核..."
 cd common
 make -j$(nproc --all) LLVM=-18 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnuabeihf- CC=clang LD=ld.lld HOSTCC=clang HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig all
 echo ">>> 内核编译成功！"
-
 # ===== 选择使用 patch_linux (KPM补丁)=====
 OUT_DIR="$WORKDIR/kernel_workspace/common/out/arch/arm64/boot"
 if [[ "$USE_PATCH_LINUX" == [bB] && $KSU_BRANCH == [yYrR] ]]; then
@@ -469,33 +473,25 @@ elif [[ "$USE_PATCH_LINUX" == [kK] ]]; then
 else
   echo ">>> 跳过 KPM 修补操作..."
 fi
-
 # ===== 克隆并打包 AnyKernel3 =====
 cd "$WORKDIR/kernel_workspace"
 echo ">>> 克隆 AnyKernel3 项目..."
 git clone https://github.com/cctv18/AnyKernel3 --depth=1
-
 echo ">>> 清理 AnyKernel3 Git 信息..."
 rm -rf ./AnyKernel3/.git
-
 echo ">>> 拷贝内核镜像到 AnyKernel3 目录..."
 cp "$OUT_DIR/Image" ./AnyKernel3/
-
 echo ">>> 进入 AnyKernel3 目录并打包 zip..."
 cd "$WORKDIR/kernel_workspace/AnyKernel3"
-
 # ===== 如果启用 lz4kd，则下载 zram.zip 并放入当前目录 =====
 if [[ "$APPLY_LZ4KD" == "y" || "$APPLY_LZ4KD" == "Y" ]]; then
   wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8750/refs/heads/main/zram.zip
 fi
-
 if [[ "$USE_PATCH_LINUX" == [kK] ]]; then
   wget https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip
 fi
-
 # ===== 生成 ZIP 文件名 =====
 ZIP_NAME="Anykernel3-${MANIFEST}"
-
 if [[ "$APPLY_SUSFS" == "y" || "$APPLY_SUSFS" == "Y" ]]; then
   ZIP_NAME="${ZIP_NAME}-susfs"
 fi
@@ -523,12 +519,9 @@ fi
 if [[ "$APPLY_BBG" == "y" || "$APPLY_BBG" == "Y" ]]; then
   ZIP_NAME="${ZIP_NAME}-bbg"
 fi
-
 ZIP_NAME="${ZIP_NAME}-v$(date +%Y%m%d).zip"
-
 # ===== 打包 ZIP 文件，包括 zram.zip（如果存在） =====
 echo ">>> 打包文件: $ZIP_NAME"
 zip -r "../$ZIP_NAME" ./*
-
 ZIP_PATH="$(realpath "../$ZIP_NAME")"
 echo ">>> 打包完成 文件所在目录: $ZIP_PATH"
