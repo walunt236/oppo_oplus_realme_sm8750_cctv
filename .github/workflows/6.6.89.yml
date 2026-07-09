@@ -100,13 +100,53 @@ on:
         type: boolean
         default: 'false'
 
-      debug_low:
-        description: "低危调试(纯日志/统计):UBSAN/SCHEDSTATS/IKCONFIG/KUNIT/PM_DEBUG/ANDROID_DEBUG等"
+      kasan_disable:
+        description: '关闭KASAN内存消毒器(极影响性能,需验证稳定性;默认关闭)'
         required: true
         type: boolean
         default: true
-      debug_high:
-        description: "高危调试(改行为):KASAN/SLUB_DEBUG/SCHED_DEBUG/DETECT_HUNG/SOFTLOCKUP等"
+      slub_debug_disable:
+        description: '关闭SLUB分配器调试(影响性能;默认关闭)'
+        required: true
+        type: boolean
+        default: true
+      sched_debug_disable:
+        description: '关闭调度器调试(SCHED_DEBUG+SCHEDSTATS;默认关闭)'
+        required: true
+        type: boolean
+        default: true
+      ftrace_disable:
+        description: '关闭FTRACE函数追踪(⚠谨慎,某些vendor模块可能依赖tracepoint;默认不关闭)'
+        required: true
+        type: boolean
+        default: false
+      lockup_disable:
+        description: '关闭锁死检测(DETECT_HUNG_TASK+SOFTLOCKUP_DETECTOR;默认关闭)'
+        required: true
+        type: boolean
+        default: true
+      profiling_disable:
+        description: '关闭内核分析+调试信息(PROFILING+DEBUG_INFO;默认关闭)'
+        required: true
+        type: boolean
+        default: true
+      ubsan_disable:
+        description: '关闭UBSAN未定义行为检测(默认关闭)'
+        required: true
+        type: boolean
+        default: true
+      pm_debug_disable:
+        description: '关闭电源管理调试(PM_DEBUG/PM_ADVANCED_DEBUG/PM_SLEEP_DEBUG;默认关闭)'
+        required: true
+        type: boolean
+        default: true
+      ikconfig_disable:
+        description: '关闭IKCONFIG内核配置暴露(默认关闭)'
+        required: true
+        type: boolean
+        default: true
+      misc_debug_disable:
+        description: '关闭杂项调试(MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT等;默认关闭)'
         required: true
         type: boolean
         default: true
@@ -666,50 +706,69 @@ jobs:
           curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
-      - name: 关闭低危调试特性
-        if: inputs.debug_low == true
+      - name: 应用调试清理配置
         run: |
-          echo "关闭低危调试..."
+          echo ">>> 应用调试清理配置..."
           cd kernel_workspace
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGLO'
-          # ===== 低危调试 =====
-          # CONFIG_UBSAN is not set
-          # CONFIG_UBSAN_TRAP is not set
-          # CONFIG_SCHEDSTATS is not set
-          # CONFIG_PROFILING is not set
-          # CONFIG_IKCONFIG is not set
-          # CONFIG_IKHEADERS is not set
-          # CONFIG_KUNIT is not set
-          # CONFIG_MAGIC_SYSRQ is not set
-          # CONFIG_KALLSYMS_ALL is not set
-          # CONFIG_BLK_DEBUG_FS is not set
-          # CONFIG_CMA_DEBUGFS is not set
-          # CONFIG_ANDROID_DEBUG_SYMBOLS is not set
-          # CONFIG_ANDROID_DEBUG_KINFO is not set
-          # CONFIG_PM_DEBUG is not set
-          # CONFIG_PM_ADVANCED_DEBUG is not set
-          # CONFIG_PM_SLEEP_DEBUG is not set
-          DBGLO
-          echo "✅ 低危调试已关闭"
+          DCFG=./common/arch/arm64/configs/gki_defconfig
 
-      - name: 关闭高危调试特性
-        if: inputs.debug_high == true
-        run: |
-          echo "关闭高危调试..."
-          cd kernel_workspace
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGHI'
-          # ===== 高危调试 =====
-          # CONFIG_KASAN is not set
-          # CONFIG_KASAN_HW_TAGS is not set
-          # CONFIG_KASAN_VMALLOC is not set
-          # CONFIG_SLUB_DEBUG is not set
-          # CONFIG_SCHED_DEBUG is not set
-          # CONFIG_DEBUG_INFO is not set
-          # CONFIG_DEBUG_INFO_DWARF5 is not set
-          # CONFIG_DETECT_HUNG_TASK is not set
-          # CONFIG_SOFTLOCKUP_DETECTOR is not set
-          DBGHI
-          echo "✅ 高危调试已关闭"
+          if [[ "${{ github.event.inputs.kasan_disable }}" == "true" ]]; then
+            echo "  - 关闭 KASAN"
+            echo "# CONFIG_KASAN is not set" >> $DCFG
+            echo "# CONFIG_KASAN_HW_TAGS is not set" >> $DCFG
+            echo "# CONFIG_KASAN_VMALLOC is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.slub_debug_disable }}" == "true" ]]; then
+            echo "  - 关闭 SLUB_DEBUG"
+            echo "# CONFIG_SLUB_DEBUG is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.sched_debug_disable }}" == "true" ]]; then
+            echo "  - 关闭 SCHED_DEBUG + SCHEDSTATS"
+            echo "# CONFIG_SCHED_DEBUG is not set" >> $DCFG
+            echo "# CONFIG_SCHEDSTATS is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.ftrace_disable }}" == "true" ]]; then
+            echo "  - 关闭 FTRACE"
+            echo "# CONFIG_FTRACE is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.lockup_disable }}" == "true" ]]; then
+            echo "  - 关闭 DETECT_HUNG_TASK + SOFTLOCKUP_DETECTOR"
+            echo "# CONFIG_DETECT_HUNG_TASK is not set" >> $DCFG
+            echo "# CONFIG_SOFTLOCKUP_DETECTOR is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.profiling_disable }}" == "true" ]]; then
+            echo "  - 关闭 PROFILING + DEBUG_INFO"
+            echo "# CONFIG_PROFILING is not set" >> $DCFG
+            echo "# CONFIG_DEBUG_INFO is not set" >> $DCFG
+            echo "# CONFIG_DEBUG_INFO_DWARF5 is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.ubsan_disable }}" == "true" ]]; then
+            echo "  - 关闭 UBSAN"
+            echo "# CONFIG_UBSAN is not set" >> $DCFG
+            echo "# CONFIG_UBSAN_TRAP is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.pm_debug_disable }}" == "true" ]]; then
+            echo "  - 关闭 PM_DEBUG"
+            echo "# CONFIG_PM_DEBUG is not set" >> $DCFG
+            echo "# CONFIG_PM_ADVANCED_DEBUG is not set" >> $DCFG
+            echo "# CONFIG_PM_SLEEP_DEBUG is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.ikconfig_disable }}" == "true" ]]; then
+            echo "  - 关闭 IKCONFIG"
+            echo "# CONFIG_IKCONFIG is not set" >> $DCFG
+            echo "# CONFIG_IKHEADERS is not set" >> $DCFG
+          fi
+          if [[ "${{ github.event.inputs.misc_debug_disable }}" == "true" ]]; then
+            echo "  - 关闭 杂项调试(MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT)"
+            echo "# CONFIG_MAGIC_SYSRQ is not set" >> $DCFG
+            echo "# CONFIG_ANDROID_DEBUG_SYMBOLS is not set" >> $DCFG
+            echo "# CONFIG_ANDROID_DEBUG_KINFO is not set" >> $DCFG
+            echo "# CONFIG_KALLSYMS_ALL is not set" >> $DCFG
+            echo "# CONFIG_BLK_DEBUG_FS is not set" >> $DCFG
+            echo "# CONFIG_CMA_DEBUGFS is not set" >> $DCFG
+            echo "# CONFIG_KUNIT is not set" >> $DCFG
+          fi
+          echo "✅ 调试清理配置完成"
 
       - name: 添加制作名称
         run: |
@@ -919,8 +978,16 @@ jobs:
           echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
           echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
           echo "RCU_NOCB: ${{ github.event.inputs.rcu_nocb_enable }}" >> ./ak3.log
-          echo "低危调试清理: ${{ github.event.inputs.debug_low }}" >> ./ak3.log
-          echo "高危调试清理: ${{ github.event.inputs.debug_high }}" >> ./ak3.log
+          echo "KASAN: ${{ github.event.inputs.kasan_disable }}" >> ./ak3.log
+          echo "SLUB_DEBUG: ${{ github.event.inputs.slub_debug_disable }}" >> ./ak3.log
+          echo "SCHED_DEBUG: ${{ github.event.inputs.sched_debug_disable }}" >> ./ak3.log
+          echo "FTRACE: ${{ github.event.inputs.ftrace_disable }}" >> ./ak3.log
+          echo "LOCKUP: ${{ github.event.inputs.lockup_disable }}" >> ./ak3.log
+          echo "PROFILING: ${{ github.event.inputs.profiling_disable }}" >> ./ak3.log
+          echo "UBSAN: ${{ github.event.inputs.ubsan_disable }}" >> ./ak3.log
+          echo "PM_DEBUG: ${{ github.event.inputs.pm_debug_disable }}" >> ./ak3.log
+          echo "IKCONFIG: ${{ github.event.inputs.ikconfig_disable }}" >> ./ak3.log
+          echo "MISC_DBG: ${{ github.event.inputs.misc_debug_disable }}" >> ./ak3.log
           zip -z ../$AK3_NAME < ./ak3.log
 
       - name: 上传 Ccache 调试日志
@@ -1011,8 +1078,16 @@ jobs:
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
           | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
-          | 低危调试清理 | ${{ github.event.inputs.debug_low }} |
-          | 高危调试清理 | ${{ github.event.inputs.debug_high }} |
+          | KASAN 关闭 | ${{ github.event.inputs.kasan_disable }} |
+          | SLUB_DEBUG 关闭 | ${{ github.event.inputs.slub_debug_disable }} |
+          | SCHED调试 关闭 | ${{ github.event.inputs.sched_debug_disable }} |
+          | FTRACE 关闭 | ${{ github.event.inputs.ftrace_disable }} |
+          | 锁死检测 关闭 | ${{ github.event.inputs.lockup_disable }} |
+          | 分析/调试信息 关闭 | ${{ github.event.inputs.profiling_disable }} |
+          | UBSAN 关闭 | ${{ github.event.inputs.ubsan_disable }} |
+          | PM调试 关闭 | ${{ github.event.inputs.pm_debug_disable }} |
+          | IKCONFIG 关闭 | ${{ github.event.inputs.ikconfig_disable }} |
+          | 杂项调试 关闭 | ${{ github.event.inputs.misc_debug_disable }} |
 
           **刷入前请备份 boot 分区。**
           EOF
