@@ -140,13 +140,8 @@ env:
         required: true
         type: boolean
         default: true
-      ikconfig_disable:
-        description: '关闭IKCONFIG内核配置暴露(默认关闭)'
-        required: true
-        type: boolean
-        default: true
       misc_debug_disable:
-        description: '关闭杂项调试(MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT等;默认关闭)'
+        description: '关闭杂项调试(IKCONFIG/MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT等;默认关闭)'
         required: true
         type: boolean
         default: true
@@ -753,13 +748,11 @@ jobs:
             echo "# CONFIG_PM_ADVANCED_DEBUG is not set" >> $DCFG
             echo "# CONFIG_PM_SLEEP_DEBUG is not set" >> $DCFG
           fi
-          if [[ "${{ github.event.inputs.ikconfig_disable }}" == "true" ]]; then
-            echo "  - 关闭 IKCONFIG"
+
+          if [[ "${{ github.event.inputs.misc_debug_disable }}" == "true" ]]; then
+            echo "  - 关闭 杂项调试(IKCONFIG/MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT)"
             echo "# CONFIG_IKCONFIG is not set" >> $DCFG
             echo "# CONFIG_IKHEADERS is not set" >> $DCFG
-          fi
-          if [[ "${{ github.event.inputs.misc_debug_disable }}" == "true" ]]; then
-            echo "  - 关闭 杂项调试(MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT)"
             echo "# CONFIG_MAGIC_SYSRQ is not set" >> $DCFG
             echo "# CONFIG_ANDROID_DEBUG_SYMBOLS is not set" >> $DCFG
             echo "# CONFIG_ANDROID_DEBUG_KINFO is not set" >> $DCFG
@@ -986,7 +979,6 @@ jobs:
           echo "PROFILING: ${{ github.event.inputs.profiling_disable }}" >> ./ak3.log
           echo "UBSAN: ${{ github.event.inputs.ubsan_disable }}" >> ./ak3.log
           echo "PM_DEBUG: ${{ github.event.inputs.pm_debug_disable }}" >> ./ak3.log
-          echo "IKCONFIG: ${{ github.event.inputs.ikconfig_disable }}" >> ./ak3.log
           echo "MISC_DBG: ${{ github.event.inputs.misc_debug_disable }}" >> ./ak3.log
           zip -z ../$AK3_NAME < ./ak3.log
 
@@ -1086,7 +1078,6 @@ jobs:
           | 分析/调试信息 关闭 | ${{ github.event.inputs.profiling_disable }} |
           | UBSAN 关闭 | ${{ github.event.inputs.ubsan_disable }} |
           | PM调试 关闭 | ${{ github.event.inputs.pm_debug_disable }} |
-          | IKCONFIG 关闭 | ${{ github.event.inputs.ikconfig_disable }} |
           | 杂项调试 关闭 | ${{ github.event.inputs.misc_debug_disable }} |
 
           **刷入前请备份 boot 分区。**
