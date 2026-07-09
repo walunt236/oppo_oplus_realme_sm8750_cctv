@@ -1,4 +1,4 @@
-name: 6.6.89 欧加真OKI内核快速构建
+name: "6.6.89 欧加真OKI内核快速构建"
 
 env:
   TZ: Asia/Shanghai
@@ -8,7 +8,7 @@ env:
   KERNEL_NAME: 'android15-6.6-latest-4k'
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       ksu_type:
