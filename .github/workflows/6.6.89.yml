@@ -822,10 +822,6 @@ jobs:
 
       - name: 解析模式 — 仅生成 .config 并上传
         run: |
-          if [[ "${{ github.event.inputs.analysis_mode }}" != "true" ]]; then
-            echo "非解析模式，跳过"
-            exit 0
-          fi
           echo "============================================"
           echo "  解析模式: 仅解析 Kconfig，不编译内核"
           echo "============================================"
@@ -1084,12 +1080,11 @@ jobs:
     steps:
       - name: 取消发布（解析模式）
         run: |
-          if [[ "${{ github.event.inputs.analysis_mode }}" != "true" ]]; then
-            echo "正常模式，继续发布"
+          if [[ "${{ github.event.inputs.analysis_mode }}" == "true" ]]; then
+            echo "解析模式，跳过发布"
             exit 0
           fi
-          echo "解析模式，跳过发布"
-          exit 0
+          echo "正常模式，继续发布"
 
       - name: 下载 ZIP 工件
         uses: actions/download-artifact@v8
