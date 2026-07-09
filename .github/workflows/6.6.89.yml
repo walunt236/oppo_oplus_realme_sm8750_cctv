@@ -1,4 +1,4 @@
-name: 6.6.89 kernel build
+name: 6.6.89 欧加真OKI内核快速构建
 
 env:
   TZ: Asia/Shanghai
@@ -16,10 +16,10 @@ on:
   workflow_dispatch:
     inputs:
       ksu_type:
-        description: 'KernelSU分支'
+        description: 'KernelSU分支(ReSukiSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认ReSukiSU)'
         required: true
         type: choice
-        default: 'ksu'
+        default: 'resukisu'
         options:
           - 'resukisu'
           - 'sukisu'
@@ -27,12 +27,12 @@ on:
           - 'ksu'
           - 'none'
       susfs_enable:
-        description: 'susfs'
+        description: '是否开启susfs(用于增强隐藏环境挂载功能; 可能轻微增加耗电，上游更新导致不稳定时或不需要可关闭)'
         required: true
         type: boolean
         default: 'false'
       kpm_enable:
-        description: 'kpm'
+        description: '是否开启kpm(builtin-使用(re)sukisu内置kpm, kpn-使用独立kpm实现(支持任意KSU/面具环境); 不需要可保持默认关闭)'
         required: true
         type: choice
         default: 'false'
@@ -41,105 +41,84 @@ on:
           - 'builtin'
           - 'kpn'
       lz4_enable:
-        description: 'lz4 1.10.0+zstd 1.5.7 补丁'
+        description: '是否安装 lz4 1.10.0+zstd 1.5.7 补丁'
         required: true
         type: boolean
-        default: 'true'
+        default: 'false'
       lz4kd_enable:
-        description: 'LZ4KD 补丁'
+        description: '是否安装 LZ4KD 补丁(若已开启lz4+zstd补丁则可不开启)'
         required: true
         type: boolean
         default: 'false'
       bbr_enable:
-        description: "bbr support"
+        description: "是否启用bbr算法(优化上行数据,对手机日用无太大意义甚至可能负优化;false关闭,true仅加入算法,default启用算法并设为默认)"
         required: true
         type: choice
-        default: 'true'
+        default: 'false'
         options:
           - 'false'
           - 'true'
           - 'default'
       droidspaces_enable:
-        description: 'Droidspaces support'
+        description: '是否启用Droidspaces容器支持(轻量化的完整Linux容器支持;false关闭,standard开启容器+ntsync支持,extend开启更多测试支持项)'
         required: true
         type: choice
-        default: 'extend'
+        default: 'false'
         options:
           - 'false'
           - 'standard'
           - 'extend'
       better_net:
-        description: 'iptable ipset拓展配置'
+        description: '是否开启网络功能拓展配置(用于为ipset及需要iptables等高级网络功能内核支持的程序提供支持)'
         required: true
         type: boolean
-        default: 'true'
+        default: 'false'
       adios_enable:
-        description: 'ADIOS IO'
+        description: '是否启用ADIOS IO调度器支持(提升IO读写性能)'
         required: true
         type: boolean
-        default: 'true'
+        default: 'false'
       rekernel_enable:
-        description: 'Re-Kernel support'
+        description: '是否启用Re-Kernel支持(与Freezer/NoActive等软件配合, 提升应用冻结能力)'
         required: true
         type: boolean
         default: 'false'
       baseband_guard:
-        description: '内核基带保护'
+        description: '是否开启内核级基带保护(阻止一切对非用户分区的写入，有效防止格机)'
         required: true
         type: boolean
         default: 'false'
       rcu_nocb_enable:
-        description: 'RCU_NOCB_CPU'
+        description: '开启 RCU_NOCB_CPU (减少软中断抢占UI线程; 已通过验证)'
         required: true
         type: boolean
-        default: 'true'
+        default: 'false'
       ccache_update:
-        description: '更新ccache缓存'
+        description: '更新ccache缓存(将本次编译生成的ccache缓存覆盖至仓库缓存，在更改编译配置、源码或需要刷新缓存时开启)'
         required: true
         type: boolean
         default: 'false'
       ccache_debug:
-        description: '上传Ccache调试日志(用于调试, 无需要不必开启)'
+        description: '是否上传 Ccache调试日志(用于调试, 无需要不必开启)'
         required: true
         type: boolean
         default: 'false'
 
-      optimize_perf:
-        description: '内核性能优化(MPTCP/SCHED_CLUSTER/LTO/ZSWAP/BBR默认等; 日用提升明显)'
-        required: true
-        type: boolean
-        default: true
-      optimize_security:
-        description: '内核安全加固(BTI_KERNEL/RANDSTRUCT/DMESG_RESTRICT等; 极小开销)'
-        required: true
-        type: boolean
-        default: true
       optimize_debug_off:
-        description: '关闭内核调试特性(KASAN/UBSAN/DEBUG_INFO等; 大幅提升性能; 保留BTF确保BPF兼容)'
+        description: "关闭内核调试特性(KASAN/UBSAN/DEBUG_INFO等; 保留BTF/FRAME_POINTER)"
         required: true
         type: boolean
         default: true
-      optimize_legacy_off:
-        description: '关闭废弃兼容层(ARMv7模拟/KUSER_HELPERS/COREDUMP等; 减少攻击面)'
-        required: true
-        type: boolean
-        default: false
-
-      analysis_mode:
-        description: '解析模式: 仅跑 make gki_defconfig 并上传 .config(2-3分钟,验证配置; 不编译内核)'
-        required: true
-        type: boolean
-        default: false
       kernel_suffix:
-        description: '内核后缀'
+        description: '内核后缀(留空默认,开头别加连字符,勿加空格等影响指令运行的保留字符)'
         required: false
         type: string
         default: ''
       upstream_merge:
-        description: '合并上游6.6内核补丁'
+        description: '是否合并上游最新6.6内核补丁(关闭则使用OEM纯净89源码编译)'
         required: true
         type: boolean
-        default: 'true'
+        default: 'false'
 
 jobs:
   build:
@@ -287,7 +266,7 @@ jobs:
       - name: 配置ccache目录
         run: |
           echo "CCACHE_DIR=$HOME/.ccache_${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=5G" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=3G" >> $GITHUB_ENV
           echo "当前磁盘空间："
           df -h
           echo "当前构建内核版本：${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}"
@@ -349,12 +328,12 @@ jobs:
       - name: 初始化并配置ccache
         run: |
           export CCACHE_COMPILERCHECK="none"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
           export CCACHE_BASEDIR="${{ github.workspace }}"
           export CCACHE_NOHASHDIR="true"
           export CCACHE_NOHARDLINK="true"
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="${{ env.CCACHE_MAXSIZE }}"
-          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
 
           mkdir -p "$CCACHE_DIR"
 
@@ -683,63 +662,13 @@ jobs:
           curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
-      - name: 应用内核性能与安全优化配置
+      - name: 关闭内核调试特性
+        if: inputs.optimize_debug_off == true
         run: |
-          echo "正在应用内核优化配置..."
+          echo "关闭内核调试特性（保留 BTF/FRAME_POINTER）..."
           cd kernel_workspace
-
-          if [[ "${{ github.event.inputs.optimize_perf }}" == "true" ]]; then
-            echo ">>> [1/4] 应用性能优化..."
-            cat >> ./common/arch/arm64/configs/gki_defconfig << 'PERFEOF'
-          # ===== 网络 ====="
-          CONFIG_MPTCP=y
-          CONFIG_SYN_COOKIES=y
-          CONFIG_TCP_FASTOPEN=y
-          # ===== 网络 QoS ====="
-          CONFIG_NET_SCH_FQ=y
-          CONFIG_DEFAULT_FQ_CODEL=y
-          CONFIG_NET_SCH_DEFAULT=y
-          # ===== 块层优化 ====="
-          CONFIG_BLK_WBT_MQ=y
-          CONFIG_BLK_DEV_THROTTLING_LOW=y
-          # ===== 内存 ====="
-          CONFIG_ZRAM_MULTI_COMP=y
-          # ===== RCU 回调加速（补充已有 NOCB）====="
-          CONFIG_RCU_NOCB_CPU_CB_BOOST=y
-          # ===== 电源 ====="
-          CONFIG_PM_WAKELOCKS_GC=y
-          # ===== 文件系统 ====="
-          CONFIG_EROFS_FS_ZIP_LZMA=y
-          PERFEOF
-            echo "   ✅ 性能优化已应用"
-          else
-            echo "   ⏭️ 跳过性能优化"
-          fi
-
-          if [[ "${{ github.event.inputs.optimize_security }}" == "true" ]]; then
-            echo ">>> [2/4] 应用安全加固..."
-            cat >> ./common/arch/arm64/configs/gki_defconfig << 'SECEOF'
-          # ===== 零风险安全加固 ====="
-          CONFIG_INIT_ON_FREE_DEFAULT_ON=y
-          CONFIG_ZERO_CALL_USED_REGS=y
-          CONFIG_SECURITY_DMESG_RESTRICT=y
-          CONFIG_SECURITY_SAFESETID=y
-          # ===== 低风险安全加固 ====="
-          CONFIG_SECURITY_YAMA=y
-          # ===== MODULE_SIG 换 SHA256 ====="
-          # CONFIG_MODULE_SIG_SHA1 is not set
-          CONFIG_MODULE_SIG_SHA256=y
-          CONFIG_MODULE_SIG_HASH="sha256"
-          SECEOF
-            echo "   ✅ 安全加固已应用"
-          else
-            echo "   ⏭️ 跳过安全加固"
-          fi
-
-          if [[ "${{ github.event.inputs.optimize_debug_off }}" == "true" ]]; then
-            echo ">>> [3/4] 关闭调试特性..."
-            cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGEOF'
-          # ===== 关闭调试开销（保留 BTF/FRAME_POINTER/KPROBES）====="
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGEOF'
+          # ===== 关闭调试开销 =====
           # CONFIG_KASAN is not set
           # CONFIG_KASAN_HW_TAGS is not set
           # CONFIG_UBSAN is not set
@@ -750,7 +679,6 @@ jobs:
           # CONFIG_PAGE_OWNER is not set
           # CONFIG_SCHED_DEBUG is not set
           # CONFIG_SCHEDSTATS is not set
-          # CONFIG_UPROBES is not set
           # CONFIG_PROFILING is not set
           # CONFIG_DETECT_HUNG_TASK is not set
           # CONFIG_SOFTLOCKUP_DETECTOR is not set
@@ -765,39 +693,7 @@ jobs:
           # CONFIG_PM_ADVANCED_DEBUG is not set
           # CONFIG_PM_SLEEP_DEBUG is not set
           DBGEOF
-            echo "   ✅ 调试特性已关闭"
-          else
-            echo "   ⏭️ 保留调试特性"
-          fi
-
-          if [[ "${{ github.event.inputs.optimize_legacy_off }}" == "true" ]]; then
-            echo ">>> [4/4] 关闭废弃兼容层..."
-            cat >> ./common/arch/arm64/configs/gki_defconfig << 'LEGEOF'
-          # ===== 关闭废弃兼容层 ====="
-          # CONFIG_ARMV8_DEPRECATED is not set
-          # CONFIG_SWP_EMULATION is not set
-          # CONFIG_CP15_BARRIER_EMULATION is not set
-          # CONFIG_SETEND_EMULATION is not set
-          # CONFIG_HIBERNATION is not set
-          # CONFIG_CLEANCACHE is not set
-          # CONFIG_COREDUMP is not set
-          # CONFIG_ELF_CORE is not set
-          # CONFIG_DEBUG_BUGVERBOSE is not set
-          LEGEOF
-
-            echo "   🔧 修补 OEM 源码 binfmt_elf.c..."
-            cd common
-            sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/i #ifdef CONFIG_COREDUMP' fs/binfmt_elf.c
-            sed -i '/elf_format\.min_coredump = ELF_EXEC_PAGESIZE;/a #endif' fs/binfmt_elf.c
-            echo "   ✅ 源码补丁已应用"
-            cd ..
-
-            echo "   ✅ 废弃兼容层已关闭"
-          else
-            echo "   ⏭️ 保留废弃兼容层"
-          fi
-
-          echo "✅ 内核优化配置全部完成！"
+          echo "✅ 调试特性已关闭"
 
       - name: 添加制作名称
         run: |
@@ -820,60 +716,8 @@ jobs:
           echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
 
 
-      - name: 解析模式 — 仅生成 .config 并上传
-        run: |
-          echo "============================================"
-          echo "  解析模式: 仅解析 Kconfig，不编译内核"
-          echo "============================================"
-          cd kernel_workspace/common
-
-          echo "--- 环境检查 ---"
-          clang --version | head -1
-          echo "ARCH=arm64, LLVM=1"
-
-          echo ""
-          echo "--- make gki_defconfig ---"
-          set -o pipefail
-          if ! make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- O=out gki_defconfig 2>&1; then
-            echo ""
-            echo "❌ gki_defconfig 失败！"
-            exit 1
-          fi
-          echo ""
-          echo "✅ gki_defconfig 通过"
-          ls -la out/.config
-
-          echo ""
-          echo "--- 关键配置验证 ---"
-          for cfg in LTO_NONE LTO_CLANG_THIN LTO_CLANG_FULL RANDSTRUCT_NONE RANDSTRUCT_FULL MODULE_SIG_SHA1 MODULE_SIG_SHA256 DEBUG_INFO_BTF KASAN UBSAN ZSWAP TCP_CONG_BBR DEFAULT_TCP_CONG MPTCP SYN_COOKIES TCP_FASTOPEN BLK_WBT_MQ EROFS_FS_ZIP_LZMA INIT_ON_FREE_DEFAULT_ON ZERO_CALL_USED_REGS SECURITY_DMESG_RESTRICT SECURITY_YAMA PM_WAKELOCKS_GC RCU_NOCB_CPU_CB_BOOST COREDUMP HIBERNATION ARMV8_DEPRECATED; do
-            val=$(grep "CONFIG_${cfg}[= ]" out/.config | head -1 | tr -d '\n')
-            if [ -n "$val" ]; then
-              echo "  $val"
-            else
-              echo "  CONFIG_${cfg} — 未找到"
-            fi
-          done
-
-          echo ""
-          echo "--- 上传最终 .config ---"
-          cp out/.config ../final_config.txt
-          cd ..
-          echo "文件: kernel_workspace/final_config.txt ($(wc -l < final_config.txt) 行)"
-          echo "✅ 解析完成！下载 final_config.txt artifact 查看完整配置"
-
-      - name: 上传解析后的 .config
-        uses: actions/upload-artifact@v7
-        with:
-          name: kernel-final-config
-          path: kernel_workspace/final_config.txt
-          archive: false
-
       - name: 构建内核
         run: |
-          if [[ "${{ github.event.inputs.analysis_mode }}" == "true" ]]; then
-            echo "解析模式，跳过内核编译"
-            exit 0
-          fi
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
           export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
@@ -888,6 +732,7 @@ jobs:
 
           export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
           export CCACHE_COMPILERCHECK="none"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
           export CCACHE_BASEDIR="${{ github.workspace }}"
           export CCACHE_NOHASHDIR="true"
           export CCACHE_NOHARDLINK="true"
@@ -1081,14 +926,6 @@ jobs:
       actions: read
 
     steps:
-      - name: 取消发布（解析模式）
-        run: |
-          if [[ "${{ github.event.inputs.analysis_mode }}" == "true" ]]; then
-            echo "解析模式，跳过发布"
-            exit 0
-          fi
-          echo "正常模式，继续发布"
-
       - name: 下载 ZIP 工件
         uses: actions/download-artifact@v8
         with:
@@ -1154,10 +991,6 @@ jobs:
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
           | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
-          | ⚡性能优化 | ${{ github.event.inputs.optimize_perf }} |
-          | 🛡️安全加固 | ${{ github.event.inputs.optimize_security }} |
-          | 🐛关闭调试 | ${{ github.event.inputs.optimize_debug_off }} |
-          | 🗑️关闭废弃 | ${{ github.event.inputs.optimize_legacy_off }} |
 
           **刷入前请备份 boot 分区。**
           EOF
