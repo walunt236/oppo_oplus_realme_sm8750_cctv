@@ -101,10 +101,10 @@ env:
         default: 'false'
 
       kasan_disable:
-        description: '关闭KASAN内存消毒器(极影响性能,需验证稳定性;默认关闭)'
+        description: '关闭KASAN内存消毒器(⚠ vendor .ko 不兼容, 开启会导致不开机)'
         required: true
         type: boolean
-        default: true
+        default: false
       slub_debug_disable:
         description: '关闭SLUB分配器调试(影响性能;默认关闭)'
         required: true
@@ -706,10 +706,8 @@ jobs:
           DCFG=./common/arch/arm64/configs/gki_defconfig
 
           if [[ "${{ github.event.inputs.kasan_disable }}" == "true" ]]; then
-            echo "  - 关闭 KASAN"
-            echo "# CONFIG_KASAN is not set" >> $DCFG
-            echo "# CONFIG_KASAN_HW_TAGS is not set" >> $DCFG
-            echo "# CONFIG_KASAN_VMALLOC is not set" >> $DCFG
+            echo "⚠️  KASAN 无法关闭 — vendor .ko 依赖 HW_TAGS ABI，强行保留启用"
+            echo "   KASAN 开销由 GKI_HACKS_FOR_DEBUG_CONFIG 对冲"
           fi
           if [[ "${{ github.event.inputs.slub_debug_disable }}" == "true" ]]; then
             echo "  - 关闭 SLUB_DEBUG"
@@ -741,6 +739,10 @@ jobs:
             echo "  - 关闭 UBSAN"
             echo "# CONFIG_UBSAN is not set" >> $DCFG
             echo "# CONFIG_UBSAN_TRAP is not set" >> $DCFG
+            echo "# CONFIG_UBSAN_BOUNDS is not set" >> $DCFG
+            echo "# CONFIG_UBSAN_ARRAY_BOUNDS is not set" >> $DCFG
+            echo "# CONFIG_UBSAN_LOCAL_BOUNDS is not set" >> $DCFG
+            echo "# CONFIG_UBSAN_SANITIZE_ALL is not set" >> $DCFG
           fi
           if [[ "${{ github.event.inputs.pm_debug_disable }}" == "true" ]]; then
             echo "  - 关闭 PM_DEBUG"
@@ -761,6 +763,9 @@ jobs:
             echo "# CONFIG_CMA_DEBUGFS is not set" >> $DCFG
             echo "# CONFIG_KUNIT is not set" >> $DCFG
           fi
+
+          echo "  - 启用 GKI_HACKS (对冲 KASAN 开销)"
+          echo "CONFIG_GKI_HACKS_FOR_DEBUG_CONFIG=y" >> $DCFG
           echo "✅ 调试清理配置完成"
 
       - name: 添加制作名称
