@@ -706,8 +706,10 @@ jobs:
           DCFG=./common/arch/arm64/configs/gki_defconfig
 
           if [[ "${{ github.event.inputs.kasan_disable }}" == "true" ]]; then
-            echo "⚠️  KASAN 无法关闭 — vendor .ko 依赖 HW_TAGS ABI，强行保留启用"
-            echo "   KASAN 开销由 GKI_HACKS_FOR_DEBUG_CONFIG 对冲"
+            echo "  - 关闭 KASAN"
+            echo "# CONFIG_KASAN is not set" >> $DCFG
+            echo "# CONFIG_KASAN_HW_TAGS is not set" >> $DCFG
+            echo "# CONFIG_KASAN_VMALLOC is not set" >> $DCFG
           fi
           if [[ "${{ github.event.inputs.slub_debug_disable }}" == "true" ]]; then
             echo "  - 关闭 SLUB_DEBUG"
@@ -764,8 +766,6 @@ jobs:
             echo "# CONFIG_KUNIT is not set" >> $DCFG
           fi
 
-          echo "  - 启用 GKI_HACKS (对冲 KASAN 开销)"
-          echo "CONFIG_GKI_HACKS_FOR_DEBUG_CONFIG=y" >> $DCFG
           echo "✅ 调试清理配置完成"
 
       - name: 添加制作名称
