@@ -105,6 +105,16 @@ on:
         required: true
         type: boolean
         default: true
+      debug_low:
+        description: "低危调试(纯日志/统计):UBSAN/SCHEDSTATS/IKCONFIG/KUNIT/PM_DEBUG等"
+        required: true
+        type: boolean
+        default: true
+      debug_high:
+        description: "高危调试(改行为):SLUB_DEBUG/DEBUG_INFO/DETECT_HUNG/SOFTLOCKUP等"
+        required: true
+        type: boolean
+        default: true
       kernel_suffix:
         description: '内核后缀(留空默认,开头别加连字符,勿加空格等影响指令运行的保留字符)'
         required: false
@@ -325,6 +335,7 @@ jobs:
         run: |
           export CCACHE_COMPILERCHECK="none"
           export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
           export CCACHE_BASEDIR="${{ github.workspace }}"
           export CCACHE_NOHASHDIR="true"
           export CCACHE_NOHARDLINK="true"
@@ -336,6 +347,7 @@ jobs:
           echo "配置ccache缓存大小为: $CCACHE_MAXSIZE"
           ccache -M "$CCACHE_MAXSIZE"
           ccache -o compression=true
+          ccache -o sloppiness="$CCACHE_SLOPPINESS"
           ccache -o sloppiness="$CCACHE_SLOPPINESS"
 
           echo "ccache初始状态:"
@@ -590,6 +602,7 @@ jobs:
               echo "正在将BBR设为默认拥塞控制算法..."
               echo "CONFIG_DEFAULT_TCP_CONG=bbr" >> ./common/arch/arm64/configs/gki_defconfig
               echo "CONFIG_DEFAULT_BBR=y" >> ./common/arch/arm64/configs/gki_defconfig
+              echo "CONFIG_DEFAULT_BBR=y" >> ./common/arch/arm64/configs/gki_defconfig
             else
               echo "CONFIG_DEFAULT_TCP_CONG=cubic" >> ./common/arch/arm64/configs/gki_defconfig
             fi
@@ -688,6 +701,46 @@ jobs:
           DBGEOF
           echo "✅ 调试特性已关闭"
 
+      - name: 关闭低危调试特性
+        if: inputs.debug_low == true
+        run: |
+          echo "关闭低危调试..."
+          cd kernel_workspace
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGLO'
+          # ===== 低危调试 =====
+          # CONFIG_UBSAN is not set
+          # CONFIG_UBSAN_TRAP is not set
+          # CONFIG_SCHEDSTATS is not set
+          # CONFIG_PROFILING is not set
+          # CONFIG_IKCONFIG is not set
+          # CONFIG_IKHEADERS is not set
+          # CONFIG_KUNIT is not set
+          # CONFIG_MAGIC_SYSRQ is not set
+          # CONFIG_KALLSYMS_ALL is not set
+          # CONFIG_BLK_DEBUG_FS is not set
+          # CONFIG_CMA_DEBUGFS is not set
+          # CONFIG_PM_DEBUG is not set
+          # CONFIG_PM_ADVANCED_DEBUG is not set
+          # CONFIG_PM_SLEEP_DEBUG is not set
+          DBGLO
+          echo "✅ 低危调试已关闭"
+
+      - name: 关闭高危调试特性
+        if: inputs.debug_high == true
+        run: |
+          echo "关闭高危调试..."
+          cd kernel_workspace
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGHI'
+          # ===== 高危调试 =====
+          # CONFIG_DEBUG_INFO is not set
+          # CONFIG_DEBUG_INFO_DWARF5 is not set
+          # CONFIG_SLUB_DEBUG is not set
+          # CONFIG_SCHED_DEBUG is not set
+          # CONFIG_DETECT_HUNG_TASK is not set
+          # CONFIG_SOFTLOCKUP_DETECTOR is not set
+          DBGHI
+          echo "✅ 高危调试已关闭"
+
       - name: 添加制作名称
         run: |
           cd kernel_workspace
@@ -726,6 +779,7 @@ jobs:
           export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
           export CCACHE_COMPILERCHECK="none"
           export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
           export CCACHE_BASEDIR="${{ github.workspace }}"
           export CCACHE_NOHASHDIR="true"
           export CCACHE_NOHARDLINK="true"
@@ -740,6 +794,7 @@ jobs:
           chmod 777 ./*.so
           export FAKESTAT="2025-05-25 12:00:00"
           export FAKETIME="@2025-05-25 13:00:00"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
           export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
           echo "FAKESTAT=$FAKESTAT" >> $GITHUB_ENV
           echo "FAKETIME=$FAKETIME" >> $GITHUB_ENV
