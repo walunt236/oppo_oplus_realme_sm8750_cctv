@@ -684,7 +684,6 @@ jobs:
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
       - name: 应用内核性能与安全优化配置
-
         run: |
           echo "正在应用内核优化配置..."
           cd kernel_workspace
@@ -823,6 +822,10 @@ jobs:
 
       - name: 解析模式 — 仅生成 .config 并上传
         run: |
+          if [[ "${{ github.event.inputs.analysis_mode }}" != "true" ]]; then
+            echo "非解析模式，跳过"
+            exit 0
+          fi
           echo "============================================"
           echo "  解析模式: 仅解析 Kconfig，不编译内核"
           echo "============================================"
@@ -1079,6 +1082,15 @@ jobs:
       actions: read
 
     steps:
+      - name: 取消发布（解析模式）
+        run: |
+          if [[ "${{ github.event.inputs.analysis_mode }}" != "true" ]]; then
+            echo "正常模式，继续发布"
+            exit 0
+          fi
+          echo "解析模式，跳过发布"
+          exit 0
+
       - name: 下载 ZIP 工件
         uses: actions/download-artifact@v8
         with:
@@ -1125,10 +1137,6 @@ jobs:
             UPSTREAM_NOTE="上游补丁：未合并（使用 OEM 纯净 6.6.89）"
           fi
           echo "UPSTREAM_NOTE=$UPSTREAM_NOTE" >> $GITHUB_ENV
-          if [[ "${{ github.event.inputs.analysis_mode }}" == "true" ]]; then
-            echo "解析模式，跳过发布"
-            exit 0
-          fi
           cat << 'EOF' > release_notes.md
           ### 📱 ${{ env.KSU_TYPENAME }} | 骁龙8Elite | ${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}
 
