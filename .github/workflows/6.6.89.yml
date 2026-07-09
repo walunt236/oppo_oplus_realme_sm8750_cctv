@@ -100,11 +100,6 @@ on:
         type: boolean
         default: 'false'
 
-      optimize_debug_off:
-        description: "关闭内核调试特性(KASAN/UBSAN/DEBUG_INFO等; 保留BTF/FRAME_POINTER)"
-        required: true
-        type: boolean
-        default: true
       debug_low:
         description: "低危调试(纯日志/统计):UBSAN/SCHEDSTATS/IKCONFIG/KUNIT/PM_DEBUG等"
         required: true
@@ -670,36 +665,6 @@ jobs:
           cd ./common
           curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
-
-      - name: 关闭内核调试特性
-        if: inputs.optimize_debug_off == true
-        run: |
-          echo "关闭内核调试特性（保留 BTF/FRAME_POINTER）..."
-          cd kernel_workspace
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'DBGEOF'
-          # ===== 关闭调试开销 =====
-          # CONFIG_UBSAN is not set
-          # CONFIG_UBSAN_TRAP is not set
-          # CONFIG_DEBUG_INFO is not set
-          # CONFIG_DEBUG_INFO_DWARF5 is not set
-          # CONFIG_SLUB_DEBUG is not set
-          # CONFIG_SCHED_DEBUG is not set
-          # CONFIG_SCHEDSTATS is not set
-          # CONFIG_PROFILING is not set
-          # CONFIG_DETECT_HUNG_TASK is not set
-          # CONFIG_SOFTLOCKUP_DETECTOR is not set
-          # CONFIG_IKCONFIG is not set
-          # CONFIG_IKHEADERS is not set
-          # CONFIG_KUNIT is not set
-          # CONFIG_MAGIC_SYSRQ is not set
-          # CONFIG_KALLSYMS_ALL is not set
-          # CONFIG_BLK_DEBUG_FS is not set
-          # CONFIG_CMA_DEBUGFS is not set
-          # CONFIG_PM_DEBUG is not set
-          # CONFIG_PM_ADVANCED_DEBUG is not set
-          # CONFIG_PM_SLEEP_DEBUG is not set
-          DBGEOF
-          echo "✅ 调试特性已关闭"
 
       - name: 关闭低危调试特性
         if: inputs.debug_low == true
