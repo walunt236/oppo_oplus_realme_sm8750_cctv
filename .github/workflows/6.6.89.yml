@@ -203,14 +203,14 @@ jobs:
 
           if [[ "${{ github.event.inputs.upstream_merge }}" != "false" ]]; then
 
-            git remote add upstream https://github.com/stable/linux-stable.git
+            git remote add upstream https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
 
-            echo "正在获取 linux-stable 最新 6.6 LTS tag..."
+            echo "正在获取 kernel.org stable 最新 6.6 LTS tag..."
             LATEST_TAG=""
             for pattern in 'refs/tags/v6.6.*'; do
               echo "  尝试匹配模式: $pattern"
               LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
-                https://github.com/stable/linux-stable.git \
+                https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
                 "$pattern" 2>/dev/null \
                 | grep -v '\^{}' \
                 | head -1 | awk -F'/' '{print $NF}')
@@ -221,7 +221,7 @@ jobs:
             done
 
             if [ -z "$LATEST_TAG" ]; then
-              echo "❌ 错误：无法从 linux-stable 获取任何 v6.6 tag"
+              echo "❌ 错误：无法从 kernel.org stable 获取任何 v6.6 tag"
               exit 1
             fi
 
