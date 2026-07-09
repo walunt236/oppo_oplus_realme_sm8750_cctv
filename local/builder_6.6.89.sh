@@ -34,6 +34,11 @@ APPLY_REKERNEL=${APPLY_REKERNEL:-n}
 read -p "是否启用内核级基带保护？(y/n，默认：y): " APPLY_BBG
 APPLY_BBG=${APPLY_BBG:-y}
 
+read -p "是否关闭低危调试特性？(UBSAN/SCHEDSTATS/PM_DEBUG等纯日志项, y/n, 默认：y): " APPLY_DEBUG_LOW
+APPLY_DEBUG_LOW=${APPLY_DEBUG_LOW:-y}
+read -p "是否关闭高危调试特性？(KASAN/SLUB_DEBUG/SCHED_DEBUG等改行为项, y/n, 默认：y): " APPLY_DEBUG_HIGH
+APPLY_DEBUG_HIGH=${APPLY_DEBUG_HIGH:-y}
+
 if [[ "$KSU_BRANCH" == "y" || "$KSU_BRANCH" == "Y" ]]; then
   KSU_TYPE="SukiSU Ultra"
 elif [[ "$KSU_BRANCH" == "r" || "$KSU_BRANCH" == "R" ]]; then
@@ -69,6 +74,8 @@ echo "应用 Droidspaces 容器支持: $APPLY_DROIDSPACES"
 echo "启用ADIOS调度器: $APPLY_ADIOS"
 echo "启用Re-Kernel: $APPLY_REKERNEL"
 echo "启用内核级基带保护: $APPLY_BBG"
+echo "关闭低危调试: $APPLY_DEBUG_LOW"
+echo "关闭高危调试: $APPLY_DEBUG_HIGH"
 echo "===================="
 echo
 
@@ -116,7 +123,7 @@ echo ">>> 替换内核版本后缀..."
 for f in ./common/scripts/setlocalversion; do
   sed -i "\$s|echo \"\\\$res\"|echo \"-${CUSTOM_SUFFIX}\"|" "$f"
 done
-sudo sed -i 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-'${CUSTOM_SUFFIX}'"/' ./common/arch/arm64/configs/gki_defconfig
+sudo sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"-${CUSTOM_SUFFIX}\"/" ./common/arch/arm64/configs/gki_defconfig
 sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
 
@@ -374,6 +381,49 @@ if [[ "$APPLY_BBG" == "y" || "$APPLY_BBG" == "Y" ]]; then
   cd ..
 fi
 
+
+# ===== 清理 OEM 调试配置 =====
+if [[ "$APPLY_DEBUG_HIGH" == "y" || "$APPLY_DEBUG_HIGH" == "Y" ]]; then
+  echo ">>> 正在关闭高危调试特性 (KASAN/SLUB_DEBUG/SCHED_DEBUG)..."
+  cat >> "$DEFCONFIG_FILE" << 'DBGHI'
+# ===== 高危调试 =====
+# CONFIG_KASAN is not set
+# CONFIG_KASAN_HW_TAGS is not set
+# CONFIG_KASAN_VMALLOC is not set
+# CONFIG_SLUB_DEBUG is not set
+# CONFIG_SCHED_DEBUG is not set
+# CONFIG_DEBUG_INFO is not set
+# CONFIG_DETECT_HUNG_TASK is not set
+# CONFIG_SOFTLOCKUP_DETECTOR is not set
+DBGHI
+  echo "✅ 高危调试已关闭"
+else
+  echo ">>> 跳过高危调试清理..."
+fi
+
+if [[ "$APPLY_DEBUG_LOW" == "y" || "$APPLY_DEBUG_LOW" == "Y" ]]; then
+  echo ">>> 正在关闭低危调试特性 (UBSAN/SCHEDSTATS/PM_DEBUG...)..."
+  cat >> "$DEFCONFIG_FILE" << 'DBGLO'
+# ===== 低危调试 =====
+# CONFIG_UBSAN is not set
+# CONFIG_UBSAN_TRAP is not set
+# CONFIG_SCHEDSTATS is not set
+# CONFIG_PROFILING is not set
+# CONFIG_IKCONFIG is not set
+# CONFIG_IKHEADERS is not set
+# CONFIG_MAGIC_SYSRQ is not set
+# CONFIG_KALLSYMS_ALL is not set
+# CONFIG_BLK_DEBUG_FS is not set
+# CONFIG_ANDROID_DEBUG_SYMBOLS is not set
+# CONFIG_ANDROID_DEBUG_KINFO is not set
+# CONFIG_PM_DEBUG is not set
+# CONFIG_PM_ADVANCED_DEBUG is not set
+# CONFIG_PM_SLEEP_DEBUG is not set
+DBGLO
+  echo "✅ 低危调试已关闭"
+else
+  echo ">>> 跳过低危调试清理..."
+fi
 # ===== 禁用 defconfig 检查 =====
 echo ">>> 禁用 defconfig 检查..."
 sed -i 's/check_defconfig//' ./common/build.config.gki
