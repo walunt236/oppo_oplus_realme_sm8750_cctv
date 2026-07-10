@@ -865,6 +865,7 @@ jobs:
 
       - name: 编译内核
         run: |
+          export PATH="$(pwd)/kernel_workspace/clang18/bin:$(pwd)/kernel_workspace/build-tools/bin:$PATH"
           cd kernel_workspace/common
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
 
