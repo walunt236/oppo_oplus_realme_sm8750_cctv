@@ -119,6 +119,12 @@ on:
         type: boolean
         default: true
 
+      custom_configs:
+        description: "🧪 实验性内核配置 (每行一条; 格式 CONFIG_XXX=y 或 # CONFIG_XXX is not set; 留空则不生效; 建议先用 diagnosis 模式验证)"
+        required: false
+        type: string
+        default: ""
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -690,6 +696,22 @@ jobs:
             sed -i "s/-4k/-${UPSTREAM_TAG}/g" ./common/arch/arm64/configs/gki_defconfig
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
+
+      - name: 应用实验性配置
+        if: github.event.inputs.custom_configs != ""
+        run: |
+          echo ">>> 应用实验性额外配置 <<<"
+          cd kernel_workspace
+          echo "${{ github.event.inputs.custom_configs }}" | while IFS= read -r line; do
+            line=$(echo "$line" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+            if [ -n "$line" ] && echo "$line" | grep -qE "^(CONFIG_|# CONFIG_)"; then
+              echo "$line" >> ./common/arch/arm64/configs/gki_defconfig
+              echo "  [+] $line"
+            elif [ -n "$line" ]; then
+              echo "  [SKIP] 非法格式，已忽略: $line"
+            fi
+          done
+          echo ">>> 实验性配置应用完毕 <<<"
 
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
