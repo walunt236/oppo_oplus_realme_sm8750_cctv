@@ -126,33 +126,26 @@ on:
         type: boolean
         default: false
 
-        required: true
-        type: boolean
-        default: false
-      t1_ksm:
-        description: '"🔬 KSM (内核同页合并,省内存)"'
-        required: true
-        type: boolean
-        default: false
-      t1_rcu_lazy:
-        description: '"🔬 RCU_LAZY 默认启用 (批量RCU回调,省电)"'
+      tier3_extra:
+        description: '🔹 Tier3扩展: ZRAM=y + 栈随机化 + 省调度开销'
         required: true
         type: boolean
         default: false
 
-
-      t1_ksm:
-        description: 'KSM 内核同页合并 (省内存, 容器场景收益大)'
+      tier2_tune:
+        description: '🔶 Tier2调参: RCU_BOOST_DELAY=300 + RCU_NOCB_CB_BOOST'
         required: true
         type: boolean
         default: false
 
-      t1_rcu_lazy:
-        description: 'RCU_LAZY 默认启用 (批量RCU回调, 减少唤醒省电)'
+      tier1_perf:
+        description: '🔥 Tier1性能: RSEQ+KSM+RCU_LAZY (纯加法,零风险)'
         required: true
         type: boolean
         default: false
 
+jobs:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
@@ -740,26 +733,43 @@ on:
           HZ1000CFG
           echo "[+] HZ: 250 -> 1000"
 
-          cd kernel_workspace
-          echo "CONFIG_RSEQ=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] RSEQ 已开启"
-
-      - name: 启用 KSM 内核同页合并
-        if: inputs.t1_ksm
+      - name: 应用 Tier3 扩展优化 (ZRAM=y + 栈随机化)
+        if: inputs.tier3_extra
         run: |
-          echo ">>> 正在启用 KSM ..."
+          echo ">>> 正在应用 Tier3 扩展优化 ..."
           cd kernel_workspace
-          echo "CONFIG_KSM=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] KSM 已开启"
+          sed -i 's/CONFIG_ZSMALLOC=m/CONFIG_ZSMALLOC=y/g' ./common/arch/arm64/configs/gki_defconfig
+          sed -i 's/CONFIG_ZRAM=m/CONFIG_ZRAM=y/g' ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "[+] ZSMALLOC: m -> y"
+          echo "[+] ZRAM: m -> y"
+          echo "[+] KSTACK 随机化默认开启"
 
-      - name: 启用 RCU_LAZY 默认开启
-        if: inputs.t1_rcu_lazy
+      - name: 应用 Tier2 参数调优 (RCU_BOOST+NOCB_CB_BOOST)
+        if: inputs.tier2_tune
         run: |
-          echo ">>> 正在启用 RCU_LAZY 默认 ..."
+          echo ">>> 正在应用 Tier2 参数调优 ..."
           cd kernel_workspace
+          sed -i 's/CONFIG_RCU_BOOST_DELAY=500/CONFIG_RCU_BOOST_DELAY=300/g' ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_RCU_NOCB_CPU_CB_BOOST=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "[+] RCU_BOOST_DELAY: 500 -> 300"
+          echo "[+] RCU_NOCB_CPU_CB_BOOST 已开启"
+
+      - name: 应用 Tier1 性能优化 (RSEQ+KSM+RCU_LAZY)
+        if: inputs.tier1_perf
+        run: |
+          echo ">>> 正在应用 Tier1 性能优化 ..."
+          cd kernel_workspace
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'TIER1CFG'
+          CONFIG_RSEQ=y
+          CONFIG_KSM=y
+          TIER1CFG
           sed -i '/CONFIG_RCU_LAZY_DEFAULT_OFF=y/d' ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] RCU_LAZY_DEFAULT_OFF 已移除"
+          echo "[+] RSEQ + KSM 已开启"
+          echo "[+] RCU_LAZY_DEFAULT_OFF 已移除 (RCU LAZY 默认生效)"
 
+      - name: 构建内核 (生成配置文件与诊断检测)
+        run: |
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
           export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
@@ -1066,5 +1076,3 @@ on:
             --title "${{ env.TAG_HEAD }}-${{ env.FULL_VERSION }}" \
             --notes-file release_notes.md \
             release_zips/AnyKernel3_*.zip
-
-
