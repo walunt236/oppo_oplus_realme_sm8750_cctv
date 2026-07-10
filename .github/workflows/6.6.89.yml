@@ -149,6 +149,13 @@ concurrency:
         required: false
         type: string
         default: ''
+
+      diagnosis:
+        description: '诊断模式：仅生成.config并对比(默认关闭，不编译内核)'
+        required: true
+        type: boolean
+        default: false
+
       upstream_merge:
         description: '是否合并上游最新6.6内核补丁(关闭则使用OEM纯净89源码编译)'
         required: true
