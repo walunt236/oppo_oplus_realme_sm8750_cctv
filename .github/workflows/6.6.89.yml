@@ -119,11 +119,16 @@ on:
         type: boolean
         default: true
 
-      custom_configs:
-        description: "🧪 实验性内核配置 (每行一条; 格式 CONFIG_XXX=y 或 # CONFIG_XXX is not set; 留空则不生效; 建议先用 diagnosis 模式验证)"
-        required: false
-        type: string
-        default: ""
+      hz_1000:
+        description: '⚡ HZ=1000 (调度tick从250→1000，提升触控响应; 实验性)'
+        required: true
+        type: boolean
+        default: false
+      fq_qdisc:
+        description: '🌐 FQ+PIE 包调度器 (配合BBR降低网络延迟; 实验性)'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -697,21 +702,25 @@ jobs:
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
-      - name: 应用实验性配置
-        if: github.event.inputs.custom_configs != ""
+      - name: 启用 HZ=1000 高精度调度
+        if: inputs.hz_1000
         run: |
-          echo ">>> 应用实验性额外配置 <<<"
+          echo ">>> 正在启用 HZ=1000 ..."
           cd kernel_workspace
-          echo "${{ github.event.inputs.custom_configs }}" | while IFS= read -r line; do
-            line=$(echo "$line" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
-            if [ -n "$line" ] && echo "$line" | grep -qE "^(CONFIG_|# CONFIG_)"; then
-              echo "$line" >> ./common/arch/arm64/configs/gki_defconfig
-              echo "  [+] $line"
-            elif [ -n "$line" ]; then
-              echo "  [SKIP] 非法格式，已忽略: $line"
-            fi
-          done
-          echo ">>> 实验性配置应用完毕 <<<"
+          sed -i 's/CONFIG_HZ=250/CONFIG_HZ=1000/g' ./common/arch/arm64/configs/gki_defconfig
+          echo "[+] HZ: 250 -> 1000"
+
+      - name: 启用 FQ+PIE 包调度器
+        if: inputs.fq_qdisc
+        run: |
+          echo ">>> 正在启用 FQ+PIE 包调度器 ..."
+          cd kernel_workspace
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'FQCFG'
+          CONFIG_NET_SCH_FQ=y
+          CONFIG_NET_SCH_PIE=y
+          CONFIG_DEFAULT_FQ=y
+          FQCFG
+          echo "[+] FQ+PIE 已加入编译"
 
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
