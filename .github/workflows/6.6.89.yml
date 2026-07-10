@@ -145,7 +145,7 @@ concurrency:
         type: boolean
         default: true
       misc_debug_disable:
-        description: '关闭杂项调试(IKCONFIG/MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT等;默认关闭)'
+        description: '关闭杂项调试(IKCONFIG/MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT/PAGE_OWNER/TASKSTATS/TRACE/DEBUGFS收紧等;默认关闭)'
         required: true
         type: boolean
         default: true
@@ -757,7 +757,24 @@ jobs:
           fi
 
           if [[ "${{ github.event.inputs.misc_debug_disable }}" == "true" ]]; then
-            echo "  - 关闭 杂项调试(IKCONFIG/MAGIC_SYSRQ/ANDROID_DEBUG/KALLSYMS_ALL/BLK_DEBUG_FS/KUNIT)"
+            echo "  - 关闭 杂项调试(PAGE_OWNER/TASKSTATS/TRACE/DMABUF/SELINUX_STATS/NETFILTER/DEBUGFS收紧等)"
+            echo "# CONFIG_PAGE_OWNER is not set" >> $DCFG
+            echo "# CONFIG_TASKSTATS is not set" >> $DCFG
+            echo "# CONFIG_UID_SYS_STATS is not set" >> $DCFG
+            echo "# CONFIG_RCU_TRACE is not set" >> $DCFG
+            echo "# CONFIG_TASKS_TRACE_RCU is not set" >> $DCFG
+            echo "# CONFIG_DMABUF_SYSFS_STATS is not set" >> $DCFG
+            echo "# CONFIG_DEBUG_MEMORY_INIT is not set" >> $DCFG
+            echo "# CONFIG_DEBUG_BUGVERBOSE is not set" >> $DCFG
+            echo "# CONFIG_SYMBOLIC_ERRNAME is not set" >> $DCFG
+            echo "# CONFIG_SECURITY_SELINUX_AVC_STATS is not set" >> $DCFG
+            echo "# CONFIG_NETFILTER_XT_TARGET_TRACE is not set" >> $DCFG
+            echo "# CONFIG_NET_SELFTESTS is not set" >> $DCFG
+            echo "# CONFIG_SYSCTL_EXCEPTION_TRACE is not set" >> $DCFG
+            echo "# CONFIG_PTDUMP_STAGE2_DEBUGFS is not set" >> $DCFG
+            echo "# CONFIG_BT_DEBUGFS is not set" >> $DCFG
+            echo "CONFIG_DEBUG_FS_ALLOW_NONE=y" >> $DCFG
+            echo "# CONFIG_DEBUG_FS_ALLOW_ALL is not set" >> $DCFG
             echo "# CONFIG_IKCONFIG is not set" >> $DCFG
             echo "# CONFIG_IKHEADERS is not set" >> $DCFG
             echo "# CONFIG_MAGIC_SYSRQ is not set" >> $DCFG
