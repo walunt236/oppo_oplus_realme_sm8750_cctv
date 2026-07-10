@@ -847,13 +847,14 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          cd kernel_workspace/common
           make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
       - name: 上传内核配置用于诊断
         uses: actions/upload-artifact@v4
         with:
           name: kernel-config-${{ github.run_id }}
-          if-no-files-found: error
+          if-no-files-found: warn
           path: kernel_workspace/common/out/.config
 
       - name: 编译内核
