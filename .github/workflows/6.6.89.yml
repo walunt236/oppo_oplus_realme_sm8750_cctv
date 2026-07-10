@@ -733,12 +733,8 @@ jobs:
             echo "# CONFIG_SOFTLOCKUP_DETECTOR is not set" >> $DCFG
           fi
           if [[ "${{ github.event.inputs.profiling_disable }}" == "true" ]]; then
-            echo "  - 关闭 PROFILING + DEBUG_INFO"
+            echo "  - 关闭 PROFILING (保留 DEBUG_INFO_DWARF5/BTF 避免不开机)"
             echo "# CONFIG_PROFILING is not set" >> $DCFG
-            echo "CONFIG_DEBUG_INFO_NONE=y" >> $DCFG
-            echo "# CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT is not set" >> $DCFG
-            echo "# CONFIG_DEBUG_INFO_DWARF4 is not set" >> $DCFG
-            echo "# CONFIG_DEBUG_INFO_DWARF5 is not set" >> $DCFG
           fi
           if [[ "${{ github.event.inputs.ubsan_disable }}" == "true" ]]; then
             echo "  - 关闭 UBSAN"
