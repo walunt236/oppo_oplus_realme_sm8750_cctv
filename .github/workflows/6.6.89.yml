@@ -130,10 +130,10 @@ concurrency:
         type: boolean
         default: true
       profiling_disable:
-        description: '关闭内核分析+调试信息(PROFILING+DEBUG_INFO;默认关闭)'
+        description: '关闭内核分析+调试信息(PROFILING+DEBUG_INFO;⚠破坏BTF会导致不开机,默认不关闭)'
         required: true
         type: boolean
-        default: true
+        default: false
       ubsan_disable:
         description: '关闭UBSAN未定义行为检测(默认关闭)'
         required: true
