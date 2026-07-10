@@ -104,11 +104,6 @@ concurrency:
         type: boolean
         default: 'false'
 
-      kasan_disable:
-        description: '关闭KASAN内存消毒器(⚠ vendor .ko 不兼容, 开启会导致不开机)'
-        required: true
-        type: boolean
-        default: true
       slub_debug_disable:
         description: '关闭SLUB分配器调试(影响性能;默认关闭)'
         required: true
@@ -703,12 +698,6 @@ jobs:
           cd kernel_workspace
           DCFG=./common/arch/arm64/configs/gki_defconfig
 
-          if [[ "${{ github.event.inputs.kasan_disable }}" == "true" ]]; then
-            echo "  - 关闭 KASAN"
-            echo "# CONFIG_KASAN is not set" >> $DCFG
-            echo "# CONFIG_KASAN_HW_TAGS is not set" >> $DCFG
-            echo "# CONFIG_KASAN_VMALLOC is not set" >> $DCFG
-          fi
           if [[ "${{ github.event.inputs.slub_debug_disable }}" == "true" ]]; then
             echo "  - 关闭 SLUB_DEBUG"
             echo "# CONFIG_SLUB_DEBUG is not set" >> $DCFG
@@ -973,7 +962,6 @@ jobs:
           echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
           echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
           echo "RCU_NOCB: ${{ github.event.inputs.rcu_nocb_enable }}" >> ./ak3.log
-          echo "KASAN: ${{ github.event.inputs.kasan_disable }}" >> ./ak3.log
           echo "SLUB_DEBUG: ${{ github.event.inputs.slub_debug_disable }}" >> ./ak3.log
           echo "SCHED_DEBUG: ${{ github.event.inputs.sched_debug_disable }}" >> ./ak3.log
           echo "FTRACE: ${{ github.event.inputs.ftrace_disable }}" >> ./ak3.log
@@ -1072,7 +1060,6 @@ jobs:
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
           | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
-          | KASAN 关闭 | ${{ github.event.inputs.kasan_disable }} |
           | SLUB_DEBUG 关闭 | ${{ github.event.inputs.slub_debug_disable }} |
           | SCHED调试 关闭 | ${{ github.event.inputs.sched_debug_disable }} |
           | FTRACE 关闭 | ${{ github.event.inputs.ftrace_disable }} |
