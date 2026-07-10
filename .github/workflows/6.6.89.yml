@@ -9,7 +9,7 @@ env:
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}-diag-${{ github.event.inputs.diagnosis }}
+  group: ${{ github.workflow }}-${{ github.ref_name }}
   cancel-in-progress: false
 
 "on":
@@ -93,11 +93,6 @@ concurrency:
         required: true
         type: boolean
         default: false
-      safe_optimize:
-        description: '开启安全去冗余优化 (关闭单元测试/代码覆盖率/UBSAN等, 减小体积提升性能且绝对安全)'
-        required: true
-        type: boolean
-        default: true
       ccache_update:
         description: '更新ccache缓存(将本次编译生成的ccache缓存覆盖至仓库缓存)'
         required: true
@@ -471,7 +466,6 @@ jobs:
           fi
 
           echo "CONFIG_KSU=y" >> $DCFG
-          echo "CONFIG_TRIM_UNUSED_KSYMS=y" >> $DCFG  # KSU sets this n, restore OEM default
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' ]] && ( [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]] || [[ "${{ github.event.inputs.ksu_type }}" == "resukisu" ]] ); then
             echo "CONFIG_KPM=y" >> $DCFG
           fi
@@ -501,26 +495,6 @@ jobs:
           CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
 
-          # ★新增：安全去冗余优化★
-          if [[ "${{ github.event.inputs.safe_optimize }}" == "true" ]]; then
-            echo ">>> 正在应用绝对安全去冗余优化 (Safe Debloat)..."
-            cat >> $DCFG << 'SAFETRIM'
-          # 关闭内核单元测试框架
-          # CONFIG_KUNIT is not set
-          # 关闭代码覆盖率收集 (吃性能)
-          # CONFIG_KCOV is not set
-          # 关闭未定义行为检测
-          # CONFIG_UBSAN is not set
-          # CONFIG_UBSAN_TRAP is not set
-          # 关闭内核配置文本记录 (减小体积)
-          # CONFIG_IKCONFIG is not set
-          # 关闭内存分布调试节点
-          # CONFIG_CMA_DEBUGFS is not set
-          # 关闭部分测试网络模块
-          # CONFIG_NET_SELFTESTS is not set
-          SAFETRIM
-          fi
-
           if [[ "${{ github.event.inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "⚠️ 正在开启 RCU_NOCB_CPU..."
             cat >> $DCFG << 'RCUCFG'
@@ -535,6 +509,21 @@ jobs:
           CONFIG_USER_NS=y
           CONFIG_DEVTMPFS=y
           NSCFG
+
+          # ★关键加固：强制注入原厂存活依赖符号，确保闭源驱动安全加载★
+          echo ">>> 正在注入闭源 Vendor 驱动强依赖符号 (UBSAN / KUNIT)..."
+          cat >> $DCFG << 'OEMDEPENDS'
+          CONFIG_UBSAN=y
+          CONFIG_UBSAN_TRAP=y
+          CONFIG_CC_HAS_UBSAN_ARRAY_BOUNDS=y
+          CONFIG_UBSAN_BOUNDS=y
+          CONFIG_UBSAN_ARRAY_BOUNDS=y
+          CONFIG_UBSAN_LOCAL_BOUNDS=y
+          CONFIG_UBSAN_SANITIZE_ALL=y
+          CONFIG_KUNIT=m
+          CONFIG_KUNIT_DEBUGFS=y
+          CONFIG_IP6_NF_NAT=n
+          OEMDEPENDS
 
       - name: 启用网络功能增强优化配置
         if: github.event.inputs.better_net == 'true'
@@ -660,7 +649,7 @@ jobs:
           cd kernel_workspace
           echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 
-      - name: 启用内核级基带保护
+      - name: 启用物理级基带保护
         if: github.event.inputs.baseband_guard == 'true'
         run: |
           echo "正在启用内核级基带保护…"
@@ -675,8 +664,8 @@ jobs:
           cd kernel_workspace
           echo "替换内核版本后缀并固化..."
           
-          # 核心修复：防止 Git 添加 -dirty 等非预期后缀导致无法开机
-          echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
+          # 核心防护：强制锁死动态版本号，对齐正常开机环境配置
+          echo "CONFIG_LOCALVERSION_AUTO=y" >> ./common/arch/arm64/configs/gki_defconfig
 
           if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
             echo "当前内核版本后缀：${{ github.event.inputs.kernel_suffix }}"
@@ -689,7 +678,7 @@ jobs:
             for f in ./common/scripts/setlocalversion; do
               sed -i "\$s|echo \"\\\$res\"|echo \"-${UPSTREAM_TAG}\"|" "$f"
             done
-            sudo sed -i "s/-4k/-4k/g" ./common/arch/arm64/configs/gki_defconfig  # preserve OEM LOCALVERSION="-4k" for vermagic compat
+            sudo sed -i "s/-4k/-${UPSTREAM_TAG}/g" ./common/arch/arm64/configs/gki_defconfig
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
@@ -868,7 +857,6 @@ jobs:
           echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
           echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
           echo "RCU_NOCB: ${{ github.event.inputs.rcu_nocb_enable }}" >> ./ak3.log
-          echo "Safe Optimize: ${{ github.event.inputs.safe_optimize }}" >> ./ak3.log
           
           zip -z ../$AK3_NAME < ./ak3.log
 
@@ -961,7 +949,6 @@ jobs:
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
           | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
-          | 安全去冗余 | ${{ github.event.inputs.safe_optimize }} |
 
           **刷入前请备份 boot 分区。**
           EOF
