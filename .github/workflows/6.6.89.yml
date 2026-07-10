@@ -93,6 +93,11 @@ concurrency:
         required: true
         type: boolean
         default: false
+      safe_optimize:
+        description: '开启安全去冗余优化 (关闭单元测试/代码覆盖率/UBSAN等, 减小体积提升性能且绝对安全)'
+        required: true
+        type: boolean
+        default: true
       ccache_update:
         description: '更新ccache缓存(将本次编译生成的ccache缓存覆盖至仓库缓存)'
         required: true
@@ -438,12 +443,13 @@ jobs:
           cp ../SukiSU_patch/other/zram/zram_patch/${{ env.KERNEL_VERSION }}/lz4kd.patch ./
           patch -p1 -F 3 < lz4kd.patch || true
 
-      - name: 添加 SUSFS & KSU 及通用配置项
+      - name: 配置核心扩展与通用优化
         run: |
           cd kernel_workspace
+          DCFG="./common/arch/arm64/configs/gki_defconfig"
 
           if [[ "${{ github.event.inputs.susfs_enable }}" == "true" ]]; then
-            cat >> ./common/arch/arm64/configs/gki_defconfig << 'SUSFSCFG'
+            cat >> $DCFG << 'SUSFSCFG'
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
           CONFIG_KSU_SUSFS_SUS_PATH=y
@@ -461,17 +467,18 @@ jobs:
           CONFIG_KSU_SUSFS_SUS_MAP=y
           SUSFSCFG
           else
-            echo "CONFIG_KSU_SUSFS=n" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS=n" >> $DCFG
           fi
 
-          echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU=y" >> $DCFG
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' ]] && ( [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]] || [[ "${{ github.event.inputs.ksu_type }}" == "resukisu" ]] ); then
-            echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KPM=y" >> $DCFG
           fi
-          echo "CONFIG_TMPFS_XATTR=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_TMPFS_POSIX_ACL=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_TMPFS_XATTR=y" >> $DCFG
+          echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DCFG
+          
           if [[ "${{ github.event.inputs.lz4kd_enable }}" == "true" ]]; then
-            cat >> ./common/arch/arm64/configs/gki_defconfig << 'LZ4KDCFG'
+            cat >> $DCFG << 'LZ4KDCFG'
           CONFIG_ZSMALLOC=y
           CONFIG_CRYPTO_LZ4HC=y
           CONFIG_CRYPTO_LZ4K=y
@@ -479,11 +486,12 @@ jobs:
           CONFIG_CRYPTO_842=y
           LZ4KDCFG
           fi
-          echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> ./common/arch/arm64/configs/gki_defconfig
+          
+          echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> $DCFG
           sed -i 's/check_defconfig//' ./common/build.config.gki
-          echo "CONFIG_HEADERS_INSTALL=n" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
 
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'TUNECFG'
+          cat >> $DCFG << 'TUNECFG'
           CONFIG_ZRAM_DEF_COMP_LZ4=y
           CONFIG_ZRAM_DEF_COMP="lz4"
           CONFIG_LRU_GEN=y
@@ -492,16 +500,36 @@ jobs:
           CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
 
+          # ★新增：安全去冗余优化★
+          if [[ "${{ github.event.inputs.safe_optimize }}" == "true" ]]; then
+            echo ">>> 正在应用绝对安全去冗余优化 (Safe Debloat)..."
+            cat >> $DCFG << 'SAFETRIM'
+          # 关闭内核单元测试框架
+          # CONFIG_KUNIT is not set
+          # 关闭代码覆盖率收集 (吃性能)
+          # CONFIG_KCOV is not set
+          # 关闭未定义行为检测
+          # CONFIG_UBSAN is not set
+          # CONFIG_UBSAN_TRAP is not set
+          # 关闭内核配置文本记录 (减小体积)
+          # CONFIG_IKCONFIG is not set
+          # 关闭内存分布调试节点
+          # CONFIG_CMA_DEBUGFS is not set
+          # 关闭部分测试网络模块
+          # CONFIG_NET_SELFTESTS is not set
+          SAFETRIM
+          fi
+
           if [[ "${{ github.event.inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "⚠️ 正在开启 RCU_NOCB_CPU..."
-            cat >> ./common/arch/arm64/configs/gki_defconfig << 'RCUCFG'
+            cat >> $DCFG << 'RCUCFG'
           CONFIG_RCU_EXPERT=y
           CONFIG_RCU_NOCB_CPU=y
           CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y
           RCUCFG
           fi
 
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'NSCFG'
+          cat >> $DCFG << 'NSCFG'
           CONFIG_UTS_NS=y
           CONFIG_USER_NS=y
           CONFIG_DEVTMPFS=y
@@ -839,6 +867,7 @@ jobs:
           echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
           echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
           echo "RCU_NOCB: ${{ github.event.inputs.rcu_nocb_enable }}" >> ./ak3.log
+          echo "Safe Optimize: ${{ github.event.inputs.safe_optimize }}" >> ./ak3.log
           
           zip -z ../$AK3_NAME < ./ak3.log
 
@@ -931,6 +960,7 @@ jobs:
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
           | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
+          | 安全去冗余 | ${{ github.event.inputs.safe_optimize }} |
 
           **刷入前请备份 boot 分区。**
           EOF
