@@ -150,6 +150,12 @@ concurrency:
         type: string
         default: ''
 
+      diagnosis:
+        description: '诊断模式：仅生成.config并对比(默认关闭，不编译内核)'
+        required: true
+        type: boolean
+        default: false
+
       upstream_merge:
         description: '是否合并上游最新6.6内核补丁(关闭则使用OEM纯净89源码编译)'
         required: true
@@ -848,7 +854,6 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          cd kernel_workspace/common
           make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
       - name: 上传内核配置用于诊断
