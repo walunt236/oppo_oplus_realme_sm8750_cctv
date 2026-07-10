@@ -120,12 +120,20 @@ on:
         default: true
 
 
-      hz_1000:
-        description: '⚡ HZ=1000 (调度tick从250→1000，提升触控响应)'
+      t1_rseq:
+        description: '🔬 RSEQ (用户态无锁原子操作,加速多线程)'
         required: true
         type: boolean
         default: false
 
+      t1_ksm:
+        description: '🔬 KSM (内核同页合并,省内存)'
+        required: true
+        type: boolean
+        default: false
+
+      t1_rcu_lazy:
+        description: '🔬 RCU_LAZY 默认启用 (批量RCU回调,省电)'
         required: true
         type: boolean
         default: false
@@ -707,26 +715,29 @@ jobs:
 
           echo "[+] HZ: 250 -> 1000"
 
-      - name: 启用 HZ=1000 高精度调度
-        if: inputs.hz_1000
+      - name: 启用 RSEQ (用户态无锁原子操作)
+        if: inputs.t1_rseq
         run: |
-          echo ">>> 正在启用 HZ=1000 ..."
+          echo ">>> 正在启用 RSEQ ..."
           cd kernel_workspace
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ1000CFG'
-          # CONFIG_HZ_250 is not set
-          CONFIG_HZ_1000=y
-          CONFIG_HZ=1000
-          HZ1000CFG
-          echo "[+] HZ: 250 -> 1000"
+          echo "CONFIG_RSEQ=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "[+] RSEQ 已开启"
 
+      - name: 启用 KSM (内核同页合并)
+        if: inputs.t1_ksm
+        run: |
+          echo ">>> 正在启用 KSM ..."
           cd kernel_workspace
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'TIER1CFG'
-          CONFIG_RSEQ=y
-          CONFIG_KSM=y
-          TIER1CFG
+          echo "CONFIG_KSM=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "[+] KSM 已开启"
+
+      - name: 启用 RCU_LAZY 默认 (批量RCU回调省电)
+        if: inputs.t1_rcu_lazy
+        run: |
+          echo ">>> 正在启用 RCU_LAZY 默认 ..."
+          cd kernel_workspace
           sed -i '/CONFIG_RCU_LAZY_DEFAULT_OFF=y/d' ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] RSEQ + KSM 已开启"
-          echo "[+] RCU_LAZY_DEFAULT_OFF 已移除 (RCU LAZY 默认生效)"
+          echo "[+] RCU_LAZY_DEFAULT_OFF 已移除"
 
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
@@ -743,6 +754,7 @@ jobs:
           [ -z "$PAHOLE_VER" ] && echo "pahole版本：未安装" || echo "pahole版本：$PAHOLE_VER"
           
           cd kernel_workspace/common
+          sed -i 's/CONFIG_HZ=250/CONFIG_HZ=1000/g' ./arch/arm64/configs/gki_defconfig
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ github.event.inputs.diagnosis }}" == "true" ]]; then
