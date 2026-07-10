@@ -19,7 +19,7 @@ concurrency:
         description: 'KernelSU分支(ReSukiSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认ReSukiSU)'
         required: true
         type: choice
-        default: 'resukisu'
+        default: 'ksu'
         options:
           - 'resukisu'
           - 'sukisu'
@@ -44,7 +44,7 @@ concurrency:
         description: '是否安装 lz4 1.10.0+zstd 1.5.7 补丁'
         required: true
         type: boolean
-        default: 'false'
+        default: 'true'
       lz4kd_enable:
         description: '是否安装 LZ4KD 补丁(若已开启lz4+zstd补丁则可不开启)'
         required: true
@@ -54,7 +54,7 @@ concurrency:
         description: "是否启用bbr算法(优化上行数据,对手机日用无太大意义甚至可能负优化;false关闭,true仅加入算法,default启用算法并设为默认)"
         required: true
         type: choice
-        default: 'false'
+        default: 'true'
         options:
           - 'false'
           - 'true'
@@ -72,12 +72,12 @@ concurrency:
         description: '是否开启网络功能拓展配置(用于为ipset及需要iptables等高级网络功能内核支持的程序提供支持)'
         required: true
         type: boolean
-        default: 'false'
+        default: 'true'
       adios_enable:
         description: '是否启用ADIOS IO调度器支持(提升IO读写性能)'
         required: true
         type: boolean
-        default: 'false'
+        default: 'true'
       rekernel_enable:
         description: '是否启用Re-Kernel支持(与Freezer/NoActive等软件配合, 提升应用冻结能力)'
         required: true
@@ -108,12 +108,12 @@ concurrency:
         description: '关闭SLUB分配器调试(影响性能;默认关闭)'
         required: true
         type: boolean
-        default: true
+        default: false
       sched_debug_disable:
         description: '关闭调度器调试(SCHED_DEBUG+SCHEDSTATS;默认关闭)'
         required: true
         type: boolean
-        default: true
+        default: false
       ftrace_disable:
         description: '关闭FTRACE函数追踪(⚠已禁用(保留FTRACE);此开关不再生效)'
         required: true
@@ -123,7 +123,7 @@ concurrency:
         description: '关闭锁死检测(DETECT_HUNG_TASK+SOFTLOCKUP_DETECTOR;默认关闭)'
         required: true
         type: boolean
-        default: true
+        default: false
       profiling_disable:
         description: '关闭内核分析+调试信息(PROFILING+DEBUG_INFO;⚠破坏BTF会导致不开机,默认不关闭)'
         required: true
@@ -133,17 +133,17 @@ concurrency:
         description: '关闭UBSAN未定义行为检测(默认关闭)'
         required: true
         type: boolean
-        default: true
+        default: false
       pm_debug_disable:
         description: '关闭电源管理调试(PM_DEBUG/PM_ADVANCED_DEBUG/PM_SLEEP_DEBUG;默认关闭)'
         required: true
         type: boolean
-        default: true
+        default: false
       misc_debug_disable:
         description: '关闭杂项调试(IKCONFIG/MAGIC_SYSRQ/BLK_DEBUG_FS/KUNIT/PAGE_OWNER/TASKSTATS/TRACE等;默认关闭)'
         required: true
         type: boolean
-        default: true
+        default: false
       kernel_suffix:
         description: '内核后缀(留空默认,开头别加连字符,勿加空格等影响指令运行的保留字符)'
         required: false
@@ -153,7 +153,7 @@ concurrency:
         description: '是否合并上游最新6.6内核补丁(关闭则使用OEM纯净89源码编译)'
         required: true
         type: boolean
-        default: 'false'
+        default: 'true'
 
 jobs:
   build:
