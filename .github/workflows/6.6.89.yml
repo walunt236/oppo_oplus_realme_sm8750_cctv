@@ -707,6 +707,7 @@ jobs:
         run: |
           echo ">>> 正在启用 HZ=1000 ..."
           cd kernel_workspace
+          sed -i 's/CONFIG_HZ_250=y/# CONFIG_HZ_250 is not set/g' ./common/arch/arm64/configs/gki_defconfig
           sed -i 's/CONFIG_HZ=250/CONFIG_HZ=1000/g' ./common/arch/arm64/configs/gki_defconfig
           echo "[+] HZ: 250 -> 1000"
 
