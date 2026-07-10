@@ -4,7 +4,7 @@ env:
   TZ: Asia/Shanghai
   ANDROID_VERSION: 'android15'
   KERNEL_VERSION: '6.6'
-  SUB_VERSION: 'latest'
+  SUB_VERSION: 'latest'  # 动态值，运行时由 init_env 步骤通过 kernel.org tag 覆盖
   KERNEL_NAME: 'android15-6.6-latest-4k'
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
@@ -246,6 +246,13 @@ jobs:
           unzip -q build-tools.zip && rm -rf build-tools.zip &
 
           wait
+          if ! dpkg -l binutils python3 libssl-dev libelf-dev > /dev/null 2>&1; then
+            echo "⚠️ 后台依赖安装异常，正在重试..."
+            sudo apt-get install -y --no-install-recommends binutils python-is-python3 libssl-dev libelf-dev || {
+              echo "❌ 依赖安装失败"
+              exit 1
+            }
+          fi
           echo "所有源码及llvm-Clang18工具链初始化完成！"
           echo "正在去除 ABI 保护 & 去除 dirty 后缀..."
           rm common/android/abi_gki_protected_exports_* || true
@@ -305,7 +312,7 @@ jobs:
           fi
 
       - name: 清除旧 ccache 缓存
-        if: github.event.inputs.ccache_update == 'true'
+        if: inputs.ccache_update
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -330,7 +337,7 @@ jobs:
           echo "配置ccache缓存大小为: $CCACHE_MAXSIZE"
           ccache -M "$CCACHE_MAXSIZE"
           ccache -o compression=true
-          ccache -o sloppiness="$CCACHE_SLOPPINESS"
+          echo "sloppiness = $CCACHE_SLOPPINESS" >> "$CCACHE_DIR/ccache.conf"
 
           echo "ccache初始状态:"
           ccache -s
@@ -378,7 +385,7 @@ jobs:
           fi
 
       - name: 应用 KernelSU & SUSFS 补丁
-        if: github.event.inputs.susfs_enable == 'true'
+        if: inputs.susfs_enable
         run: |
           cd kernel_workspace
           if [[ ${{ github.event.inputs.ksu_type }} != "none" ]]; then
@@ -403,7 +410,7 @@ jobs:
           fi
 
       - name: 应用lz4 1.10.0 & zstd 1.5.7补丁
-        if: github.event.inputs.lz4_enable == 'true'
+        if: inputs.lz4_enable
         run: |
           echo "正在添加lz4 1.10.0 & zstd 1.5.7补丁…"
           cd kernel_workspace
@@ -424,7 +431,7 @@ jobs:
           fi
 
       - name: 应用 lz4kd 补丁
-        if: github.event.inputs.lz4kd_enable == 'true'
+        if: inputs.lz4kd_enable
         run: |
           echo "正在添加lz4kd补丁…"
           cd kernel_workspace
@@ -522,11 +529,10 @@ jobs:
           CONFIG_UBSAN_SANITIZE_ALL=y
           CONFIG_KUNIT=m
           CONFIG_KUNIT_DEBUGFS=y
-          CONFIG_IP6_NF_NAT=n
           OEMDEPENDS
 
       - name: 启用网络功能增强优化配置
-        if: github.event.inputs.better_net == 'true'
+        if: inputs.better_net
         run: |
           cd kernel_workspace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
@@ -595,8 +601,7 @@ jobs:
             if [[ "${{ github.event.inputs.bbr_enable }}" == "default" ]]; then
               echo "正在将BBR设为默认拥塞控制算法..."
               echo "CONFIG_DEFAULT_TCP_CONG=bbr" >> ./common/arch/arm64/configs/gki_defconfig
-              echo "CONFIG_DEFAULT_BBR=y" >> ./common/arch/arm64/configs/gki_defconfig
-            else
+                          else
               echo "CONFIG_DEFAULT_TCP_CONG=cubic" >> ./common/arch/arm64/configs/gki_defconfig
             fi
           fi
@@ -615,6 +620,9 @@ jobs:
             patch -p1 -F 3 < ntsync_base.patch || true
             patch -p1 -F 3 < ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
             cat >> ./arch/arm64/configs/gki_defconfig << 'DSCFG'
+          CONFIG_PID_NS=y
+          CONFIG_IPC_NS=y
+          CONFIG_SYSVIPC=y
           CONFIG_DEVTMPFS=y
           CONFIG_NAMESPACES=y
           CONFIG_POSIX_MQUEUE=y
@@ -626,6 +634,7 @@ jobs:
             if [[ "${{ github.event.inputs.droidspaces_enable }}" == "extend" ]]; then
               echo "正在启用容器环境扩展支持..."
               echo "CONFIG_BT_HCIVHCI=y" >> ./arch/arm64/configs/gki_defconfig
+              echo "CONFIG_STATIC_USERMODEHELPER=n" >> ./arch/arm64/configs/gki_defconfig
               wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/evdi_drm.patch
               patch -p1 -F 3 < evdi_drm.patch || true
               echo "CONFIG_DRM_LINDROID_EVDI=y" >> ./arch/arm64/configs/gki_defconfig
@@ -633,7 +642,7 @@ jobs:
           fi
 
       - name: 启用ADIOS IO调度器
-        if: github.event.inputs.adios_enable == 'true'
+        if: inputs.adios_enable
         run: |
           echo "正在启用ADIOS IO调度器…"
           cd kernel_workspace
@@ -643,14 +652,14 @@ jobs:
           ADIOSCFG
 
       - name: 启用Re-Kernel支持
-        if: github.event.inputs.rekernel_enable == 'true'
+        if: inputs.rekernel_enable
         run: |
           echo "正在启用Re-Kernel支持…"
           cd kernel_workspace
           echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 
       - name: 启用物理级基带保护
-        if: github.event.inputs.baseband_guard == 'true'
+        if: inputs.baseband_guard
         run: |
           echo "正在启用内核级基带保护…"
           cd kernel_workspace
@@ -672,13 +681,13 @@ jobs:
             for f in ./common/scripts/setlocalversion; do
               sed -i "\$s|echo \"\\\$res\"|echo \"-${{ github.event.inputs.kernel_suffix }}\"|" "$f"
             done
-            sudo sed -i "s/-4k/-${{ github.event.inputs.kernel_suffix }}/g" ./common/arch/arm64/configs/gki_defconfig
+            sed -i "s/-4k/-${{ github.event.inputs.kernel_suffix }}/g" ./common/arch/arm64/configs/gki_defconfig
           else
             echo "当前内核版本：6.6.${SUB_VERSION}-${UPSTREAM_TAG}"
             for f in ./common/scripts/setlocalversion; do
               sed -i "\$s|echo \"\\\$res\"|echo \"-${UPSTREAM_TAG}\"|" "$f"
             done
-            sudo sed -i "s/-4k/-${UPSTREAM_TAG}/g" ./common/arch/arm64/configs/gki_defconfig
+            sed -i "s/-4k/-${UPSTREAM_TAG}/g" ./common/arch/arm64/configs/gki_defconfig
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
@@ -693,6 +702,8 @@ jobs:
           CLANG_DIR="$WORKDIR/kernel_workspace/clang18/bin"
           echo "Clang版本: $($CLANG_DIR/clang --version | head -n 1)"
           echo "LLD版本: $($CLANG_DIR/ld.lld --version | head -n 1)"
+          PAHOLE_VER=$(pahole --version 2>/dev/null | head -n1)
+          [ -z "$PAHOLE_VER" ] && echo "pahole版本：未安装" || echo "pahole版本：$PAHOLE_VER"
           
           cd kernel_workspace/common
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
@@ -704,15 +715,15 @@ jobs:
           fi
 
       - name: 上传诊断配置文本 (仅诊断模式)
-        if: github.event.inputs.diagnosis == 'true'
-        uses: actions/upload-artifact@v4
+        if: inputs.diagnosis
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-config-${{ github.run_id }}
           if-no-files-found: warn
           path: kernel_workspace/common/out/build_config.txt
 
       - name: 编译完整内核镜像
-        if: github.event.inputs.diagnosis != 'true'
+        if: !inputs.diagnosis
         run: |
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
@@ -727,8 +738,19 @@ jobs:
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="${{ env.CCACHE_MAXSIZE }}"
           export CCACHE_IS_KERNEL_COMPILING="true"
+          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
+          echo "sloppiness = $CCACHE_SLOPPINESS" >> "$CCACHE_DIR/ccache.conf"
 
           cd kernel_workspace/common
+
+          echo ">>> 清理磁盘空间..."
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          wait
+          echo ">>> 磁盘清理完成"
+
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
           chmod 777 ./*.so
@@ -760,23 +782,29 @@ jobs:
             echo "⚠️ _lz4_decompress_asm 未找到 — 使用内核自带 LZ4"
           fi
           echo "========================================="
+          echo "========== IP6_NF_NAT 诊断 =========="
+          grep "CONFIG_IP6_NF_NAT" out/.config 2>/dev/null || echo "(未设置)"
+          echo "========================================="
           echo "ccache状态："
           ccache -s
 
       - name: 保存新的 ccache 缓存
-        if: (github.event.inputs.ccache_update == 'true' || steps.ccache-restore.outputs.cache-hit != 'true') && github.event.inputs.diagnosis != 'true'
+        if: (inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true') && !inputs.diagnosis
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
 
       - name: 应用KPM并修补内核
-        if: github.event.inputs.diagnosis != 'true'
+        if: !inputs.diagnosis
         run: |
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' ]] && ( [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]] || [[ "${{ github.event.inputs.ksu_type }}" == "resukisu" ]] ); then
             echo "正在应用KPM并修补内核..."
             cd kernel_workspace/common/out/arch/arm64/boot
-            curl -LO https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest/download/patch_linux
+            curl -fSLo patch_linux https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest/download/patch_linux || {
+              echo "❌ KPM patch_linux 下载失败"
+              exit 1
+            }
             chmod +x patch_linux
             ./patch_linux
             rm -f Image
@@ -785,8 +813,14 @@ jobs:
           if [[ ${{ github.event.inputs.kpm_enable }} == 'kpn' ]]; then
             echo "正在应用KP-N并修补内核..."
             cd kernel_workspace/common/out/arch/arm64/boot
-            wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux
-            wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux
+            wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux || {
+              echo "❌ KPN kptools 下载失败"
+              exit 1
+            }
+            wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux || {
+              echo "❌ KPN kpimg 下载失败"
+              exit 1
+            }
             chmod +x ./kptools-linux
             ./kptools-linux -p -i ./Image -k ./kpimg-linux -o ./oImage
             rm -f Image
@@ -794,7 +828,7 @@ jobs:
           fi
 
       - name: 克隆 AnyKernel3 并打包
-        if: github.event.inputs.diagnosis != 'true'
+        if: !inputs.diagnosis
         id: create_zip
         run: |
           cd kernel_workspace
@@ -861,7 +895,7 @@ jobs:
           zip -z ../$AK3_NAME < ./ak3.log
 
       - name: 上传 Ccache 调试日志
-        if: always() && github.event.inputs.ccache_debug == 'true' && github.event.inputs.diagnosis != 'true'
+        if: always() && inputs.ccache_debug && !inputs.diagnosis
         uses: actions/upload-artifact@v7
         with:
           name: ccache-debug-log
@@ -869,7 +903,7 @@ jobs:
           archive: true
 
       - name: 上传 ZIP 工件
-        if: github.event.inputs.diagnosis != 'true'
+        if: !inputs.diagnosis
         uses: actions/upload-artifact@v7
         with:
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
@@ -877,7 +911,7 @@ jobs:
 
   release:
     needs: build
-    if: github.event.inputs.diagnosis != 'true'
+    if: !inputs.diagnosis
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -907,6 +941,13 @@ jobs:
           TAG_HEAD="OPPO-OPlus-Realme-build"
           echo "TAG_HEAD=$TAG_HEAD" >> $GITHUB_ENV
           
+          if [[ "${{ github.event.inputs.upstream_merge }}" == "true" ]]; then
+            UPSTREAM_NOTE="上游补丁：已合并 kernel.org stable 最新 6.6 tag"
+          else
+            UPSTREAM_NOTE="上游补丁：未合并（使用 OEM 纯净 6.6.89）"
+          fi
+          echo "UPSTREAM_NOTE=$UPSTREAM_NOTE" >> $GITHUB_ENV
+
           if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
             KSU_TYPENAME="SukiSU Ultra"
           elif [[ ${{ github.event.inputs.ksu_type }} == "resukisu" ]]; then
