@@ -723,7 +723,7 @@ jobs:
           path: kernel_workspace/common/out/build_config.txt
 
       - name: 编译完整内核镜像
-        if: !inputs.diagnosis
+        if: ${{ !inputs.diagnosis }}
         run: |
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
@@ -789,14 +789,14 @@ jobs:
           ccache -s
 
       - name: 保存新的 ccache 缓存
-        if: (inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true') && !inputs.diagnosis
+        if: (inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true') && ${{ !inputs.diagnosis }}
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
 
       - name: 应用KPM并修补内核
-        if: !inputs.diagnosis
+        if: ${{ !inputs.diagnosis }}
         run: |
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' ]] && ( [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]] || [[ "${{ github.event.inputs.ksu_type }}" == "resukisu" ]] ); then
             echo "正在应用KPM并修补内核..."
@@ -828,7 +828,7 @@ jobs:
           fi
 
       - name: 克隆 AnyKernel3 并打包
-        if: !inputs.diagnosis
+        if: ${{ !inputs.diagnosis }}
         id: create_zip
         run: |
           cd kernel_workspace
@@ -895,7 +895,7 @@ jobs:
           zip -z ../$AK3_NAME < ./ak3.log
 
       - name: 上传 Ccache 调试日志
-        if: always() && inputs.ccache_debug && !inputs.diagnosis
+        if: always() && inputs.ccache_debug && ${{ !inputs.diagnosis }}
         uses: actions/upload-artifact@v7
         with:
           name: ccache-debug-log
@@ -903,7 +903,7 @@ jobs:
           archive: true
 
       - name: 上传 ZIP 工件
-        if: !inputs.diagnosis
+        if: ${{ !inputs.diagnosis }}
         uses: actions/upload-artifact@v7
         with:
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
@@ -911,7 +911,7 @@ jobs:
 
   release:
     needs: build
-    if: !inputs.diagnosis
+    if: ${{ !inputs.diagnosis }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
