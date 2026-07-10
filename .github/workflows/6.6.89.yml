@@ -471,6 +471,7 @@ jobs:
           fi
 
           echo "CONFIG_KSU=y" >> $DCFG
+          echo "CONFIG_TRIM_UNUSED_KSYMS=y" >> $DCFG  # KSU sets this n, restore OEM default
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' ]] && ( [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]] || [[ "${{ github.event.inputs.ksu_type }}" == "resukisu" ]] ); then
             echo "CONFIG_KPM=y" >> $DCFG
           fi
@@ -688,7 +689,7 @@ jobs:
             for f in ./common/scripts/setlocalversion; do
               sed -i "\$s|echo \"\\\$res\"|echo \"-${UPSTREAM_TAG}\"|" "$f"
             done
-            sudo sed -i "s/-4k/-${UPSTREAM_TAG}/g" ./common/arch/arm64/configs/gki_defconfig
+            sudo sed -i "s/-4k/-4k/g" ./common/arch/arm64/configs/gki_defconfig  # preserve OEM LOCALVERSION="-4k" for vermagic compat
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
