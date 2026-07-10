@@ -120,6 +120,12 @@ on:
         default: true
 
 
+      hz_1000:
+        description: '⚡ HZ=1000 (调度tick从250→1000，提升触控响应)'
+        required: true
+        type: boolean
+        default: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -697,6 +703,18 @@ jobs:
 
           echo "[+] HZ: 250 -> 1000"
 
+      - name: 启用 HZ=1000 高精度调度
+        if: inputs.hz_1000
+        run: |
+          echo ">>> 正在启用 HZ=1000 ..."
+          cd kernel_workspace
+          cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ1000CFG'
+          # CONFIG_HZ_250 is not set
+          CONFIG_HZ_1000=y
+          CONFIG_HZ=1000
+          HZ1000CFG
+          echo "[+] HZ: 250 -> 1000"
+
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
           WORKDIR="$(pwd)"
@@ -712,7 +730,6 @@ jobs:
           [ -z "$PAHOLE_VER" ] && echo "pahole版本：未安装" || echo "pahole版本：$PAHOLE_VER"
           
           cd kernel_workspace/common
-          sed -i 's/CONFIG_HZ=250/CONFIG_HZ=1000/g' ./arch/arm64/configs/gki_defconfig
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ github.event.inputs.diagnosis }}" == "true" ]]; then
