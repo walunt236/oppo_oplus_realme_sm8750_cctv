@@ -145,7 +145,7 @@ concurrency:
         type: boolean
         default: true
       misc_debug_disable:
-        description: '关闭杂项调试(IKCONFIG/MAGIC_SYSRQ/BLK_DEBUG_FS/KUNIT/PAGE_OWNER/TASKSTATS/TRACE/DEBUGFS相关等;默认关闭)'
+        description: '关闭杂项调试(IKCONFIG/MAGIC_SYSRQ/BLK_DEBUG_FS/KUNIT/PAGE_OWNER/TASKSTATS/TRACE等;默认关闭)'
         required: true
         type: boolean
         default: true
@@ -763,8 +763,7 @@ jobs:
             echo "# CONFIG_IKCONFIG is not set" >> $DCFG
             echo "# CONFIG_IKHEADERS is not set" >> $DCFG
             echo "# CONFIG_MAGIC_SYSRQ is not set" >> $DCFG
-            echo "# CONFIG_ANDROID_DEBUG_SYMBOLS is not set" >> $DCFG
-            echo "# CONFIG_BLK_DEBUG_FS is not set" >> $DCFG
+                        echo "# CONFIG_BLK_DEBUG_FS is not set" >> $DCFG
             echo "# CONFIG_CMA_DEBUGFS is not set" >> $DCFG
             echo "# CONFIG_KUNIT is not set" >> $DCFG
           fi
