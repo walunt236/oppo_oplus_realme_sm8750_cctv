@@ -126,16 +126,6 @@ on:
         type: boolean
         default: false
 
-      t2_rcu_boost:
-        description: '🔶 RCU_BOOST_DELAY=300 (原500, 更快RCU优先级提升)'
-        required: true
-        type: boolean
-        default: false
-
-      t2_nocb_cb_boost:
-        description: '🔶 RCU_NOCB_CPU_CB_BOOST (RCU回调线程优先级加成)'
-        required: true
-        type: boolean
         default: false
 
 jobs:
@@ -530,6 +520,9 @@ jobs:
           RCUCFG
           echo 'CONFIG_RCU_LAZY_DEFAULT_OFF=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo "  [+] RCU_LAZY 默认启用"
+          echo 'CONFIG_RCU_BOOST_DELAY=300' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_RCU_NOCB_CPU_CB_BOOST=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo '  [+] RCU_BOOST_DELAY=300 + RCU_NOCB_CPU_CB_BOOST'
           fi
 
           cat >> $DCFG << 'NSCFG'
@@ -728,22 +721,6 @@ jobs:
           CONFIG_HZ=1000
           HZ1000CFG
           echo "[+] HZ: 250 -> 1000"
-
-      - name: 启用 RCU_BOOST_DELAY=300
-        if: inputs.t2_rcu_boost
-        run: |
-          echo ">>> 正在应用 RCU_BOOST_DELAY=300 ..."
-          cd kernel_workspace
-          echo 'CONFIG_RCU_BOOST_DELAY=300' >> ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] RCU_BOOST_DELAY: 500 -> 300"
-
-      - name: 启用 RCU_NOCB_CPU_CB_BOOST
-        if: inputs.t2_nocb_cb_boost
-        run: |
-          echo ">>> 正在启用 RCU_NOCB_CPU_CB_BOOST ..."
-          cd kernel_workspace
-          echo "CONFIG_RCU_NOCB_CPU_CB_BOOST=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] RCU_NOCB_CPU_CB_BOOST 已开启"
 
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
