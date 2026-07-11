@@ -734,7 +734,7 @@ jobs:
         run: |
           echo ">>> 正在应用 RCU_BOOST_DELAY=300 ..."
           cd kernel_workspace
-          sed -i 's/CONFIG_RCU_BOOST_DELAY=500/CONFIG_RCU_BOOST_DELAY=300/g' ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_RCU_BOOST_DELAY=300' >> ./common/arch/arm64/configs/gki_defconfig
           echo "[+] RCU_BOOST_DELAY: 500 -> 300"
 
       - name: 启用 RCU_NOCB_CPU_CB_BOOST
