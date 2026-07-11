@@ -138,6 +138,11 @@ on:
         required: true
         type: boolean
         default: false
+      slim:
+        description: '🏋️ 终极瘦身 (剥离调试追踪/关闭审计/解除内存加固, 减少内核开销)'
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -557,6 +562,10 @@ jobs:
           CONFIG_KUNIT=m
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
+
+      - name: 🏋️ 终极瘦身 (关闭监控调试)
+        if: inputs.slim
+        run: |
 
           # ★ 终极瘦身：剥离冗余追踪、解除内存加固、关闭看门狗与审计 ★
           echo ">>> 正在注入终极瘦身配置 (关闭监控与调试)..."
@@ -1093,7 +1102,7 @@ jobs:
           | BBRv3 | ${{ github.event.inputs.bbrv3_enable }} |
           | Cloudflare TCP | ${{ github.event.inputs.cloudflare_tcp }} |
           | 选择性 -O3 | ${{ github.event.inputs.o3_selective }} |
-          | 终极瘦身(去调试) | 默认强制剥离 |
+          | 终极瘦身(去调试) | ${{ github.event.inputs.slim }} |
           | 网络增强 | ${{ github.event.inputs.better_net }} |
           | Droidspaces | ${{ github.event.inputs.droidspaces_enable }} |
           | ADIOS | ${{ github.event.inputs.adios_enable }} |
