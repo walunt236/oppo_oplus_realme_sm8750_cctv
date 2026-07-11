@@ -569,6 +569,7 @@ jobs:
 
           # ★ 终极瘦身：剥离冗余追踪、解除内存加固、关闭看门狗与审计 ★
           echo ">>> 正在注入终极瘦身配置 (关闭监控与调试)..."
+          DCFG="./common/arch/arm64/configs/gki_defconfig"
           cat >> $DCFG << 'SLIMCFG'
           CONFIG_PAGE_OWNER=n
           CONFIG_SCHEDSTATS=n
