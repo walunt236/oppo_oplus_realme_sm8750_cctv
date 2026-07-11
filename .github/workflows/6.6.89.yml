@@ -780,7 +780,7 @@ jobs:
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "[+] BBRv3 已加入编译"
 
-      - name: 启用 Cloudflare TCP 优化 (sysctl: net.ipv4.tcp_collapse_max_bytes)
+      - name: "启用 Cloudflare TCP 优化 (sysctl: net.ipv4.tcp_collapse_max_bytes)"
         if: inputs.cloudflare_tcp
         run: |
           echo ">>> 正在下载并应用 Cloudflare TCP collapse 补丁 ..."
