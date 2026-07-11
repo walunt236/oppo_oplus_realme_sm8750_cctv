@@ -797,7 +797,7 @@ jobs:
               echo "✅ Cloudflare TCP (force) 应用成功"
             else
               echo "⚠️ Cloudflare TCP 补丁最终失败，已安全跳过"
-              ls *.rej 2>/dev/null && echo "  冲突文件: $(ls *.rej)"
+              echo "  冲突文件: $(ls *.rej 2>/dev/null || echo 无)"
             fi
           fi
 
