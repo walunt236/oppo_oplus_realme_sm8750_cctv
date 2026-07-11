@@ -528,7 +528,7 @@ jobs:
           CONFIG_RCU_NOCB_CPU=y
           CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y
           RCUCFG
-          sed -i '/CONFIG_RCU_LAZY_DEFAULT_OFF=y/d' ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_RCU_LAZY_DEFAULT_OFF=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo "  [+] RCU_LAZY 默认启用"
           fi
 
