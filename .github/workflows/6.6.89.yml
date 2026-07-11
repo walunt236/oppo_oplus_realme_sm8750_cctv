@@ -735,7 +735,7 @@ jobs:
         run: |
           echo ">>> 正在下载并应用 BBRv3 补丁 ..."
           cd kernel_workspace/common
-          curl -sSLO "https://github.com/WildKernels/kernel_patches/raw/refs/heads/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
+          curl -sSLO "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
           if git apply -p1 < bbrv3.patch 2>/dev/null; then
             echo "✅ BBRv3 git apply 成功"
           elif patch -p1 -F 3 < bbrv3.patch 2>/dev/null; then
