@@ -796,8 +796,9 @@ jobs:
             if git apply -p1 --reject < cloudflare.patch 2>/dev/null; then
               echo "✅ Cloudflare TCP (force) 应用成功"
             else
-              echo "⚠️ Cloudflare TCP 补丁最终失败，已安全跳过"
-              echo "  冲突文件: $(ls *.rej 2>/dev/null || echo 无)"
+              echo "⚠️ Cloudflare TCP 补丁最终失败，回滚所有修改"
+              git checkout -- . 2>/dev/null || true
+              echo "  冲突文件: $(find . -name '*.rej' 2>/dev/null || echo 无)"
             fi
           fi
 
