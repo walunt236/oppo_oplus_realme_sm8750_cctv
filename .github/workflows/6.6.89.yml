@@ -417,7 +417,7 @@ jobs:
             cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             cd ./common
-            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || echo "⚠️ SUSFS 核心补丁应用失败，SUSFS 功能将不可用"
             patch -p1 -N -F 3 < 69_hide_stuff.patch || true
             cd ..
           else
@@ -632,7 +632,7 @@ jobs:
             if [[ "${{ github.event.inputs.bbr_enable }}" == "default" ]]; then
               echo "正在将BBR设为默认拥塞控制算法..."
               echo "CONFIG_DEFAULT_TCP_CONG=bbr" >> ./common/arch/arm64/configs/gki_defconfig
-                          else
+            else
               echo "CONFIG_DEFAULT_TCP_CONG=cubic" >> ./common/arch/arm64/configs/gki_defconfig
             fi
           fi
@@ -672,32 +672,30 @@ jobs:
             fi
           fi
 
-      - name: 启用ADIOS IO调度器
-        if: inputs.adios_enable
+      - name: 启用内核特性模块 (ADIOS / Re-Kernel / 基带保护)
         run: |
-          echo "正在启用ADIOS IO调度器…"
           cd kernel_workspace
-          cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
+
+          if [[ "${{ github.event.inputs.adios_enable }}" == "true" ]]; then
+            echo "正在启用ADIOS IO调度器…"
+            cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
           CONFIG_MQ_IOSCHED_ADIOS=y
           CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y
           ADIOSCFG
+          fi
 
-      - name: 启用Re-Kernel支持
-        if: inputs.rekernel_enable
-        run: |
-          echo "正在启用Re-Kernel支持…"
-          cd kernel_workspace
-          echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
+          if [[ "${{ github.event.inputs.rekernel_enable }}" == "true" ]]; then
+            echo "正在启用Re-Kernel支持…"
+            echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
 
-      - name: 启用物理级基带保护
-        if: inputs.baseband_guard
-        run: |
-          echo "正在启用内核级基带保护…"
-          cd kernel_workspace
-          echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
-          cd ./common
-          curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
-          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
+          if [[ "${{ github.event.inputs.baseband_guard }}" == "true" ]]; then
+            echo "正在启用内核级基带保护…"
+            echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
+            cd ./common
+            curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
+            sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
+          fi
 
       - name: 添加制作名称及固化版本信息
         run: |
@@ -815,8 +813,6 @@ jobs:
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="${{ env.CCACHE_MAXSIZE }}"
           export CCACHE_IS_KERNEL_COMPILING="true"
-          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
-          echo "sloppiness = $CCACHE_SLOPPINESS" >> "$CCACHE_DIR/ccache.conf"
 
           cd kernel_workspace/common
 
@@ -1042,11 +1038,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ github.event.inputs.upstream_merge }}" == "true" ]]; then
-            UPSTREAM_NOTE="上游补丁：已合并 kernel.org stable 最新 6.6 tag"
-          else
-            UPSTREAM_NOTE="上游补丁：未合并（使用 OEM 纯净 6.6.89）"
-          fi
+          UPSTREAM_NOTE="${{ env.UPSTREAM_NOTE }}"
           
           cat << 'EOF' > release_notes.md
           ### 📱 ${{ env.KSU_TYPENAME }} | 骁龙8Elite | ${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}
