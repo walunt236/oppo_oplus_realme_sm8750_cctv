@@ -134,6 +134,12 @@ on:
         type: boolean
         default: false
 
+      o3_selective:
+        description: '⚡ 选择性-O3 (crypto+lib压缩加密模块提速)'
+        required: true
+        type: boolean
+        default: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -752,6 +758,15 @@ jobs:
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "[+] BBRv3 已加入编译"
 
+
+      - name: 启用选择性 -O3 优化
+        if: inputs.o3_selective
+        run: |
+          echo ">>> 正在启用选择性 -O3 ..."
+          cd kernel_workspace/common
+          echo 'subdir-ccflags-y += -O3' >> crypto/Makefile
+          echo 'subdir-ccflags-y += -O3' >> lib/Makefile
+          echo "[+] crypto/ + lib/ : -O2 -> -O3"
 
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
