@@ -771,51 +771,23 @@ jobs:
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "[+] BBRv3 已加入编译"
 
-      - name: 启用 Cloudflare TCP 优化
+      - name: 启用 Cloudflare TCP 优化 (sysctl: net.ipv4.tcp_collapse_max_bytes)
         if: inputs.cloudflare_tcp
         run: |
-          echo ">>> 正在内嵌生成并应用 Cloudflare TCP 补丁 ..."
+          echo ">>> 正在下载并应用 Cloudflare TCP collapse 补丁 ..."
           cd kernel_workspace/common
-          
-          cat << 'EOF' > cloudflare.patch
-          --- a/net/ipv4/tcp_input.c
-          +++ b/net/ipv4/tcp_input.c
-          @@ -5413,6 +5413,10 @@ static void tcp_collapse(struct sock *sk, struct sk_buff_head *list,
-           	struct sk_buff *skb, *n;
-           	bool end_of_skbs;
-           	u32 mss;
-          +	int collapsed = 0;
-          +
-          +	/* Cloudflare: hardcode max collapse bytes to 3MB */
-          +	int tcp_collapse_max_bytes = 3145728;
-           
-           	/* First, check that queue is compressible and that it has
-           	 * to be compressed, e.g. @start is beyond tail of @node.
-          @@ -5442,6 +5446,10 @@ static void tcp_collapse(struct sock *sk, struct sk_buff_head *list,
-           			break;
-           		}
-           
-          +		if (tcp_collapse_max_bytes &&
-          +		    collapsed > tcp_collapse_max_bytes)
-          +			break;
-          +
-           		if (!skb_copy_bits(skb, offset, skb_put(nskb, size), size)) {
-           			BUG_ON(tcp_skb_pcount(skb) != 1);
-           			tcp_skb_collapse_tstamp(nskb, skb);
-          @@ -5452,6 +5460,7 @@ static void tcp_collapse(struct sock *sk, struct sk_buff_head *list,
-           		}
-           		skb_copy_decrypted(nskb, skb);
-           
-          +		collapsed += size;
-           		offset += size;
-           		if (offset == skb->len && skb != tail) {
-           			skb = tcp_skb_next(skb, list);
-          EOF
-          
-          if patch -p1 -F 3 < cloudflare.patch 2>/dev/null; then
-            echo "✅ Cloudflare TCP patch 应用成功"
+          curl -sSL -o cloudflare.patch "https://raw.githubusercontent.com/cloudflare/linux/master/patches/0014-add-a-sysctl-to-enable-disable-tcp_collapse-logic.patch"
+
+          if git apply -p1 < cloudflare.patch 2>/dev/null; then
+            echo "✅ Cloudflare TCP 补丁应用成功"
           else
-            echo "⚠️ Cloudflare TCP patch 应用失败，源码可能存在差异，已安全跳过以防报错"
+            echo "⚠️ 补丁冲突，尝试 force apply ..."
+            if git apply -p1 --reject < cloudflare.patch 2>/dev/null; then
+              echo "✅ Cloudflare TCP (force) 应用成功"
+            else
+              echo "⚠️ Cloudflare TCP 补丁最终失败，已安全跳过"
+              ls *.rej 2>/dev/null && echo "  冲突文件: $(ls *.rej)"
+            fi
           fi
 
       - name: 启用选择性 -O3 优化
