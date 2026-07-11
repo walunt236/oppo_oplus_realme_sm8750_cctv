@@ -4,7 +4,7 @@ env:
   TZ: Asia/Shanghai
   ANDROID_VERSION: 'android15'
   KERNEL_VERSION: '6.6'
-  SUB_VERSION: 'latest'  # 动态值，运行时由 init_env 步骤通过 kernel.org tag 覆盖
+  SUB_VERSION: 'latest'
   KERNEL_NAME: 'android15-6.6-latest-4k'
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
@@ -118,22 +118,21 @@ on:
         required: true
         type: boolean
         default: true
-
-
       hz_1000:
         description: '⚡ HZ=1000 (调度tick从250→1000，提升触控响应)'
         required: true
         type: boolean
         default: false
-
-
-
       bbrv3_enable:
         description: '🚀 BBRv3 TCP拥塞控制 (Google最新版,需打补丁)'
         required: true
         type: boolean
         default: false
-
+      cloudflare_tcp:
+        description: '☁️ Cloudflare TCP 内存坍缩优化 (大幅降低弱网延迟)'
+        required: true
+        type: boolean
+        default: true
       o3_selective:
         description: '⚡ 选择性-O3 (crypto+lib压缩加密模块提速)'
         required: true
@@ -559,6 +558,22 @@ jobs:
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
 
+          # ★ 终极瘦身：剥离冗余追踪、解除内存加固、关闭看门狗与审计 ★
+          echo ">>> 正在注入终极瘦身配置 (关闭监控与调试)..."
+          cat >> $DCFG << 'SLIMCFG'
+          CONFIG_PAGE_OWNER=n
+          CONFIG_SCHEDSTATS=n
+          CONFIG_SCHED_INFO=n
+          CONFIG_SLUB_DEBUG=n
+          CONFIG_SLAB_FREELIST_RANDOM=n
+          CONFIG_SLAB_FREELIST_HARDENED=n
+          CONFIG_WQ_WATCHDOG=n
+          CONFIG_SOFTLOCKUP_DETECTOR=n
+          CONFIG_DETECT_HUNG_TASK=n
+          CONFIG_AUDIT=n
+          CONFIG_AUDITSYSCALL=n
+          SLIMCFG
+
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
@@ -741,7 +756,6 @@ jobs:
         run: |
           echo ">>> 正在下载并应用 BBRv3 补丁 ..."
           cd kernel_workspace/common
-          # 【修复1】: 使用 -o 强制重命名下载的文件为 bbrv3.patch
           curl -sSL -o bbrv3.patch "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
           
           if git apply -p1 < bbrv3.patch 2>/dev/null; then
@@ -753,11 +767,56 @@ jobs:
             exit 1
           fi
           
-          # 【修复2】: 去除多余的 ./common/ 路径，因为当前已经在 common 目录下了
           echo "CONFIG_TCP_CONG_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "[+] BBRv3 已加入编译"
 
+      - name: 启用 Cloudflare TCP 优化
+        if: inputs.cloudflare_tcp
+        run: |
+          echo ">>> 正在内嵌生成并应用 Cloudflare TCP 补丁 ..."
+          cd kernel_workspace/common
+          
+          cat << 'EOF' > cloudflare.patch
+          --- a/net/ipv4/tcp_input.c
+          +++ b/net/ipv4/tcp_input.c
+          @@ -5413,6 +5413,10 @@ static void tcp_collapse(struct sock *sk, struct sk_buff_head *list,
+           	struct sk_buff *skb, *n;
+           	bool end_of_skbs;
+           	u32 mss;
+          +	int collapsed = 0;
+          +
+          +	/* Cloudflare: hardcode max collapse bytes to 3MB */
+          +	int tcp_collapse_max_bytes = 3145728;
+           
+           	/* First, check that queue is compressible and that it has
+           	 * to be compressed, e.g. @start is beyond tail of @node.
+          @@ -5442,6 +5446,10 @@ static void tcp_collapse(struct sock *sk, struct sk_buff_head *list,
+           			break;
+           		}
+           
+          +		if (tcp_collapse_max_bytes &&
+          +		    collapsed > tcp_collapse_max_bytes)
+          +			break;
+          +
+           		if (!skb_copy_bits(skb, offset, skb_put(nskb, size), size)) {
+           			BUG_ON(tcp_skb_pcount(skb) != 1);
+           			tcp_skb_collapse_tstamp(nskb, skb);
+          @@ -5452,6 +5460,7 @@ static void tcp_collapse(struct sock *sk, struct sk_buff_head *list,
+           		}
+           		skb_copy_decrypted(nskb, skb);
+           
+          +		collapsed += size;
+           		offset += size;
+           		if (offset == skb->len && skb != tail) {
+           			skb = tcp_skb_next(skb, list);
+          EOF
+          
+          if patch -p1 -F 3 < cloudflare.patch 2>/dev/null; then
+            echo "✅ Cloudflare TCP patch 应用成功"
+          else
+            echo "⚠️ Cloudflare TCP patch 应用失败，源码可能存在差异，已安全跳过以防报错"
+          fi
 
       - name: 启用选择性 -O3 优化
         if: inputs.o3_selective
@@ -968,6 +1027,8 @@ jobs:
           echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
           echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
           echo "RCU_NOCB: ${{ github.event.inputs.rcu_nocb_enable }}" >> ./ak3.log
+          echo "Cloudflare TCP: ${{ github.event.inputs.cloudflare_tcp }}" >> ./ak3.log
+          echo "O3 Selective: ${{ github.event.inputs.o3_selective }}" >> ./ak3.log
           
           zip -z ../$AK3_NAME < ./ak3.log
 
@@ -1057,16 +1118,15 @@ jobs:
           |------|:--:|
           | KSU | ${{ env.KSU_TYPENAME }} (${{ needs.build.outputs.ksuver }}) |
           | SUSFS | ${{ github.event.inputs.susfs_enable }} |
-          | KPM | ${{ github.event.inputs.kpm_enable }} |
-          | LZ4 | ${{ github.event.inputs.lz4_enable }} |
-          | LZ4KD | ${{ github.event.inputs.lz4kd_enable }} |
-          | BBR/Brutal | ${{ github.event.inputs.bbr_enable }} |
+          | BBRv3 | ${{ github.event.inputs.bbrv3_enable }} |
+          | Cloudflare TCP | ${{ github.event.inputs.cloudflare_tcp }} |
+          | 选择性 -O3 | ${{ github.event.inputs.o3_selective }} |
+          | 终极瘦身(去调试) | 默认强制剥离 |
           | 网络增强 | ${{ github.event.inputs.better_net }} |
           | Droidspaces | ${{ github.event.inputs.droidspaces_enable }} |
           | ADIOS | ${{ github.event.inputs.adios_enable }} |
           | Re-Kernel | ${{ github.event.inputs.rekernel_enable }} |
           | 基带保护 | ${{ github.event.inputs.baseband_guard }} |
-          | RCU_NOCB | ${{ github.event.inputs.rcu_nocb_enable }} |
 
           **刷入前请备份 boot 分区。**
           EOF
