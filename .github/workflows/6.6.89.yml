@@ -120,26 +120,6 @@ on:
         default: true
 
 
-      t1_rseq:
-        description: '🔬 RSEQ (用户态无锁原子操作,加速多线程)'
-        required: true
-        type: boolean
-        default: false
-
-      t1_ksm:
-        description: '🔬 KSM (内核同页合并,省内存)'
-        required: true
-        type: boolean
-        default: false
-
-      t1_rcu_lazy:
-        description: '🔬 RCU_LAZY 默认启用 (批量RCU回调,省电)'
-        required: true
-        type: boolean
-        default: false
-
-jobs:
-  build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
@@ -528,6 +508,8 @@ jobs:
           CONFIG_RCU_NOCB_CPU=y
           CONFIG_RCU_NOCB_CPU_DEFAULT_ALL=y
           RCUCFG
+          sed -i '/CONFIG_RCU_LAZY_DEFAULT_OFF=y/d' ./common/arch/arm64/configs/gki_defconfig
+          echo "  [+] RCU_LAZY 默认启用"
           fi
 
           cat >> $DCFG << 'NSCFG'
@@ -715,31 +697,6 @@ jobs:
 
           echo "[+] HZ: 250 -> 1000"
 
-      - name: 启用 RSEQ (用户态无锁原子操作)
-        if: inputs.t1_rseq
-        run: |
-          echo ">>> 正在启用 RSEQ ..."
-          cd kernel_workspace
-          echo "CONFIG_RSEQ=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] RSEQ 已开启"
-
-      - name: 启用 KSM (内核同页合并)
-        if: inputs.t1_ksm
-        run: |
-          echo ">>> 正在启用 KSM ..."
-          cd kernel_workspace
-          echo "CONFIG_KSM=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] KSM 已开启"
-
-      - name: 启用 RCU_LAZY 默认 (批量RCU回调省电)
-        if: inputs.t1_rcu_lazy
-        run: |
-          echo ">>> 正在启用 RCU_LAZY 默认 ..."
-          cd kernel_workspace
-          sed -i '/CONFIG_RCU_LAZY_DEFAULT_OFF=y/d' ./common/arch/arm64/configs/gki_defconfig
-          echo "[+] RCU_LAZY_DEFAULT_OFF 已移除"
-
-      - name: 构建内核 (生成配置文件与诊断检测)
         run: |
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
