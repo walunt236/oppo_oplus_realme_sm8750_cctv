@@ -1,4 +1,4 @@
-name: "6.6.89 欧加真OKI内核快速构建"
+name: "oneplus13 内核编译"
 
 env:
   TZ: Asia/Shanghai
@@ -54,7 +54,7 @@ on:
         description: "是否启用bbr算法(优化上行数据;false关闭,true仅加入算法,default启用算法并设为默认)"
         required: true
         type: choice
-        default: 'true'
+        default: 'false'
         options:
           - 'false'
           - 'true'
@@ -92,7 +92,7 @@ on:
         description: '开启 RCU_NOCB_CPU (减少软中断抢占UI线程;已通过验证)'
         required: true
         type: boolean
-        default: false
+        default: true
       ccache_update:
         description: '更新ccache缓存(将本次编译生成的ccache缓存覆盖至仓库缓存)'
         required: true
@@ -121,7 +121,7 @@ on:
 
 
       hz_1000:
-        description: '⚡ HZ=1000 (调度tick从250→1000，提升触控响应)'
+        description: 'HZ=1000'
         required: true
         type: boolean
         default: false
@@ -129,13 +129,13 @@ on:
 
 
       bbrv3_enable:
-        description: '🚀 BBRv3 TCP拥塞控制 (Google最新版,需打补丁)'
+        description: 'BBRv3 TCP拥塞控制'
         required: true
         type: boolean
         default: false
 
       o3_selective:
-        description: '⚡ 选择性-O3 (crypto+lib压缩加密模块提速)'
+        description: '选择性-O3'
         required: true
         type: boolean
         default: false
