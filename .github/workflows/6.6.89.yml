@@ -2,10 +2,10 @@ name: "oneplus13 内核编译"
 
 env:
   TZ: Asia/Shanghai
-  ANDROID_VERSION: 'android15'
+  ANDROID_VERSION: 'android16'
   KERNEL_VERSION: '6.6'
   SUB_VERSION: 'latest'  # 动态值，运行时由 init_env 步骤通过 kernel.org tag 覆盖
-  KERNEL_NAME: 'android15-6.6-latest-4k'
+  KERNEL_NAME: 'android16-6.6-latest-4k'
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
 concurrency:
