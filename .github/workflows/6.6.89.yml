@@ -176,7 +176,7 @@ jobs:
 
           echo "正在克隆 OEM 内核源码仓库..."
           git clone --depth=1 \
-            https://github.com/$GITHUB_REPOSITORY_OWNER/android_kernel_common_oneplus_sm8750.git \
+            https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
             -b oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89 \
             common
 
