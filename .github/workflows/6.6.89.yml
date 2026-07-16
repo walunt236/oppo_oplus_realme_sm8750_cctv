@@ -561,7 +561,7 @@ jobs:
           # 🚀 极客级优化：物理卸载调度统计器审计负重 (配合 EXTEND 追加模式)
           echo ">>> 正在注入极客级 cmdline 调度优化..."
           cat >> $DCFG << 'CMDLINEOPT'
-          CONFIG_CMDLINE="schedstats=disable"
+          CONFIG_CMDLINE="schedstats=disable mitigations=off audit=0 loglevel=3"
           CONFIG_CMDLINE_EXTEND=y
           CMDLINEOPT
       - name: 启用网络功能增强优化配置
