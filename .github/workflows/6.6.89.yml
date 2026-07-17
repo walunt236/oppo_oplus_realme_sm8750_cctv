@@ -559,21 +559,39 @@ jobs:
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
           
-      - name: 注入全能战神内核参数
+      - name: 自动定位并注入全能战神参数
         env:
           MY_FINAL_CMDLINE: >-
-            schedstats=disable mitigations=off panic=10 nokaslr 
-            page_alloc.shuffle=1 cryptomgr.notests 
-            rcutree.blimit=1024 workqueue.power_efficient=1
+           schedstats=disable mitigations=off panic=10 nokaslr 
+           page_alloc.shuffle=1 cryptomgr.notests 
+           rcutree.blimit=1024 workqueue.power_efficient=1
         run: |
-         # 彻底清理可能存在的旧静态 CMDLINE 行
-         sed -i '/CONFIG_CMDLINE=/d' arch/arm64/configs/vendor_defconfig
-         sed -i '/CONFIG_CMDLINE_EXTEND=/d' arch/arm64/configs/vendor_defconfig
+        # 🔍 智能雷达：在 configs 目录下递归寻找所有带有 defconfig 后缀的文件
+        echo "正在扫描内核配置文件..."
     
-         # 静态写入与官方底盘完美互补的黄金 Buff
-         echo "CONFIG_CMDLINE=\"${{ env.MY_FINAL_CMDLINE }}\"" >> arch/arm64/configs/vendor_defconfig
-         echo "CONFIG_CMDLINE_EXTEND=y" >> arch/arm64/configs/vendor_defconfig
-
+        # 优先寻找常见的 gki_defconfig 或厂商定制 defconfig
+          TARGET_FILE=$(find arch/arm64/configs/ -type f \( -name "gki_defconfig" -o -name "*_defconfig" -o -name "*defconfig" \) | head -n 1)
+    
+          if [ -z "$TARGET_FILE" ]; then
+          echo "❌ 错误：在 arch/arm64/configs/ 及其子目录下未找到任何 defconfig 配置文件！"
+          ls -R arch/arm64/configs/
+          exit 1
+          fi
+    
+          echo "🎯 成功锁定目标配置文件: $TARGET_FILE"
+    
+          # 彻底清理该文件中可能存在的旧静态 CMDLINE 行
+          sed -i '/CONFIG_CMDLINE=/d' "$TARGET_FILE"
+          sed -i '/CONFIG_CMDLINE_EXTEND=/d' "$TARGET_FILE"
+    
+          # 静态写入我们活体数据验证过的 9 大黄金 Buff
+          echo "CONFIG_CMDLINE=\"${{ env.MY_FINAL_CMDLINE }}\"" >> "$TARGET_FILE"
+          echo "CONFIG_CMDLINE_EXTEND=y" >> "$TARGET_FILE"
+    
+          echo "========================================="
+          echo "✅ 黄金参数已成功洗入目标文件！"
+          tail -n 5 "$TARGET_FILE"
+          echo "========================================="
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
