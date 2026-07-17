@@ -559,13 +559,13 @@ jobs:
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
           
-      - name: 注入全能战神内核参数（C源码外科手术版）
+            - name: 注入内核参数
         run: |
           echo "========================================="
-          echo "💉 正在对内核启动核心 init/main.c 进行参数强灌..."
+          echo "💉 正在对内核启动核心 init/main.c 注入"
           
           if [ ! -f "init/main.c" ]; then
-            echo "❌ 错误：未在当前根目录下找到 init/main.c，正在全盘搜寻..."
+            echo "🔍 正在全盘搜寻 main.c..."
             REAL_MAIN=$(find . -type f -name "main.c" | grep "/init/")
             if [ -z "$REAL_MAIN" ]; then
               echo "❌ 严重错误：无法定位内核入口文件！"
@@ -578,13 +578,14 @@ jobs:
           
           echo "🎯 已锁定内核入口文件: $TARGET_MAIN"
           
-          # 在内核解析完架构 cmdline (setup_arch) 的正下方，强行用 C 语言拼接我们的黄金参数
-          # 这样可以绕过任何 Kconfig 的限制，且绝对保留原厂所有的屏幕、DDR等基础硬件参数
-          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1", sizeof(boot_command_line));' "$TARGET_MAIN"
+          # 在 setup_arch 下方强行拼接串
+          # 123
+          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
           
-          echo "✅ C 源码级 Buff 注入成功！以下为入口处上下文代码核对："
+          echo "✅ 终极完全体注入成功！以下为入口处上下文代码核对："
           grep -C 3 "strlcat" "$TARGET_MAIN"
           echo "========================================="
+
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
