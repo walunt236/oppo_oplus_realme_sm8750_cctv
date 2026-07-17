@@ -566,10 +566,8 @@ jobs:
            page_alloc.shuffle=1 cryptomgr.notests 
            rcutree.blimit=1024 workqueue.power_efficient=1
         run: |
-        # 🔍 智能雷达：在 configs 目录下递归寻找所有带有 defconfig 后缀的文件
-        echo "正在扫描内核配置文件..."
-    
-        # 优先寻找常见的 gki_defconfig 或厂商定制 defconfig
+        
+          # 优先寻找常见的 gki_defconfig 或厂商定制 defconfig
           TARGET_FILE=$(find arch/arm64/configs/ -type f \( -name "gki_defconfig" -o -name "*_defconfig" -o -name "*defconfig" \) | head -n 1)
     
           if [ -z "$TARGET_FILE" ]; then
