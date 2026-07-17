@@ -558,10 +558,10 @@ jobs:
           CONFIG_KUNIT=m
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
-          # 🚀 极客级优化：物理卸载调度统计器审计负重 (配合 EXTEND 追加模式)
+          #cmdline追加
           echo ">>> 正在注入极客级 cmdline 调度优化..."
           cat >> $DCFG << 'CMDLINEOPT'
-          CONFIG_CMDLINE="schedstats=disable mitigations=off audit=0 loglevel=3"
+          CONFIG_CMDLINE="schedstats=disable mitigations=off audit=0 loglevel=3 panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1"
           CONFIG_CMDLINE_EXTEND=y
           CMDLINEOPT
       - name: 启用网络功能增强优化配置
