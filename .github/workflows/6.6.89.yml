@@ -559,10 +559,10 @@ jobs:
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
           
-            - name: 注入内核参数
+      - name: 注入究极完全体内核参数（C源码外科手术版）
         run: |
           echo "========================================="
-          echo "💉 正在对内核启动核心 init/main.c 注入"
+          echo "💉 正在对内核启动核心 init/main.c 进行终极完全体强灌..."
           
           if [ ! -f "init/main.c" ]; then
             echo "🔍 正在全盘搜寻 main.c..."
@@ -578,13 +578,14 @@ jobs:
           
           echo "🎯 已锁定内核入口文件: $TARGET_MAIN"
           
-          # 在 setup_arch 下方强行拼接串
-          # 123
+          # 在 setup_arch 下方强行拼接我们的究极完全体 Buff 串
+          # 包含：解封全核中断(irqaffinity=0-7)、RCU免唤醒轮询、时钟错峰、信任硬件RNG以及之前的黄金九元组
           sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
           
           echo "✅ 终极完全体注入成功！以下为入口处上下文代码核对："
           grep -C 3 "strlcat" "$TARGET_MAIN"
           echo "========================================="
+
 
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
