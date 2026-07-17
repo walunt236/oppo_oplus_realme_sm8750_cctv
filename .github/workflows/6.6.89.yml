@@ -558,12 +558,22 @@ jobs:
           CONFIG_KUNIT=m
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
-          #cmdline追加
-          echo ">>> 正在注入极客级 cmdline 调度优化..."
-          cat >> $DCFG << 'CMDLINEOPT'
-          CONFIG_CMDLINE="schedstats=disable mitigations=off audit=0 loglevel=3 panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1"
-          CONFIG_CMDLINE_EXTEND=y
-          CMDLINEOPT
+          
+      - name: 注入全能战神内核参数
+        env:
+          MY_FINAL_CMDLINE: >-
+            schedstats=disable mitigations=off panic=10 nokaslr 
+            page_alloc.shuffle=1 cryptomgr.notests 
+            rcutree.blimit=1024 workqueue.power_efficient=1
+        run: |
+         # 彻底清理可能存在的旧静态 CMDLINE 行
+         sed -i '/CONFIG_CMDLINE=/d' arch/arm64/configs/vendor_defconfig
+         sed -i '/CONFIG_CMDLINE_EXTEND=/d' arch/arm64/configs/vendor_defconfig
+    
+         # 静态写入与官方底盘完美互补的黄金 Buff
+         echo "CONFIG_CMDLINE=\"${{ env.MY_FINAL_CMDLINE }}\"" >> arch/arm64/configs/vendor_defconfig
+         echo "CONFIG_CMDLINE_EXTEND=y" >> arch/arm64/configs/vendor_defconfig
+
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
