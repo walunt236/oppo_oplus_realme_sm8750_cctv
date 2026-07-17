@@ -561,7 +561,7 @@ jobs:
           
       - name: 全盘扫描并注入全能战神参数
         env:
-        MY_FINAL_CMDLINE: "schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1"
+         MY_FINAL_CMDLINE: "schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1"
         run: |
          echo "========================================="
          echo "🔍 开启全盘雷达，正在搜寻所有 defconfig 配置文件..."
