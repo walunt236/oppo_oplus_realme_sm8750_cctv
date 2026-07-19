@@ -118,22 +118,16 @@ on:
         required: true
         type: boolean
         default: true
-
-
       hz_1000:
         description: 'HZ=1000'
         required: true
         type: boolean
         default: false
-
-
-
       bbrv3_enable:
         description: 'BBRv3 TCP拥塞控制'
         required: true
         type: boolean
         default: false
-
       o3_selective:
         description: '选择性-O3'
         required: true
@@ -153,7 +147,7 @@ jobs:
       actions: write
       contents: read
     steps:
-      - name: 安装环境依赖+初始化源码仓库及llvm-Clang18工具链
+      - name: 安装环境依赖+初始化源码仓库及llvm-Clang19工具链
         id: init_env
         run: |
           rm -rf kernel_workspace
@@ -179,6 +173,12 @@ jobs:
             https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
             -b oneplus/sm8750_b_16.0.0_oneplus_13 \
             common
+
+          echo "正在克隆设备树与私有驱动仓库(Vendor Modules)..."
+          git clone --depth=1 \
+            https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git \
+            -b oneplus/sm8750_b_16.0.0_oneplus_13 \
+            vendor_modules &
 
           cd common
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -258,9 +258,9 @@ jobs:
           fi
 
           cd ..
-          echo "正在克隆llvm-clang18工具链..." && mkdir -p clang18 &&
-          aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/clang-r510928.zip -o clang.zip &&
-          unzip -q clang.zip -d clang18 && rm -rf clang.zip &
+          echo "正在克隆 ZyCromerZ LLVM-Clang 19 工具链..." && mkdir -p clang19 &&
+          aria2c -s16 -x16 -k1M https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz -o clang19.tar.gz &&
+          tar -xzf clang19.tar.gz -C clang19 && rm -rf clang19.tar.gz &
 
           echo "正在克隆构建工具..." &&
           aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip -o build-tools.zip &&
@@ -274,9 +274,11 @@ jobs:
               exit 1
             }
           fi
-          echo "所有源码及llvm-Clang18工具链初始化完成！"
+          
+          echo "所有源码及llvm-Clang19工具链初始化完成！"
           echo "正在去除 ABI 保护 & 去除 dirty 后缀..."
           rm common/android/abi_gki_protected_exports_* || true
+          sed -i 's/protected_modules = \[.*\]/protected_modules = []/' common/modules.bzl || true
           for f in common/scripts/setlocalversion; do
             sed -i 's/ -dirty//g' "$f"
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
@@ -416,8 +418,16 @@ jobs:
             cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./common/
             cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+            
             cd ./common
+            echo ">>> 正在部署 Susfs 假动作 (Fake Patch) 防御机制..."
+            sed -i -e '/int ret = 0, copied = 0;/a \    unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;' -e '/int ret = 0, copied = 0;/a \    pagemap_entry_t *res = NULL;' ./fs/proc/task_mmu.c || true
+
             patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || echo "⚠️ SUSFS 核心补丁应用失败，SUSFS 功能将不可用"
+
+            echo ">>> 正在撤销 Susfs 假动作痕迹..."
+            sed -i -e '/unsigned int nr_subpages = __PAGE_SIZE \/ PAGE_SIZE;/d' -e '/pagemap_entry_t \*res = NULL;/d' ./fs/proc/task_mmu.c || true
+
             patch -p1 -N -F 3 < 69_hide_stuff.patch || true
             cd ..
           else
@@ -545,7 +555,6 @@ jobs:
           CONFIG_DEVTMPFS=y
           NSCFG
 
-          # ★关键加固：强制注入原厂存活依赖符号，确保闭源驱动安全加载★
           echo ">>> 正在注入闭源 Vendor 驱动强依赖符号 (UBSAN / KUNIT)..."
           cat >> $DCFG << 'OEMDEPENDS'
           CONFIG_UBSAN=y
@@ -578,14 +587,11 @@ jobs:
           
           echo "🎯 已锁定内核入口文件: $TARGET_MAIN"
           
-          # 在 setup_arch 下方强行拼接我们的究极完全体 Buff 串
-          # 包含：解封全核中断(irqaffinity=0-7)、RCU免唤醒轮询、时钟错峰、信任硬件RNG以及之前的黄金九元组
           sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
           
           echo "✅ 终极完全体注入成功！以下为入口处上下文代码核对："
           grep -C 3 "strlcat" "$TARGET_MAIN"
           echo "========================================="
-
 
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
@@ -732,7 +738,6 @@ jobs:
           cd kernel_workspace
           echo "替换内核版本后缀并固化..."
           
-          # 核心防护：强制锁死动态版本号，对齐正常开机环境配置
           echo "CONFIG_LOCALVERSION_AUTO=y" >> ./common/arch/arm64/configs/gki_defconfig
 
           if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
@@ -769,7 +774,6 @@ jobs:
         run: |
           echo ">>> 正在下载并应用 BBRv3 补丁 ..."
           cd kernel_workspace/common
-          # 【修复1】: 使用 -o 强制重命名下载的文件为 bbrv3.patch
           curl -sSL -o bbrv3.patch "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
           
           if git apply -p1 < bbrv3.patch 2>/dev/null; then
@@ -781,11 +785,9 @@ jobs:
             exit 1
           fi
           
-          # 【修复2】: 去除多余的 ./common/ 路径，因为当前已经在 common 目录下了
           echo "CONFIG_TCP_CONG_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "[+] BBRv3 已加入编译"
-
 
       - name: 启用选择性 -O3 优化
         if: inputs.o3_selective
@@ -800,11 +802,11 @@ jobs:
         run: |
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
+          export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
           export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
           
           echo "编译器信息:"
-          CLANG_DIR="$WORKDIR/kernel_workspace/clang18/bin"
+          CLANG_DIR="$WORKDIR/kernel_workspace/clang19/bin"
           echo "Clang版本: $($CLANG_DIR/clang --version | head -n 1)"
           echo "LLD版本: $($CLANG_DIR/ld.lld --version | head -n 1)"
           PAHOLE_VER=$(pahole --version 2>/dev/null | head -n1)
@@ -832,7 +834,7 @@ jobs:
         run: |
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
+          export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
           export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
           export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
           export CCACHE_COMPILERCHECK="none"
@@ -854,28 +856,18 @@ jobs:
           wait
           echo ">>> 磁盘清理完成"
 
-          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
-          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
-          chmod 777 ./*.so
-          export FAKESTAT="2025-05-25 12:00:00"
-          export FAKETIME="@2025-05-25 13:00:00"
-          
-          SO_DIR=$(pwd)
-          export PRELOAD_LIBS="$SO_DIR/libfakestat.so $SO_DIR/libfaketimeMT.so"
-          echo '#!/bin/bash' > cc-wrapper
-          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> cc-wrapper
-          echo 'export FAKESTAT="'$FAKESTAT'"' >> cc-wrapper
-          echo 'export FAKETIME="'$FAKETIME'"' >> cc-wrapper
-          echo 'ccache clang "$@"' >> cc-wrapper
-          echo '#!/bin/bash' > ld-wrapper
-          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> ld-wrapper
-          echo 'export FAKESTAT="'$FAKESTAT'"' >> ld-wrapper
-          echo 'export FAKETIME="'$FAKETIME'"' >> ld-wrapper
-          echo 'ld.lld "$@"' >> ld-wrapper
+          export SOURCE_DATE_EPOCH=$(date +%s)
+          export KBUILD_BUILD_TIMESTAMP="$(date -u)"
+          export KBUILD_BUILD_USER="OnePlus"
+          export KBUILD_BUILD_HOST="ubuntu-build"
 
-          chmod +x cc-wrapper ld-wrapper
+          echo '#!/bin/bash' > ld-wrapper
+          echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
+          chmod +x ld-wrapper
           
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
+          KCFLAGS_EXTRA="-mcpu=oryon-1"
+          
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
           echo "内核编译完成！"
           echo "========== LZ4 NEON ASM 验证 =========="
