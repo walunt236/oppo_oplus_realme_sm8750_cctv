@@ -788,8 +788,7 @@ jobs:
           echo "CONFIG_TCP_CONG_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "[+] BBRv3 已加入编译"
-      - name: 💉 注入一加原厂风驰引擎 (全套核心补丁级激活 SCX)
-        run: |
+
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
           WORKDIR="$(pwd)"
