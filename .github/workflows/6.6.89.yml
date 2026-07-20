@@ -865,36 +865,6 @@ jobs:
           
           cd kernel_workspace/common
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
-
-
-
-
-      - name: 启用选择性 -O3 优化
-        if: inputs.o3_selective
-        run: |
-          echo ">>> 正在启用选择性 -O3 ..."
-          cd kernel_workspace/common
-          echo 'subdir-ccflags-y += -O3' >> crypto/Makefile
-          echo 'subdir-ccflags-y += -O3' >> lib/Makefile
-          echo "[+] crypto/ + lib/ : -O2 -> -O3"
-
-      - name: 构建内核 (生成配置文件与诊断检测)
-        run: |
-          WORKDIR="$(pwd)"
-          export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
-          
-          echo "编译器信息:"
-          CLANG_DIR="$WORKDIR/kernel_workspace/clang19/bin"
-          echo "Clang版本: $($CLANG_DIR/clang --version | head -n 1)"
-          echo "LLD版本: $($CLANG_DIR/ld.lld --version | head -n 1)"
-          PAHOLE_VER=$(pahole --version 2>/dev/null | head -n1)
-          [ -z "$PAHOLE_VER" ] && echo "pahole版本：未安装" || echo "pahole版本：$PAHOLE_VER"
-          
-          cd kernel_workspace/common
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
-
           if [[ "${{ github.event.inputs.diagnosis }}" == "true" ]]; then
             echo ">>> 诊断模式已开启，正在导出 .config 文件..."
             cp out/.config out/build_config.txt
@@ -908,6 +878,19 @@ jobs:
           name: kernel-config-${{ github.run_id }}
           if-no-files-found: warn
           path: kernel_workspace/common/out/build_config.txt
+
+
+
+      - name: 启用选择性 -O3 优化
+        if: inputs.o3_selective
+        run: |
+          echo ">>> 正在启用选择性 -O3 ..."
+          cd kernel_workspace/common
+          echo 'subdir-ccflags-y += -O3' >> crypto/Makefile
+          echo 'subdir-ccflags-y += -O3' >> lib/Makefile
+          echo "[+] crypto/ + lib/ : -O2 -> -O3"
+
+
 
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
