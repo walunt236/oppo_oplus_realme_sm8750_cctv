@@ -916,27 +916,44 @@ jobs:
       - name: 启用选择性 -O3 优化
         if: inputs.o3_selective
         run: |
-          echo ">>> 正在启用选择性 -O3 ..."
+          echo "========================================="
+          echo ">>> 正在启用-O3拓展 ..."
           cd kernel_workspace/common
           for TARGET_DIR in lib crypto mm fs net; do
             if [ -d "$TARGET_DIR" ]; then
               echo 'subdir-ccflags-y += -O3' >> $TARGET_DIR/Makefile
-              echo "  [+] 核心引擎 ${TARGET_DIR}/ 成功进阶满血 -O3"
+              echo "  [+] 核心 ${TARGET_DIR}/ 成功 -O3"
             fi
           done
           echo "========================================="
-          echo ">>> 正在对 Adreno GPU 驱动核心区实施 -O3 与向量化爆破..."
-          sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' drivers/gpu/msm/Makefile
-          echo "[+] GPU Makefile 编译管线拦截成功！"
-          echo ">>> 正在压缩 GPU 硬件抢占状态机延迟..."
-          sed -i 's/adreno_preempt_timeout = .*/adreno_preempt_timeout = 5;/g' drivers/gpu/msm/adreno_preempt.c 2>/dev/null || true
-          sed -i 's/#define PREEMPT_TIMEOUT .*/#define PREEMPT_TIMEOUT 5/g' drivers/gpu/msm/adreno_preempt.c 2>/dev/null || true
-          echo "[+] GPU 抢占响应变长已强行缩短！"
-          echo ">>> 正在向 msm-adreno-tz 调速器注入激进油门补丁..."
-          sed -i 's/filter_down = .*/filter_down = 0;/g' drivers/gpu/msm/adreno_tz.c 2>/dev/null || true
-          sed -i 's/sample_time = .*/sample_time = 10;/g' drivers/gpu/msm/adreno_tz.c 2>/dev/null || true
-          echo "[+] GPU 动态响应油门已踩死！"
-
+          
+          echo ">>> 寻找Adreno GPU 驱动目录"
+          cd $GITHUB_WORKSPACE/kernel_workspace
+          
+          GPU_DIR=$(find vendor_modules -type f -name "adreno_preempt.c" | sed 's/\/adreno_preempt.c//' | head -n 1)
+          
+          if [ -n "$GPU_DIR" ] && [ -d "$GPU_DIR" ]; then
+            echo "✅ 成功定位 GPU 驱动源码根目录: $GPU_DIR"
+            
+            echo ">>> 正在对 Adreno GPU 驱动核心区实施 -O3 与向量化爆破..."
+            sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' "$GPU_DIR/Makefile"
+            echo "[+] GPU Makefile 编译管线拦截成功！"
+            
+            echo ">>> 正在压缩 GPU 硬件抢占状态机延迟..."
+            sed -i 's/adreno_preempt_timeout = .*/adreno_preempt_timeout = 5;/g' "$GPU_DIR/adreno_preempt.c" 2>/dev/null || true
+            sed -i 's/#define PREEMPT_TIMEOUT .*/#define PREEMPT_TIMEOUT 5/g' "$GPU_DIR/adreno_preempt.c" 2>/dev/null || true
+            echo "[+] GPU 抢占响应时间已强行缩短！"
+            
+            echo ">>> 正在向 msm-adreno-tz 调速器注入激进油门补丁..."
+            sed -i 's/filter_down = .*/filter_down = 0;/g' "$GPU_DIR/adreno_tz.c" 2>/dev/null || true
+            sed -i 's/sample_time = .*/sample_time = 10;/g' "$GPU_DIR/adreno_tz.c" 2>/dev/null || true
+            echo "[+] GPU 动态响应油门已踩死！"
+          else
+            echo "❌ 严重错误：未能在 vendor_modules 中搜寻到 Adreno GPU 驱动组件！"
+            exit 1
+          fi
+          echo "========================================="
+          
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
         run: |
