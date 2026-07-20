@@ -529,6 +529,7 @@ jobs:
           
           # LZ4/ZSTD 加速所需的硬开关死锁进 defconfig
           cat >> $DCFG << 'TUNECFG'
+          CONFIG_LTO_CLANG_THIN=y
           CONFIG_ZRAM_DEF_COMP_LZ4=y
           CONFIG_ZRAM_DEF_COMP="lz4"
           CONFIG_CRYPTO_LZ4=y
@@ -610,6 +611,8 @@ jobs:
         run: |
           cd kernel_workspace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
+          CONFIG_NETFILTER_XT_TARGET_HL=y
+          CONFIG_NETFILTER_XT_MATCH_HL=y
           CONFIG_NF_CONNTRACK=y
           CONFIG_NF_NAT=y
           CONFIG_NF_NAT_MASQUERADE=y
@@ -870,7 +873,13 @@ jobs:
           patch -p1 --forward -f < "../../wild_patches/common/silence_system_logspam.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/silence_irq_cpu_logspam.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/use_unlikely_wrap_cpufreq.patch" || true
-
+          echo ">>> 正在搜寻 Wild 团队 Unicode 路径净化防作弊补丁..."
+          UNICODE_PATCH=$(find ../../wild_patches/ -name "*unicode*.patch" | head -n 1)
+          if [ -n "$UNICODE_PATCH" ]; then
+          echo "✅ 成功匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH"
+          sed -i 's/\r$//' "$UNICODE_PATCH"
+          patch -p1 --forward -f < "$UNICODE_PATCH" || true
+          fi
           # =========================================================
           # 补齐 LZ4 NEON ASM 与 ZSTD 1.5.7 硬件加速编译器参数
           # =========================================================
