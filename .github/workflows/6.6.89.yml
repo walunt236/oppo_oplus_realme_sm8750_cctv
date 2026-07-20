@@ -348,13 +348,23 @@ jobs:
 
       - name: 初始化并配置ccache
         run: |
-          export CCACHE_COMPILERCHECK="none"
-          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
-          export CCACHE_BASEDIR="${{ github.workspace }}"
-          export CCACHE_NOHASHDIR="true"
-          export CCACHE_NOHARDLINK="true"
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="${{ env.CCACHE_MAXSIZE }}"
+          export CCACHE_BASEDIR="${{ github.workspace }}"
+          export CCACHE_COMPILERCHECK="content"
+          export CCACHE_NOHASHDIR="true"
+          export CCACHE_NOHARDLINK="true"
+          export CCACHE_DIRECT="true"
+          export CCACHE_FILE_CLONE="true"
+          export CCACHE_INODE_CACHE="true"
+          export CCACHE_COMPRESSION="true"
+          export CCACHE_COMPRESSION_LEVEL="3"
+          export CCACHE_UMASK="002"
+          export CCACHE_IS_KERNEL_COMPILING="true"
+          export CCACHE_IGNOREOPTIONS="--sysroot*"
+          export CCACHE_SLOPPINESS="file_macro,time_macros,include_file_mtime,include_file_ctime,pch_defines,system_headers,locale"
+          export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
+          if ccache --help 2>&1 | grep -q 'depend_mode'; then export CCACHE_DEPEND=true; fi
 
           mkdir -p "$CCACHE_DIR"
           echo "配置ccache缓存大小为: $CCACHE_MAXSIZE"
@@ -928,15 +938,23 @@ jobs:
           export PATH="/usr/lib/ccache:$PATH"
           export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
           export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
-          export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
-          export CCACHE_COMPILERCHECK="none"
-          export CCACHE_SLOPPINESS="file_stat_matches,include_file_mtime,include_file_ctime,time_macros"
-          export CCACHE_BASEDIR="${{ github.workspace }}"
-          export CCACHE_NOHASHDIR="true"
-          export CCACHE_NOHARDLINK="true"
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="${{ env.CCACHE_MAXSIZE }}"
+          export CCACHE_BASEDIR="${{ github.workspace }}"
+          export CCACHE_COMPILERCHECK="content"
+          export CCACHE_NOHASHDIR="true"
+          export CCACHE_NOHARDLINK="true"
+          export CCACHE_DIRECT="true"
+          export CCACHE_FILE_CLONE="true"
+          export CCACHE_INODE_CACHE="true"
+          export CCACHE_COMPRESSION="true"
+          export CCACHE_COMPRESSION_LEVEL="3"
+          export CCACHE_UMASK="002"
           export CCACHE_IS_KERNEL_COMPILING="true"
+          export CCACHE_IGNOREOPTIONS="--sysroot*"
+          export CCACHE_SLOPPINESS="file_macro,time_macros,include_file_mtime,include_file_ctime,pch_defines,system_headers,locale"
+          export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
+          if ccache --help 2>&1 | grep -q 'depend_mode'; then export CCACHE_DEPEND=true; fi
 
           cd kernel_workspace/common
 
