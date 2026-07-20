@@ -790,24 +790,34 @@ jobs:
           echo "[+] BBRv3 已加入编译"
       - name: 💉 注入一加原厂风驰引擎 (全套核心补丁级激活 SCX)
         run: |
-          echo       - name: 💉 注入一加原厂风驰引擎 (全套核心补丁级激活 SCX)
+      - name: 构建内核 (生成配置文件与诊断检测)
         run: |
+          WORKDIR="$(pwd)"
+          export PATH="/usr/lib/ccache:$PATH"
+          export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
+          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
+          
+          echo "编译器信息:"
+          CLANG_DIR="$WORKDIR/kernel_workspace/clang19/bin"
+          echo "Clang版本: $($CLANG_DIR/clang --version | head -n 1)"
+          echo "LLD版本: $($CLANG_DIR/ld.lld --version | head -n 1)"
+          PAHOLE_VER=$(pahole --version 2>/dev/null | head -n1)
+          [ -z "$PAHOLE_VER" ] && echo "pahole版本：未安装" || echo "pahole版本：$PAHOLE_VER"
+          
           echo "========================================="
           echo "🦅 正在跨仓获取 Wild 团队全套核心补丁..."
+          rm -rf wild_patches
           git clone --depth=1 https://github.com/WildKernels/kernel_patches.git wild_patches
 
-          cd kernel_workspace/common
           echo "🎯 开始向一加 13 核心主干注入风驰引擎 (FengChi) 调度补丁..."
-          
-          # 核心修复点 1：限制最大深度为 1，死锁根目录，绝对不碰 deprecated 目录下的过时补丁！
-          PATCH_FILE=$(find ../../wild_patches/oneplus/hmbird/ -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
+          PATCH_FILE=$(find wild_patches/oneplus/hmbird/ -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
           
           if [ -n "$PATCH_FILE" ]; then
             echo "✅ 发现当前活跃版风驰引擎补丁: $PATCH_FILE"
             sed -i 's/\r$//' "$PATCH_FILE"
             
-            # 核心修复点 2：追加 -f 参数强制执行，坚决不让交互式提示卡死 Actions 容器
-            patch -p1 -F 3 -f < "$PATCH_FILE" || echo "⚠️ 提示：部分非核心代码段可能存在轻微冲突，继续推进..."
+            cd kernel_workspace/common
+            patch -p1 -F 3 -f < "../../$PATCH_FILE" || echo "⚠️ 提示：部分非核心代码段可能存在轻微冲突，继续推进..."
             
             echo ">>> 正在注入一加配置覆写器 (Overwriter)..."
             sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/overwriter.patch"
@@ -817,13 +827,17 @@ jobs:
             echo ">>> 正在强制固化风驰引擎内核级 Defconfig 开关..."
             sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
             patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
-            
+            cd ../..
             echo "✅ 一加 13 风驰引擎 (SCX) 核心总线全量激活成功！"
           else
             echo "❌ 严重错误：未在补丁仓中匹配到一加 13 的专属风驰补丁！"
             exit 1
           fi
           echo "========================================="
+          
+          cd kernel_workspace/common
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
+
 
 
 
