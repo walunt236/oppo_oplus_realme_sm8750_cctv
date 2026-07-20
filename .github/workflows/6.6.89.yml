@@ -537,7 +537,6 @@ jobs:
           echo 'CONFIG_ZRAM=y' >> $DCFG
           echo 'CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y' >> $DCFG
           
-          # LZ4/ZSTD 加速所需的硬开关死锁进 defconfig
           cat >> $DCFG << 'TUNECFG'
           CONFIG_LTO_CLANG_THIN=y
           CONFIG_ZRAM_DEF_COMP_LZ4=y
@@ -865,7 +864,6 @@ jobs:
           patch -p1 --forward -f < "../../wild_patches/common/mem_opt_prefetch.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/optimise_memcmp.patch" || true
           
-          # 针对 Linux 6.6 核心定制的 16字节页面清理对齐
           cat "../../wild_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || true
 
           echo "注入 功耗与待机控制补丁..."
@@ -890,9 +888,7 @@ jobs:
           sed -i 's/\r$//' "$UNICODE_PATCH"
           patch -p1 --forward -f < "$UNICODE_PATCH" || true
           fi
-          # =========================================================
-          # 补齐 LZ4 NEON ASM 与 ZSTD 1.5.7 硬件加速编译器参数
-          # =========================================================
+          
           echo ">>> 正在强制向修改后的 Makefile 注入 Clang NEON 向量化编译参数..."
           if [ -f "lib/Makefile" ]; then
             echo 'CFLAGS_lz4.o += -O3 -march=arm8-a+neon -mfpu=neon' >> lib/Makefile
@@ -902,7 +898,6 @@ jobs:
           echo "✅ 一加 13 风驰引擎 (SCX)注入成功！"
           echo "========================================="
           
-          # 直接在当前源码目录生成 defconfig 骨架
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ github.event.inputs.diagnosis }}" == "true" ]]; then
@@ -918,14 +913,11 @@ jobs:
           if-no-files-found: warn
           path: kernel_workspace/common/out/build_config.txt
 
-
-
       - name: 启用选择性 -O3 优化
         if: inputs.o3_selective
         run: |
           echo ">>> 正在启用选择性 -O3 ..."
           cd kernel_workspace/common
-          # 将优化边界拓展至：基础库、加密区、内存管理、文件系统、核心网络栈
           for TARGET_DIR in lib crypto mm fs net; do
             if [ -d "$TARGET_DIR" ]; then
               echo 'subdir-ccflags-y += -O3' >> $TARGET_DIR/Makefile
@@ -933,7 +925,17 @@ jobs:
             fi
           done
           echo "========================================="
-
+          echo ">>> 正在对 Adreno GPU 驱动核心区实施 -O3 与向量化爆破..."
+          sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' drivers/gpu/msm/Makefile
+          echo "[+] GPU Makefile 编译管线拦截成功！"
+          echo ">>> 正在压缩 GPU 硬件抢占状态机延迟..."
+          sed -i 's/adreno_preempt_timeout = .*/adreno_preempt_timeout = 5;/g' drivers/gpu/msm/adreno_preempt.c 2>/dev/null || true
+          sed -i 's/#define PREEMPT_TIMEOUT .*/#define PREEMPT_TIMEOUT 5/g' drivers/gpu/msm/adreno_preempt.c 2>/dev/null || true
+          echo "[+] GPU 抢占响应变长已强行缩短！"
+          echo ">>> 正在向 msm-adreno-tz 调速器注入激进油门补丁..."
+          sed -i 's/filter_down = .*/filter_down = 0;/g' drivers/gpu/msm/adreno_tz.c 2>/dev/null || true
+          sed -i 's/sample_time = .*/sample_time = 10;/g' drivers/gpu/msm/adreno_tz.c 2>/dev/null || true
+          echo "[+] GPU 动态响应油门已踩死！"
 
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
