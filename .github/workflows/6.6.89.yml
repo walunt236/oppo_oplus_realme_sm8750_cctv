@@ -925,10 +925,14 @@ jobs:
         run: |
           echo ">>> 正在启用选择性 -O3 ..."
           cd kernel_workspace/common
-          echo 'subdir-ccflags-y += -O3' >> crypto/Makefile
-          echo 'subdir-ccflags-y += -O3' >> lib/Makefile
-          echo "[+] crypto/ + lib/ : -O2 -> -O3"
-
+          # 将优化边界拓展至：基础库、加密区、内存管理、文件系统、核心网络栈
+          for TARGET_DIR in lib crypto mm fs net; do
+            if [ -d "$TARGET_DIR" ]; then
+              echo 'subdir-ccflags-y += -O3' >> $TARGET_DIR/Makefile
+              echo "  [+] 核心引擎 ${TARGET_DIR}/ 成功进阶满血 -O3"
+            fi
+          done
+          echo "========================================="
 
 
       - name: 编译完整内核镜像
