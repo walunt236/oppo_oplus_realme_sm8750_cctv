@@ -978,8 +978,7 @@ jobs:
           echo '#!/bin/bash' > ld-wrapper
           echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
           chmod +x ld-wrapper
-          
-          # === 物理拔除 GCC 专属 -fivopts，锁定纯正 Clang 19 / LLVM 乱序核心微架构调优 ===
+
           KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=5 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
