@@ -903,7 +903,7 @@ jobs:
           echo "========================================="
           
           # 直接在当前源码目录生成 defconfig 骨架
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O3 KCFLAGS+=-Wno-error gki_defconfig
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ github.event.inputs.diagnosis }}" == "true" ]]; then
             echo ">>> 诊断模式已开启，正在导出 .config 文件..."
@@ -971,22 +971,13 @@ jobs:
           export KBUILD_BUILD_USER="OnePlus"
           export KBUILD_BUILD_HOST="ubuntu-build"
 
-          cat << 'EOF' > ld-wrapper
-          #!/bin/bash
-          ICF_FLAG="--icf=all"
-          for arg in "$@"; do
-              if [ "$arg" = "-r" ] || [ "$arg" = "--relocatable" ]; then
-                  ICF_FLAG=""
-                  break
-              fi
-          done
-          exec ld.lld "$@" --thinlto-jobs=$(nproc --all) $ICF_FLAG
-          EOF
+          echo '#!/bin/bash' > ld-wrapper
+          echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
           chmod +x ld-wrapper
           
           KCFLAGS_EXTRA="-mcpu=oryon-1"
           
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
           echo "内核编译完成！"
           echo "========== LZ4 NEON ASM 验证 =========="
