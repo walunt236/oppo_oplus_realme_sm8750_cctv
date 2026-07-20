@@ -971,8 +971,17 @@ jobs:
           export KBUILD_BUILD_USER="OnePlus"
           export KBUILD_BUILD_HOST="ubuntu-build"
 
-          echo '#!/bin/bash' > ld-wrapper
-          echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all) --icf=all' >> ld-wrapper
+          cat << 'EOF' > ld-wrapper
+          #!/bin/bash
+          ICF_FLAG="--icf=all"
+          for arg in "$@"; do
+              if [ "$arg" = "-r" ] || [ "$arg" = "--relocatable" ]; then
+                  ICF_FLAG=""
+                  break
+              fi
+          done
+          exec ld.lld "$@" --thinlto-jobs=$(nproc --all) $ICF_FLAG
+          EOF
           chmod +x ld-wrapper
           
           KCFLAGS_EXTRA="-mcpu=oryon-1"
