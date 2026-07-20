@@ -526,9 +526,21 @@ jobs:
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
           echo 'CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y' >> $DCFG
+          
+          # 核心修复点：把 LZ4/ZSTD 加速所需的内置内核硬开关死锁进 defconfig
           cat >> $DCFG << 'TUNECFG'
           CONFIG_ZRAM_DEF_COMP_LZ4=y
           CONFIG_ZRAM_DEF_COMP="lz4"
+          CONFIG_CRYPTO_LZ4=y
+          CONFIG_CRYPTO_LZ4HC=y
+          CONFIG_LZ4_COMPRESS=y
+          CONFIG_LZ4HC_COMPRESS=y
+          CONFIG_LZ4_DECOMPRESS=y
+          CONFIG_CRYPTO_ZSTD=y
+          CONFIG_ZSTD_COMPRESS=y
+          CONFIG_ZSTD_DECOMPRESS=y
+          CONFIG_ARM64_NEON=y
+          CONFIG_ARM64_SIMD=y
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
           CONFIG_NET_SCH_CAKE=y
@@ -808,29 +820,36 @@ jobs:
           rm -rf wild_patches
           git clone --depth=1 https://github.com/WildKernels/kernel_patches.git wild_patches
 
-          echo "🎯 开始向一加 13 核心主干注入风驰引擎 (FengChi) 调度补丁..."
+          echo "🎯 开始检查一加 13 专属风驰引擎补丁..."
           PATCH_FILE=$(find wild_patches/oneplus/hmbird/ -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
           
-          if [ -n "$PATCH_FILE" ]; then
-            echo "✅ 发现当前活跃版风驰引擎补丁: $PATCH_FILE"
-            sed -i 's/\r$//' "$PATCH_FILE"
-            
-            cd kernel_workspace/common
-            patch -p1 -F 3 -f < "../../$PATCH_FILE" || echo "⚠️ 提示：部分非核心代码段可能存在轻微冲突，继续推进..."
-            
-            echo ">>> 正在注入一加配置覆写器 (Overwriter)..."
-            sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/overwriter.patch"
-            patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/overwriter.patch"
-            chmod +x ./drivers/of/overwriter/overwrite_configs/convert_configs.sh
-            
-            echo ">>> 正在强制固化风驰引擎内核级 Defconfig 开关..."
-            sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
-            patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
-            cd ../..
-            echo "✅ 一加 13 风驰引擎 (SCX) 核心总线全量激活成功！"
-          else
+          if [ -z "$PATCH_FILE" ]; then
+            echo "❌ 严重错误：未在补丁仓中匹配到一加 13 的专属风驰补丁！"
+            exit 1
+          fi
+
+          echo "✅ 发现当前活跃版风驰引擎补丁: $PATCH_FILE"
+          sed -i 's/\r$//' "$PATCH_FILE"
+          
           # =========================================================
-          # 🚀 深度缝合 Wild 核心通用底盘优化补丁 (搬运自 Wild 官方 defconfig 优化集)
+          # 💉 核心路径理顺：进入正确的源码目录，统一执行所有手术
+          # =========================================================
+          cd kernel_workspace/common
+          
+          echo ">>> 正在注入风驰引擎 (FengChi) 调度补丁..."
+          patch -p1 -F 3 -f < "../../$PATCH_FILE" || echo "⚠️ 提示：部分非核心代码段可能存在轻微冲突，继续推进..."
+          
+          echo ">>> 正在注入一加配置覆写器 (Overwriter)..."
+          sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/overwriter.patch"
+          patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/overwriter.patch"
+          chmod +x ./drivers/of/overwriter/overwrite_configs/convert_configs.sh
+          
+          echo ">>> 正在强制固化风驰引擎内核级 Defconfig 开关..."
+          sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
+          patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
+          
+          # =========================================================
+          # 🚀 深度缝合 Wild 核心通用底盘优化补丁 (确保在成功路径下必然触发)
           # =========================================================
           echo "⚡ 开始注入 Wild 内存与 Cache 汇编级加速补丁..."
           patch -p1 --forward -f < "../../wild_patches/common/optimized_mem_operations.patch" || true
@@ -858,43 +877,26 @@ jobs:
           patch -p1 --forward -f < "../../wild_patches/common/silence_irq_cpu_logspam.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/use_unlikely_wrap_cpufreq.patch" || true
 
-            echo "❌ 严重错误：未在补丁仓中匹配到一加 13 的专属风驰补丁！"
-            # =========================================================
-          # ⚡ 补齐 LZ4 NEON ASM 与 ZSTD 1.5.7 硬件加速编译器死锁
+          # =========================================================
+          # ⚡ 补齐 LZ4 NEON ASM 与 ZSTD 1.5.7 硬件加速编译器参数
           # =========================================================
           echo ">>> 正在强制向修改后的 Makefile 注入 Clang NEON 向量化编译参数..."
-          # 强迫 lib/ 和 crypto/ 文件夹在编译时吃满 Oryon 架构的硬件向量加速
-          if [ -f "kernel_workspace/common/lib/Makefile" ]; then
-            echo 'CFLAGS_lz4.o += -O3 -march=arm8-a+neon -mfpu=neon' >> kernel_workspace/common/lib/Makefile
-            echo 'CFLAGS_lz4hc.o += -O3 -march=arm8-a+neon -mfpu=neon' >> kernel_workspace/common/lib/Makefile
+          if [ -f "lib/Makefile" ]; then
+            echo 'CFLAGS_lz4.o += -O3 -march=arm8-a+neon -mfpu=neon' >> lib/Makefile
+            echo 'CFLAGS_lz4hc.o += -O3 -march=arm8-a+neon -mfpu=neon' >> lib/Makefile
           fi
           
-          # =========================================================
-          # 🚀 顺手把 Wild 仓里最顶级的内存与 Cache 汇编级加速补丁一同缝合
-          # =========================================================
-          echo ">>> 正在应用 Wild 内存与 Cache 物理对齐加速补丁..."
-          cd kernel_workspace/common
-          patch -p1 --forward -f < "../../wild_patches/common/optimized_mem_operations.patch" || true
-          patch -p1 --forward -f < "../../wild_patches/common/file_struct_8bytes_align.patch" || true
-          patch -p1 --forward -f < "../../wild_patches/common/reduce_cache_pressure.patch" || true
-          patch -p1 --forward -f < "../../wild_patches/common/mem_opt_prefetch.patch" || true
-          patch -p1 --forward -f < "../../wild_patches/common/optimise_memcmp.patch" || true
-          
-          # 针对 Linux 6.6 核心定制的 16字节页面清理对齐
-          cat "../../wild_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || true
-          cd ../..
-            exit 1
-          fi
+          echo "✅ 一加 13 风驰引擎 (SCX) 与全套底盘加速全量注入成功！"
           echo "========================================="
           
-          cd kernel_workspace/common
+          # 直接在当前源码目录生成 defconfig 骨架
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
+
           if [[ "${{ github.event.inputs.diagnosis }}" == "true" ]]; then
             echo ">>> 诊断模式已开启，正在导出 .config 文件..."
             cp out/.config out/build_config.txt
             echo "✅ 成功导出 build_config.txt，即将中断执行完整的内核编译环节。"
           fi
-
       - name: 上传诊断配置文本 (仅诊断模式)
         if: inputs.diagnosis
         uses: actions/upload-artifact@v7
