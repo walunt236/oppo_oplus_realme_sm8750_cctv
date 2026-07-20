@@ -859,6 +859,30 @@ jobs:
           patch -p1 --forward -f < "../../wild_patches/common/use_unlikely_wrap_cpufreq.patch" || true
 
             echo "❌ 严重错误：未在补丁仓中匹配到一加 13 的专属风驰补丁！"
+            # =========================================================
+          # ⚡ 补齐 LZ4 NEON ASM 与 ZSTD 1.5.7 硬件加速编译器死锁
+          # =========================================================
+          echo ">>> 正在强制向修改后的 Makefile 注入 Clang NEON 向量化编译参数..."
+          # 强迫 lib/ 和 crypto/ 文件夹在编译时吃满 Oryon 架构的硬件向量加速
+          if [ -f "kernel_workspace/common/lib/Makefile" ]; then
+            echo 'CFLAGS_lz4.o += -O3 -march=arm8-a+neon -mfpu=neon' >> kernel_workspace/common/lib/Makefile
+            echo 'CFLAGS_lz4hc.o += -O3 -march=arm8-a+neon -mfpu=neon' >> kernel_workspace/common/lib/Makefile
+          fi
+          
+          # =========================================================
+          # 🚀 顺手把 Wild 仓里最顶级的内存与 Cache 汇编级加速补丁一同缝合
+          # =========================================================
+          echo ">>> 正在应用 Wild 内存与 Cache 物理对齐加速补丁..."
+          cd kernel_workspace/common
+          patch -p1 --forward -f < "../../wild_patches/common/optimized_mem_operations.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/file_struct_8bytes_align.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/reduce_cache_pressure.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/mem_opt_prefetch.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/optimise_memcmp.patch" || true
+          
+          # 针对 Linux 6.6 核心定制的 16字节页面清理对齐
+          cat "../../wild_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || true
+          cd ../..
             exit 1
           fi
           echo "========================================="
