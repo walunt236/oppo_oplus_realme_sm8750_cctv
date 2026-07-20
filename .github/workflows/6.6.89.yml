@@ -916,43 +916,35 @@ jobs:
       - name: 启用选择性 -O3 优化
         if: inputs.o3_selective
         run: |
-          echo "========================================="
-          echo ">>> 正在启用-O3拓展 ..."
           cd kernel_workspace/common
           for TARGET_DIR in lib crypto mm fs net; do
             if [ -d "$TARGET_DIR" ]; then
               echo 'subdir-ccflags-y += -O3' >> $TARGET_DIR/Makefile
-              echo "  [+] 核心 ${TARGET_DIR}/ 成功 -O3"
             fi
           done
-          echo "========================================="
           
-          echo ">>> 寻找Adreno GPU 驱动目录"
           cd $GITHUB_WORKSPACE/kernel_workspace
+          GPU_DIRS=$(find vendor_modules -name "Makefile" -o -name "Kbuild" | grep -E "gpu|kgsl|graphics" | sed -e 's/\/Makefile//g' -e 's/\/Kbuild//g' | sort -u || true)
           
-          GPU_DIR=$(find vendor_modules -type f -name "adreno_preempt.c" | sed 's/\/adreno_preempt.c//' | head -n 1)
-          
-          if [ -n "$GPU_DIR" ] && [ -d "$GPU_DIR" ]; then
-            echo "✅ 成功定位 GPU 驱动源码根目录: $GPU_DIR"
-            
-            echo ">>> 正在对 Adreno GPU 驱动核心区实施 -O3 与向量化爆破..."
-            sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' "$GPU_DIR/Makefile"
-            echo "[+] GPU Makefile 编译管线拦截成功！"
-            
-            echo ">>> 正在压缩 GPU 硬件抢占状态机延迟..."
-            sed -i 's/adreno_preempt_timeout = .*/adreno_preempt_timeout = 5;/g' "$GPU_DIR/adreno_preempt.c" 2>/dev/null || true
-            sed -i 's/#define PREEMPT_TIMEOUT .*/#define PREEMPT_TIMEOUT 5/g' "$GPU_DIR/adreno_preempt.c" 2>/dev/null || true
-            echo "[+] GPU 抢占响应时间已强行缩短！"
-            
-            echo ">>> 正在向 msm-adreno-tz 调速器注入激进油门补丁..."
-            sed -i 's/filter_down = .*/filter_down = 0;/g' "$GPU_DIR/adreno_tz.c" 2>/dev/null || true
-            sed -i 's/sample_time = .*/sample_time = 10;/g' "$GPU_DIR/adreno_tz.c" 2>/dev/null || true
-            echo "[+] GPU 动态响应油门已踩死！"
-          else
-            echo "❌ 严重错误：未能在 vendor_modules 中搜寻到 Adreno GPU 驱动组件！"
-            exit 1
+          if [ -n "$GPU_DIRS" ]; then
+            for G_DIR in $GPU_DIRS; do
+              if [ -f "$G_DIR/Makefile" ]; then
+                sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' "$G_DIR/Makefile"
+              elif [ -f "$G_DIR/Kbuild" ]; then
+                sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' "$G_DIR/Kbuild"
+              fi
+              
+              for P_FILE in $(find "$G_DIR" -type f -name "*preempt*.c" 2>/dev/null || true); do
+                sed -i 's/adreno_preempt_timeout = .*/adreno_preempt_timeout = 5;/g' "$P_FILE" 2>/dev/null || true
+                sed -i 's/#define PREEMPT_TIMEOUT .*/#define PREEMPT_TIMEOUT 5/g' "$P_FILE" 2>/dev/null || true
+              done
+              
+              for T_FILE in $(find "$G_DIR" -type f -name "*tz*.c" -o -name "*pwrscale*.c" 2>/dev/null || true); do
+                sed -i 's/filter_down = .*/filter_down = 0;/g' "$T_FILE" 2>/dev/null || true
+                sed -i 's/sample_time = .*/sample_time = 10;/g' "$T_FILE" 2>/dev/null || true
+              done
+            done
           fi
-          echo "========================================="
           
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
