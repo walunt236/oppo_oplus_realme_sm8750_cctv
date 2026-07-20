@@ -788,6 +788,38 @@ jobs:
           echo "CONFIG_TCP_CONG_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "[+] BBRv3 已加入编译"
+      - name: 💉 注入一加原厂风驰引擎 (全套核心补丁级激活 SCX)
+        run: |
+          echo "========================================="
+          echo "🦅 正在跨仓获取 Wild 团队全套核心补丁..."
+          git clone --depth=1 https://github.com/WildKernels/kernel_patches.git wild_patches
+
+          cd kernel_workspace/common
+          echo "🎯 开始向一加 13 核心主干注入风驰引擎 (FengChi) 调度补丁..."
+          
+          # 自动定位一加13 (OP13) 在补丁仓里的风驰核心补丁 (注：高通平台在补丁仓里被套壳放在 hmbird 目录下)
+          PATCH_FILE=$(find ../../wild_patches/oneplus/hmbird/ -name "fengchi_OP13_*.patch" | head -n 1)
+          
+          if [ -n "$PATCH_FILE" ]; then
+            echo "✅ 发现风驰引擎适配补丁: $PATCH_FILE"
+            dos2unix "$PATCH_FILE"
+            patch -p1 -F 3 < "$PATCH_FILE"
+            
+            echo ">>> 正在注入一加配置覆写器 (Overwriter)..."
+            dos2unix "../../wild_patches/oneplus/hmbird/overwriter.patch"
+            patch -p1 -F 3 < "../../wild_patches/oneplus/hmbird/overwriter.patch"
+            chmod +x ./drivers/of/overwriter/overwrite_configs/convert_configs.sh
+            
+            echo ">>> 正在强制固化风驰引擎内核级 Defconfig 开关..."
+            dos2unix "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
+            patch -p1 -F 3 < "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
+            
+            echo "✅ 一加 13 风驰引擎 (SCX) 核心总线全量激活成功！"
+          else
+            echo "❌ 严重错误：未在补丁仓中匹配到一加 13 的专属风驰补丁！"
+            exit 1
+          fi
+          echo "========================================="
 
       - name: 启用选择性 -O3 优化
         if: inputs.o3_selective
