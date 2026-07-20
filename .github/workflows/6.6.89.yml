@@ -829,6 +829,35 @@ jobs:
             cd ../..
             echo "✅ 一加 13 风驰引擎 (SCX) 核心总线全量激活成功！"
           else
+          # =========================================================
+          # 🚀 深度缝合 Wild 核心通用底盘优化补丁 (搬运自 Wild 官方 defconfig 优化集)
+          # =========================================================
+          echo "⚡ 开始注入 Wild 内存与 Cache 汇编级加速补丁..."
+          patch -p1 --forward -f < "../../wild_patches/common/optimized_mem_operations.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/file_struct_8bytes_align.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/reduce_cache_pressure.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/mem_opt_prefetch.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/optimise_memcmp.patch" || true
+          
+          # 针对 Linux 6.6 核心定制的 16字节页面清理对齐
+          cat "../../wild_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || true
+
+          echo "⚡ 开始注入 Wild 功耗节电与极限待机控制补丁..."
+          patch -p1 --forward -f < "../../wild_patches/common/minimise_wakeup_time.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/avoid_extra_s2idle_wake_attempts.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/disable_cache_hot_buddy.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/reduce_pci_pme_wakeups.patch" || true
+
+          echo "⚡ 开始注入 Wild 闪存寿命保护与 F2FS I/O 拥堵解除补丁..."
+          patch -p1 --forward -f < "../../wild_patches/common/f2fs_reduce_congestion.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/f2fs_enlarge_min_fsync_blocks.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/increase_ext4_default_commit_age.patch" || true
+
+          echo "⚡ 开始注入 Wild 内核分支预测优化与日志净化补丁..."
+          patch -p1 --forward -f < "../../wild_patches/common/silence_system_logspam.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/silence_irq_cpu_logspam.patch" || true
+          patch -p1 --forward -f < "../../wild_patches/common/use_unlikely_wrap_cpufreq.patch" || true
+
             echo "❌ 严重错误：未在补丁仓中匹配到一加 13 的专属风驰补丁！"
             exit 1
           fi
