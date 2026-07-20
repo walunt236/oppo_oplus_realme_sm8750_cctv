@@ -27,12 +27,12 @@ on:
           - 'ksu'
           - 'none'
       susfs_enable:
-        description: '是否开启susfs(用于增强隐藏环境挂载功能; 可能轻微增加耗电，上游更新导致不稳定时或不需要可关闭)'
+        description: '是否开启susfs'
         required: true
         type: boolean
         default: false
       kpm_enable:
-        description: '是否开启kpm(builtin-使用(re)sukisu内置kpm, kpn-使用独立kpm实现(支持任意KSU/面具环境); 不需要可保持默认关闭)'
+        description: '是否开启kpm'
         required: true
         type: choice
         default: 'false'
@@ -46,12 +46,12 @@ on:
         type: boolean
         default: true
       lz4kd_enable:
-        description: '是否安装 LZ4KD 补丁(若已开启lz4+zstd补丁则可不开启)'
+        description: '是否安装 LZ4KD 补丁'
         required: true
         type: boolean
         default: false
       bbr_enable:
-        description: "是否启用bbr算法(优化上行数据;false关闭,true仅加入算法,default启用算法并设为默认)"
+        description: "是否启用bbr算法"
         required: true
         type: choice
         default: 'false'
@@ -60,7 +60,7 @@ on:
           - 'true'
           - 'default'
       droidspaces_enable:
-        description: '是否启用Droidspaces容器支持(false关闭,standard开启容器+ntsync支持,extend开启更多测试支持项)'
+        description: '是否启用Droidspaces容器支持'
         required: true
         type: choice
         default: 'false'
@@ -69,52 +69,52 @@ on:
           - 'standard'
           - 'extend'
       better_net:
-        description: '是否开启网络功能拓展配置(用于为ipset及需要iptables等高级网络功能内核支持的程序提供支持)'
+        description: '是否开启网络功能拓展配置'
         required: true
         type: boolean
         default: true
       adios_enable:
-        description: '是否启用ADIOS IO调度器支持(提升IO读写性能)'
+        description: '是否启用ADIOS IO调度器支持'
         required: true
         type: boolean
         default: true
       rekernel_enable:
-        description: '是否启用Re-Kernel支持(与Freezer/NoActive等软件配合, 提升应用冻结能力)'
+        description: '是否启用Re-Kernel支持'
         required: true
         type: boolean
         default: false
       baseband_guard:
-        description: '是否开启内核级基带保护(阻止一切对非用户分区的写入，有效防止格机)'
+        description: '是否开启基带保护'
         required: true
         type: boolean
         default: false
       rcu_nocb_enable:
-        description: '开启 RCU_NOCB_CPU (减少软中断抢占UI线程;已通过验证)'
+        description: '开启 RCU_NOCB_CPU (减少软中断抢占UI线)'
         required: true
         type: boolean
         default: true
       ccache_update:
-        description: '更新ccache缓存(将本次编译生成的ccache缓存覆盖至仓库缓存)'
+        description: '更新ccache缓存'
         required: true
         type: boolean
         default: false
       ccache_debug:
-        description: '是否上传 Ccache调试日志(用于调试, 无需要不必开启)'
+        description: '是否上传 Ccache调试日志'
         required: true
         type: boolean
         default: false
       kernel_suffix:
-        description: '内核后缀(留空默认,开头别加连字符,勿加空格等影响指令运行的保留字符)'
+        description: '内核后缀'
         required: false
         type: string
         default: ''
       diagnosis:
-        description: '诊断模式：仅生成并导出 config 文本用于对比 (默认关闭，启用时不编译镜像)'
+        description: '诊断模式：仅生成并导出config (默认关闭，启用时不编译镜像)'
         required: true
         type: boolean
         default: false
       upstream_merge:
-        description: '是否合并上游最新6.6内核补丁(关闭则使用OEM纯净89源码编译)'
+        description: '是否合并上游最新6.6内核补丁'
         required: true
         type: boolean
         default: true
@@ -420,7 +420,7 @@ jobs:
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             
             cd ./common
-            echo ">>> 正在部署 Susfs 假动作 (Fake Patch) 防御机制..."
+            echo ">>> 正在部署 Susfs 假动作 (Fake Patch) ..."
             sed -i -e '/int ret = 0, copied = 0;/a \    unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;' -e '/int ret = 0, copied = 0;/a \    pagemap_entry_t *res = NULL;' ./fs/proc/task_mmu.c || true
 
             patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || echo "⚠️ SUSFS 核心补丁应用失败，SUSFS 功能将不可用"
@@ -527,7 +527,7 @@ jobs:
           echo 'CONFIG_ZRAM=y' >> $DCFG
           echo 'CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y' >> $DCFG
           
-          # 核心修复点：把 LZ4/ZSTD 加速所需的内置内核硬开关死锁进 defconfig
+          # LZ4/ZSTD 加速所需的硬开关死锁进 defconfig
           cat >> $DCFG << 'TUNECFG'
           CONFIG_ZRAM_DEF_COMP_LZ4=y
           CONFIG_ZRAM_DEF_COMP="lz4"
@@ -580,13 +580,13 @@ jobs:
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
           
-      - name: 注入究极完全体内核参数（C源码外科手术版）
+      - name: 注入内核参数
         run: |
           echo "========================================="
-          echo "💉 正在对内核启动核心 init/main.c 进行终极完全体强灌..."
+          echo "💉 正在对内核启动核心 init/main.c 注入..."
           
           if [ ! -f "init/main.c" ]; then
-            echo "🔍 正在全盘搜寻 main.c..."
+            echo "正在搜寻 main.c..."
             REAL_MAIN=$(find . -type f -name "main.c" | grep "/init/")
             if [ -z "$REAL_MAIN" ]; then
               echo "❌ 严重错误：无法定位内核入口文件！"
@@ -597,11 +597,11 @@ jobs:
             TARGET_MAIN="init/main.c"
           fi
           
-          echo "🎯 已锁定内核入口文件: $TARGET_MAIN"
+          echo "已寻获内核入口文件: $TARGET_MAIN"
           
           sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
           
-          echo "✅ 终极完全体注入成功！以下为入口处上下文代码核对："
+          echo "✅注入成功。以下为入口处上下文代码核对："
           grep -C 3 "strlcat" "$TARGET_MAIN"
           echo "========================================="
 
@@ -735,10 +735,10 @@ jobs:
           cd kernel_workspace
           echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 
-      - name: 启用物理级基带保护
+      - name: 启用基带保护
         if: inputs.baseband_guard
         run: |
-          echo "正在启用内核级基带保护…"
+          echo "正在启用基带保护…"
           cd kernel_workspace
           echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
           cd ./common
@@ -816,11 +816,11 @@ jobs:
           [ -z "$PAHOLE_VER" ] && echo "pahole版本：未安装" || echo "pahole版本：$PAHOLE_VER"
           
           echo "========================================="
-          echo "🦅 正在跨仓获取 Wild 团队全套核心补丁..."
+          echo "正在获取 Wild 核心补丁..."
           rm -rf wild_patches
           git clone --depth=1 https://github.com/WildKernels/kernel_patches.git wild_patches
 
-          echo "🎯 开始检查一加 13 专属风驰引擎补丁..."
+          echo "开始检查一加 13 专属风驰引擎补丁..."
           PATCH_FILE=$(find wild_patches/oneplus/hmbird/ -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
           
           if [ -z "$PATCH_FILE" ]; then
@@ -831,9 +831,6 @@ jobs:
           echo "✅ 发现当前活跃版风驰引擎补丁: $PATCH_FILE"
           sed -i 's/\r$//' "$PATCH_FILE"
           
-          # =========================================================
-          # 💉 核心路径理顺：进入正确的源码目录，统一执行所有手术
-          # =========================================================
           cd kernel_workspace/common
           
           echo ">>> 正在注入风驰引擎 (FengChi) 调度补丁..."
@@ -848,10 +845,7 @@ jobs:
           sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
           patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
           
-          # =========================================================
-          # 🚀 深度缝合 Wild 核心通用底盘优化补丁 (确保在成功路径下必然触发)
-          # =========================================================
-          echo "⚡ 开始注入 Wild 内存与 Cache 汇编级加速补丁..."
+          echo "注入 内存与 Cache 汇编加速补丁..."
           patch -p1 --forward -f < "../../wild_patches/common/optimized_mem_operations.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/file_struct_8bytes_align.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/reduce_cache_pressure.patch" || true
@@ -861,24 +855,24 @@ jobs:
           # 针对 Linux 6.6 核心定制的 16字节页面清理对齐
           cat "../../wild_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || true
 
-          echo "⚡ 开始注入 Wild 功耗节电与极限待机控制补丁..."
+          echo "注入 功耗与待机控制补丁..."
           patch -p1 --forward -f < "../../wild_patches/common/minimise_wakeup_time.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/avoid_extra_s2idle_wake_attempts.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/disable_cache_hot_buddy.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/reduce_pci_pme_wakeups.patch" || true
 
-          echo "⚡ 开始注入 Wild 闪存寿命保护与 F2FS I/O 拥堵解除补丁..."
+          echo "注入 闪存寿命保护与 F2FS I/O 拥堵解除补丁..."
           patch -p1 --forward -f < "../../wild_patches/common/f2fs_reduce_congestion.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/f2fs_enlarge_min_fsync_blocks.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/increase_ext4_default_commit_age.patch" || true
 
-          echo "⚡ 开始注入 Wild 内核分支预测优化与日志净化补丁..."
+          echo "注入内核分支预测优化与日志净化补丁..."
           patch -p1 --forward -f < "../../wild_patches/common/silence_system_logspam.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/silence_irq_cpu_logspam.patch" || true
           patch -p1 --forward -f < "../../wild_patches/common/use_unlikely_wrap_cpufreq.patch" || true
 
           # =========================================================
-          # ⚡ 补齐 LZ4 NEON ASM 与 ZSTD 1.5.7 硬件加速编译器参数
+          # 补齐 LZ4 NEON ASM 与 ZSTD 1.5.7 硬件加速编译器参数
           # =========================================================
           echo ">>> 正在强制向修改后的 Makefile 注入 Clang NEON 向量化编译参数..."
           if [ -f "lib/Makefile" ]; then
@@ -886,7 +880,7 @@ jobs:
             echo 'CFLAGS_lz4hc.o += -O3 -march=arm8-a+neon -mfpu=neon' >> lib/Makefile
           fi
           
-          echo "✅ 一加 13 风驰引擎 (SCX) 与全套底盘加速全量注入成功！"
+          echo "✅ 一加 13 风驰引擎 (SCX)注入成功！"
           echo "========================================="
           
           # 直接在当前源码目录生成 defconfig 骨架
