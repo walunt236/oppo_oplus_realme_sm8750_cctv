@@ -550,7 +550,6 @@ jobs:
           CONFIG_LTO_CLANG_THIN=y
           CONFIG_ZRAM_DEF_COMP_LZ4=y
           CONFIG_ZRAM_DEF_COMP="lz4"
-          CONFIG_ZRAM_MULTI_COMP=y
           CONFIG_CRYPTO_LZ4=y
           CONFIG_CRYPTO_LZ4HC=y
           CONFIG_LZ4_COMPRESS=y
@@ -563,11 +562,9 @@ jobs:
           CONFIG_ARM64_SIMD=y
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
-          CONFIG_LRU_GEN_STATS=y
           CONFIG_NET_SCH_CAKE=y
           CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
-
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "[INFO] 开启 RCU_NOCB_CPU..."
             cat >> $DCFG << 'RCUCFG'
@@ -962,11 +959,19 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd $GITHUB_WORKSPACE/kernel_workspace
-
           SYS_HEAP=$(find common drivers -name "system_heap.c" 2>/dev/null | head -n 1)
           if [ -n "$SYS_HEAP" ] && [ -f "$SYS_HEAP" ]; then
             sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
-            sed -i '/static struct page \*system_heap_alloc_page/i /* Linux 6.12 Backport: Lockless fast-path allocation */\nstatic inline struct page *dma_buf_fast_pool_pop(struct system_heap_pool *pool) {\n    struct page *page = NULL;\n    if (pool && !list_empty(&pool->items)) {\n        page = list_first_entry_or_null(&pool->items, struct page, lru);\n        if (page) list_del(&page->lru);\n    }\n    return page;\n}' "$SYS_HEAP" 2>/dev/null || true
+            sed -i '/static struct page \*system_heap_alloc_page/i \
+          /* Linux 6.12 Backport: Lockless fast-path allocation */\
+          static inline struct page *dma_buf_fast_pool_pop(struct system_heap_pool *pool) {\
+              struct page *page = NULL;\
+              if (pool && !list_empty(&pool->items)) {\
+                  page = list_first_entry_or_null(&pool->items, struct page, lru);\
+                  if (page) list_del(&page->lru);\
+              }\
+              return page;\
+          }' "$SYS_HEAP" 2>/dev/null || true
             echo "[INFO] DMA-BUF代码注入完成" | tee -a "$LOG_FILE"
           fi
 
