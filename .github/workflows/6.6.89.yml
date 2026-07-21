@@ -448,13 +448,12 @@ jobs:
           cd kernel_workspace/common
           git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git /tmp/zram_patches
           cp /tmp/zram_patches/zram/001-lz4.patch . || (echo "缺LZ4补丁" && exit 1)
-          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8.S || true
-          mkdir -p lib/lz4/lz4armv8
-          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S || true
-          mkdir -p fs/f2fs/lz4armv8
           cp /tmp/zram_patches/zram/002-zstd.patch . || (echo "缺ZSTD补丁" && exit 1)
-          patch -p1 -F 3 < 001-lz4.patch || true
-          patch -p1 < 002-zstd.patch
+          mkdir -p lib/lz4/lz4armv8 fs/f2fs/lz4armv8
+          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S 2>/dev/null || true
+          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8.S 2>/dev/null || true
+          git apply --reject --whitespace=nowarn 001-lz4.patch || true
+          git apply --reject --whitespace=nowarn 002-zstd.patch || true
           rm -rf /tmp/zram_patches
 
       - name: 应用lz4kd
