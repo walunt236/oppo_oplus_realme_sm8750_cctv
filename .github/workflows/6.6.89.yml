@@ -808,18 +808,17 @@ jobs:
       - name: 应用风驰引擎及优化补丁
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
-          WORKDIR="$(pwd)"
-          export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
           
-          cd kernel_workspace
+          cd "$GITHUB_WORKSPACE/kernel_workspace"
           
           echo "[INFO] 获取 Wild 补丁仓..."
           rm -rf wild_patches
           git clone --depth=1 https://github.com/WildKernels/kernel_patches.git wild_patches
+          
+          # 定义绝对路径变量，彻底避免 cd 后的相对路径层级错乱
+          WILD_DIR="$GITHUB_WORKSPACE/kernel_workspace/wild_patches"
 
-          PATCH_FILE=$(find wild_patches/oneplus/hmbird/ -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
+          PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
           if [ -z "$PATCH_FILE" ]; then
             echo "[ERROR] 未匹配到一加 13 专属风驰补丁" | tee -a "$LOG_FILE"
             exit 1
@@ -831,48 +830,48 @@ jobs:
           cd common
           
           echo "[INFO] 注入风驰引擎调度补丁..."
-          patch -p1 -F 3 -f < "../../$PATCH_FILE" || {
+          patch -p1 -F 3 -f < "$PATCH_FILE" || {
             echo "[ERROR] 风驰核心补丁应用失败" | tee -a "$LOG_FILE"
             exit 1
           }
           
           echo "[INFO] 注入 Overwriter 补丁..."
-          sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/overwriter.patch"
-          patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/overwriter.patch" || {
+          sed -i 's/\r$//' "$WILD_DIR/oneplus/hmbird/overwriter.patch"
+          patch -p1 -F 3 -f < "$WILD_DIR/oneplus/hmbird/overwriter.patch" || {
             echo "[ERROR] Overwriter 补丁应用失败" | tee -a "$LOG_FILE"
             exit 1
           }
           chmod +x ./drivers/of/overwriter/overwrite_configs/convert_configs.sh
           
           echo "[INFO] 固化 Hmbird Defconfig..."
-          sed -i 's/\r$//' "../../wild_patches/oneplus/hmbird/hmbird_config.patch"
-          patch -p1 -F 3 -f < "../../wild_patches/oneplus/hmbird/hmbird_config.patch" || {
+          sed -i 's/\r$//' "$WILD_DIR/oneplus/hmbird/hmbird_config.patch"
+          patch -p1 -F 3 -f < "$WILD_DIR/oneplus/hmbird/hmbird_config.patch" || {
             echo "[ERROR] Hmbird Defconfig 补丁应用失败" | tee -a "$LOG_FILE"
             exit 1
           }
           
-          patch -p1 --forward -f < "../../wild_patches/common/optimized_mem_operations.patch" || echo "[WARN] optimized_mem_operations.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/file_struct_8bytes_align.patch" || echo "[WARN] file_struct_8bytes_align.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/reduce_cache_pressure.patch" || echo "[WARN] reduce_cache_pressure.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/mem_opt_prefetch.patch" || echo "[WARN] mem_opt_prefetch.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/optimise_memcmp.patch" || echo "[WARN] optimise_memcmp.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/optimized_mem_operations.patch" || echo "[WARN] optimized_mem_operations.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/file_struct_8bytes_align.patch" || echo "[WARN] file_struct_8bytes_align.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/reduce_cache_pressure.patch" || echo "[WARN] reduce_cache_pressure.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/mem_opt_prefetch.patch" || echo "[WARN] mem_opt_prefetch.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/optimise_memcmp.patch" || echo "[WARN] optimise_memcmp.patch 应用失败，继续..."
           
-          cat "../../wild_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || echo "[WARN] clear_page_16bytes_align.patch 应用失败，继续..."
+          cat "$WILD_DIR/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || echo "[WARN] clear_page_16bytes_align.patch 应用失败，继续..."
 
-          patch -p1 --forward -f < "../../wild_patches/common/minimise_wakeup_time.patch" || echo "[WARN] minimise_wakeup_time.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/avoid_extra_s2idle_wake_attempts.patch" || echo "[WARN] avoid_extra_s2idle_wake_attempts.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/disable_cache_hot_buddy.patch" || echo "[WARN] disable_cache_hot_buddy.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/reduce_pci_pme_wakeups.patch" || echo "[WARN] reduce_pci_pme_wakeups.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/minimise_wakeup_time.patch" || echo "[WARN] minimise_wakeup_time.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/avoid_extra_s2idle_wake_attempts.patch" || echo "[WARN] avoid_extra_s2idle_wake_attempts.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/disable_cache_hot_buddy.patch" || echo "[WARN] disable_cache_hot_buddy.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/reduce_pci_pme_wakeups.patch" || echo "[WARN] reduce_pci_pme_wakeups.patch 应用失败，继续..."
 
-          patch -p1 --forward -f < "../../wild_patches/common/f2fs_reduce_congestion.patch" || echo "[WARN] f2fs_reduce_congestion.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/f2fs_enlarge_min_fsync_blocks.patch" || echo "[WARN] f2fs_enlarge_min_fsync_blocks.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/increase_ext4_default_commit_age.patch" || echo "[WARN] increase_ext4_default_commit_age.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/f2fs_reduce_congestion.patch" || echo "[WARN] f2fs_reduce_congestion.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/f2fs_enlarge_min_fsync_blocks.patch" || echo "[WARN] f2fs_enlarge_min_fsync_blocks.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/increase_ext4_default_commit_age.patch" || echo "[WARN] increase_ext4_default_commit_age.patch 应用失败，继续..."
 
-          patch -p1 --forward -f < "../../wild_patches/common/silence_system_logspam.patch" || echo "[WARN] silence_system_logspam.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/silence_irq_cpu_logspam.patch" || echo "[WARN] silence_irq_cpu_logspam.patch 应用失败，继续..."
-          patch -p1 --forward -f < "../../wild_patches/common/use_unlikely_wrap_cpufreq.patch" || echo "[WARN] use_unlikely_wrap_cpufreq.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/silence_system_logspam.patch" || echo "[WARN] silence_system_logspam.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/silence_irq_cpu_logspam.patch" || echo "[WARN] silence_irq_cpu_logspam.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/use_unlikely_wrap_cpufreq.patch" || echo "[WARN] use_unlikely_wrap_cpufreq.patch 应用失败，继续..."
           
-          UNICODE_PATCH=$(find ../../wild_patches/ -name "*unicode*.patch" | head -n 1)
+          UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
             sed -i 's/\r$//' "$UNICODE_PATCH"
