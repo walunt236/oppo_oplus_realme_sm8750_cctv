@@ -443,52 +443,29 @@ jobs:
             patch -p1 < 10_enable_susfs_for_ksu.patch || true
           fi
 
-      - name: 应用lz4 1.10.0 & zstd 1.5.7补丁
-        if: inputs.lz4_enable
+      - name: 应用lz4/zstd
         run: |
-          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
-          echo "[INFO] 添加 lz4 1.10.0 & zstd 1.5.7 补丁..."
-          cd kernel_workspace
-          git clone --depth=1 https://github.com/$GITHUB_REPOSITORY.git -b $GITHUB_REF_NAME $GITHUB_ACTOR
-          cp ./$GITHUB_ACTOR/zram_patch/001-lz4.patch ./common/
-          cp ./$GITHUB_ACTOR/zram_patch/lz4armv8.S ./common/lib
-          cp ./$GITHUB_ACTOR/zram_patch/002-zstd.patch ./common/
-          cd ./common
+          cd kernel_workspace/common
+          git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git /tmp/zram_patches
+          cp /tmp/zram_patches/zram/001-lz4.patch . || (echo "缺LZ4补丁" && exit 1)
+          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8.S || true
+          mkdir -p lib/lz4/lz4armv8
+          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S || true
+          cp /tmp/zram_patches/zram/002-zstd.patch . || (echo "缺ZSTD补丁" && exit 1)
+          git apply -p1 < 001-lz4.patch
+          patch -p1 < 002-zstd.patch
+          rm -rf /tmp/zram_patches
 
-          if git apply -p1 --whitespace=fix --ignore-whitespace 001-lz4.patch 2>/dev/null || \
-             git apply -p1 --3way 001-lz4.patch 2>/dev/null; then
-            echo "[INFO] LZ4 1.10.0 + ARM64 NEON ASM 应用成功" | tee -a "$LOG_FILE"
-          else
-            echo "[WARN] LZ4 patch 应用失败，跳过" | tee -a "$LOG_FILE"
-          fi
-
-          if git apply -p1 --whitespace=fix --ignore-whitespace 002-zstd.patch 2>/dev/null || \
-             git apply -p1 --3way 002-zstd.patch 2>/dev/null; then
-            echo "[INFO] ZSTD 1.5.7 应用成功" | tee -a "$LOG_FILE"
-          else
-            if patch -p1 -F 5 --ignore-whitespace --forward < 002-zstd.patch 2>/dev/null; then
-              rm -f lib/zstd/common/portability_macros.h.rej 2>/dev/null || true
-              echo "[INFO] ZSTD 1.5.7 容错强打应用成功" | tee -a "$LOG_FILE"
-            else
-              echo "[WARN] ZSTD patch 与上游冲突严重，跳过" | tee -a "$LOG_FILE"
-            fi
-          fi
-
-      - name: 应用 lz4kd 补丁
-        if: inputs.lz4kd_enable
+      - name: 应用lz4kd
         run: |
-          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
-          echo "[INFO] 添加 lz4kd 补丁..." | tee -a "$LOG_FILE"
-          cd kernel_workspace
-          if [ ! -d "SukiSU_patch" ]; then
-            git clone --depth=1 https://github.com/ShirkNeko/SukiSU_patch.git
-          fi
-          cd common
-          cp -r ../SukiSU_patch/other/zram/lz4k/include/linux/* ./include/linux/
-          cp -r ../SukiSU_patch/other/zram/lz4k/lib/* ./lib
-          cp -r ../SukiSU_patch/other/zram/lz4k/crypto/* ./crypto
-          cp ../SukiSU_patch/other/zram/zram_patch/${{ env.KERNEL_VERSION }}/lz4kd.patch ./
+          cd kernel_workspace/common
+          git clone --depth=1 https://github.com/ShirkNeko/SukiSU_patch.git /tmp/sukisu_patches
+          cp -r /tmp/sukisu_patches/other/zram/lz4k/include/linux/* ./include/linux/
+          cp -r /tmp/sukisu_patches/other/zram/lz4k/lib/* ./lib/
+          cp -r /tmp/sukisu_patches/other/zram/lz4k/crypto/* ./crypto/
+          cp /tmp/sukisu_patches/other/zram/zram_patch/6.6/lz4kd.patch ./
           patch -p1 -F 3 < lz4kd.patch || true
+          rm -rf /tmp/sukisu_patches
 
       - name: 配置核心扩展与通用优化
         run: |
