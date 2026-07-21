@@ -154,18 +154,30 @@ jobs:
           echo "[INFO] 仓库：$GITHUB_REPOSITORY" | tee -a "$LOG_FILE"
           echo "[INFO] 分支：$GITHUB_REF_NAME" | tee -a "$LOG_FILE"
 
-          sudo apt-mark hold firefox
-          sudo apt-mark hold libc-bin
-          sudo apt purge man-db
-          sudo rm -rf /var/lib/man-db/auto-update
-          sudo apt update
-          sudo apt-get install -y --no-install-recommends binutils python-is-python3 libssl-dev libelf-dev &
+          if [[ "${{ inputs.runner_type }}" == "ubuntu-latest" ]]; then
+            echo "[INFO] 检测到 GitHub 云端环境，执行系统依赖安装及预置优化..."
+            sudo apt-mark hold firefox
+            sudo apt-mark hold libc-bin
+            sudo apt purge -y man-db || true
+            sudo rm -rf /var/lib/man-db/auto-update
+            sudo apt update
+            sudo apt-get install -y --no-install-recommends binutils python-is-python3 libssl-dev libelf-dev &
+            
+            wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/ccache-x86-64 -O ccache &&
+            sudo cp -f ./ccache /usr/bin/ccache &&
+            sudo chmod +x /usr/bin/ccache &&
+            rm -f ./ccache &
+          else
+            echo "[INFO] 检测到 本地 self-hosted (WSL2) 环境，跳过危险的系统级 apt 修改..." | tee -a "$LOG_FILE"
+          fi
 
-          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/ccache-x86-64 -O ccache &&
-          sudo cp -f ./ccache /usr/bin/ccache &&
-          sudo chmod +x /usr/bin/ccache &&
-          rm -f ./ccache &
+          echo "[INFO] 克隆 OEM 内核源码仓库..."
+          git clone --depth=1 \
+            https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
+            -b oneplus/sm8750_b_16.0.0_oneplus_13 \
+            common
 
+          # ... 后续克隆、合并上游、下载 Clang19 等代码完全保持原样不变 ...
           echo "[INFO] 克隆 OEM 内核源码仓库..."
           git clone --depth=1 \
             https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
@@ -976,12 +988,14 @@ jobs:
 
           cd kernel_workspace/common
 
-          echo "[INFO] 清理磁盘空间..."
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /opt/ghc &
-          sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          wait
+          if [[ "${{ inputs.runner_type }}" == "ubuntu-latest" ]]; then
+            echo "[INFO] 清理云端磁盘空间..."
+            sudo rm -rf /usr/share/dotnet &
+            sudo rm -rf /usr/local/lib/android &
+            sudo rm -rf /opt/ghc &
+            sudo rm -rf /opt/hostedtoolcache/CodeQL &
+            wait
+          fi
 
           export SOURCE_DATE_EPOCH=$(date +%s)
           export KBUILD_BUILD_TIMESTAMP="$(date -u)"
