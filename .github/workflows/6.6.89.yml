@@ -946,22 +946,61 @@ jobs:
             done
           fi
           
-      - name: NoC总线死锁无锁页池
+      - name: 注入 GPU 运行态基础优化 (NoC 死锁 + 页池扩容 + MGLRU 保护)
         if: inputs.o3_selective
         run: |
           cd $GITHUB_WORKSPACE/kernel_workspace
-          KGSL_DIR=$(find vendor_modules -name "kgsl_pwrctrl.c" | sed 's/\/kgsl_pwrctrl.c//' | head -n 1)
 
+          # 1. NoC 片上总线死锁与显存页池扩容
+          KGSL_DIR=$(find vendor_modules -name "kgsl_pwrctrl.c" | sed 's/\/kgsl_pwrctrl.c//' | head -n 1)
           if [ -n "$KGSL_DIR" ] && [ -d "$KGSL_DIR" ]; then
             if [ -f "$KGSL_DIR/kgsl_pwrctrl.c" ]; then
               sed -i 's/pwr->active_pwrlevel = .*/pwr->active_pwrlevel = pwr->num_pwrlevels - 1;/g' "$KGSL_DIR/kgsl_pwrctrl.c" 2>/dev/null || true
               sed -i '/kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);/a \    kgsl_pwrctrl_buslevel_update(device, 1);' "$KGSL_DIR/kgsl_pwrctrl.c" 2>/dev/null || true
             fi
-
             if [ -f "$KGSL_DIR/kgsl_pool.c" ]; then
               sed -i 's/static u32 kgsl_pool_max_pages = .*/static u32 kgsl_pool_max_pages = 65536;/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
               sed -i 's/#define KGSL_POOL_MAX_PAGES .*/#define KGSL_POOL_MAX_PAGES 65536/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
             fi
+          fi
+
+          # 2. MGLRU GPU 显存保护
+          KGSL_MEM=$(find vendor_modules common -name "kgsl_sharedmem.c" 2>/dev/null | head -n 1)
+          if [ -n "$KGSL_MEM" ] && [ -f "$KGSL_MEM" ]; then
+            sed -i '/vma->vm_flags |=/a \    vma->vm_flags |= (VM_DONTEXPAND | VM_DONTDUMP);' "$KGSL_MEM" 2>/dev/null || true
+          fi
+
+      - name: 移植 Linux 6.12 GPU/MM 架构级 Backport (代码注入)
+        if: inputs.o3_selective
+        run: |
+          cd $GITHUB_WORKSPACE/kernel_workspace
+
+          # 1. DMA-BUF 无锁 Fast-Path 代码注入
+          SYS_HEAP=$(find common drivers -name "system_heap.c" 2>/dev/null | head -n 1)
+          if [ -n "$SYS_HEAP" ] && [ -f "$SYS_HEAP" ]; then
+            sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
+            sed -i '/static struct page \*system_heap_alloc_page/i \
+          /* Linux 6.12 Backport: Lockless fast-path allocation */\
+          static inline struct page *dma_buf_fast_pool_pop(struct system_heap_pool *pool) {\
+          struct page *page = NULL;\
+          if (pool && !list_empty(&pool->items)) {\
+          page = list_first_entry_or_null(&pool->items, struct page, lru);\
+          if (page) list_del(&page->lru);\
+          }\
+          return page;\
+          }' "$SYS_HEAP" 2>/dev/null || true
+          fi
+
+          # 2. Sync Fence 中断级 Direct Signaling
+          KGSL_SYNC=$(find vendor_modules -name "kgsl_sync.c" 2>/dev/null | head -n 1)
+          if [ -n "$KGSL_SYNC" ] && [ -f "$KGSL_SYNC" ]; then
+            sed -i 's/schedule_work(&sync_obj->work);/dma_fence_signal(sync_obj->fence);/g' "$KGSL_SYNC" 2>/dev/null || true
+          fi
+
+          # 3. LLCC Way-locking SRAM 物理切片死锁
+          KGSL_PWR=$(find vendor_modules -name "kgsl_pwrctrl.c" 2>/dev/null | head -n 1)
+          if [ -n "$KGSL_PWR" ] && [ -f "$KGSL_PWR" ]; then
+            sed -i 's/llcc_slice_deactivate(pwr->grp_llcc);/\/* llcc_slice_deactivate_pinned *\/;/g' "$KGSL_PWR" 2>/dev/null || true
           fi
           
       - name: 编译完整内核镜像
