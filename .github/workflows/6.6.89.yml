@@ -453,18 +453,28 @@ jobs:
           cp ./$GITHUB_ACTOR/zram_patch/002-zstd.patch ./common/
           cd ./common
 
-          # LZ4: 改用容错率更高的 patch 命令代替严苛的 git apply
-          if patch -p1 -F 5 --ignore-whitespace --forward < 001-lz4.patch 2>/dev/null; then
+          # 1. LZ4 补丁：使用 git apply 识别 Git 重命名语法，并忽略 6.6.144 上游缩进差异
+          if git apply -p1 --whitespace=fix --ignore-whitespace 001-lz4.patch 2>/dev/null || \
+             git apply -p1 --3way 001-lz4.patch 2>/dev/null; then
             echo "[INFO] LZ4 1.10.0 + ARM64 NEON ASM 应用成功" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] LZ4 patch 应用失败，回退自带 LZ4" | tee -a "$LOG_FILE"
+            echo "[WARN] LZ4 patch 应用失败，干净回退自带 LZ4" | tee -a "$LOG_FILE"
+            git checkout -- lib/lz4/ crypto/lz4* fs/incfs/ include/linux/lz4* 2>/dev/null || true
           fi
 
-          # ZSTD: 提升 Fuzz 容错值到 5，并忽略空白字符差异
-          if patch -p1 -F 5 --ignore-whitespace --forward < 002-zstd.patch 2>/dev/null; then
+          # 2. ZSTD 补丁：优先尝试 3way 自动解冲突；若失败则强打并自动清理失败残余
+          if git apply -p1 --whitespace=fix --ignore-whitespace 002-zstd.patch 2>/dev/null || \
+             git apply -p1 --3way 002-zstd.patch 2>/dev/null; then
             echo "[INFO] ZSTD 1.5.7 应用成功" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] ZSTD patch 应用失败，回退自带 ZSTD" | tee -a "$LOG_FILE"
+            # 尝试允许微小 Hunk 挂起，丢弃 portability_macros.h 的单一宏冲突
+            if patch -p1 -F 5 --ignore-whitespace --forward < 002-zstd.patch 2>/dev/null; then
+              rm -f lib/zstd/common/portability_macros.h.rej 2>/dev/null || true
+              echo "[INFO] ZSTD 1.5.7 容错强打应用成功" | tee -a "$LOG_FILE"
+            else
+              echo "[WARN] ZSTD patch 与 6.6.144 上游冲突严重，干净回退自带 ZSTD" | tee -a "$LOG_FILE"
+              git checkout -- lib/zstd/ crypto/zstd* include/linux/zstd* 2>/dev/null || true
+            fi
           fi
       - name: 应用 lz4kd 补丁
         if: inputs.lz4kd_enable
