@@ -50,7 +50,7 @@ on:
         description: 'BBRv3 TCP拥塞控制'
         required: true
         type: boolean
-        default: false
+        default: true
       droidspaces_enable:
         description: '是否启用Droidspaces容器支持'
         required: true
@@ -114,12 +114,12 @@ on:
         description: 'HZ=1000'
         required: true
         type: boolean
-        default: false
+        default: true
       o3_selective:
         description: '选择性-O3'
         required: true
         type: boolean
-        default: false
+        default: true
 
 jobs:
   build:
