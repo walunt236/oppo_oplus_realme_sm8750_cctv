@@ -453,7 +453,7 @@ jobs:
           cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S || true
           mkdir -p fs/f2fs/lz4armv8
           cp /tmp/zram_patches/zram/002-zstd.patch . || (echo "缺ZSTD补丁" && exit 1)
-          patch -p1 -F 3 < 001-lz4.patch
+          patch -p1 -F 3 < 001-lz4.patch || true
           patch -p1 < 002-zstd.patch
           rm -rf /tmp/zram_patches
 
