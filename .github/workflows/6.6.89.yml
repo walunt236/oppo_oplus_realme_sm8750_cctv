@@ -11,6 +11,14 @@ env:
 on:
   workflow_dispatch:
     inputs:
+      runner_type:
+        description: '编译节点 (self-hosted: 本地电脑 / ubuntu-latest: GitHub云端)'
+        required: true
+        type: choice
+        default: 'self-hosted' 
+        options:
+          - 'self-hosted'
+          - 'ubuntu-latest'
       ksu_type:
         description: 'KernelSU分支(ReSukiSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认KSU)'
         required: true
@@ -123,7 +131,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner_type }}
     timeout-minutes: 180
     outputs:
       ksuver: ${{ steps.ksu_version.outputs.ksuver }}
