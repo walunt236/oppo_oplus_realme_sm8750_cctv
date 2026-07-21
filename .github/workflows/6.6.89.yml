@@ -868,8 +868,8 @@ jobs:
           fi
           
           if [ -f "lib/Makefile" ]; then
-            echo 'CFLAGS_lz4.o += -O3 -march=arm8-a+neon -mfpu=neon' >> lib/Makefile
-            echo 'CFLAGS_lz4hc.o += -O3 -march=arm8-a+neon -mfpu=neon' >> lib/Makefile
+            echo 'CFLAGS_lz4.o += -O3' >> lib/Makefile
+            echo 'CFLAGS_lz4hc.o += -O3' >> lib/Makefile
           fi
           
           echo "[INFO] 风驰引擎补丁注入完成" | tee -a "$LOG_FILE"
@@ -916,9 +916,9 @@ jobs:
           if [ -n "$GPU_DIRS" ]; then
             for G_DIR in $GPU_DIRS; do
               if [ -f "$G_DIR/Makefile" ]; then
-                sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' "$G_DIR/Makefile"
+                sed -i '1i ccflags-y += -O3 -ftree-vectorize' "$G_DIR/Makefile"
               elif [ -f "$G_DIR/Kbuild" ]; then
-                sed -i '1i ccflags-y += -O3 -ffast-math -ftree-vectorize' "$G_DIR/Kbuild"
+                sed -i '1i ccflags-y += -O3 -ftree-vectorize' "$G_DIR/Makefile"
               fi
               
               for T_FILE in $(find "$G_DIR" -type f -name "*tz*.c" -o -name "*pwrscale*.c" 2>/dev/null || true); do
@@ -938,7 +938,6 @@ jobs:
           KGSL_DIR=$(find vendor_modules -name "kgsl_pwrctrl.c" | sed 's/\/kgsl_pwrctrl.c//' | head -n 1)
           if [ -n "$KGSL_DIR" ] && [ -d "$KGSL_DIR" ]; then
             if [ -f "$KGSL_DIR/kgsl_pwrctrl.c" ]; then
-              sed -i 's/pwr->active_pwrlevel = .*/pwr->active_pwrlevel = pwr->num_pwrlevels - 1;/g' "$KGSL_DIR/kgsl_pwrctrl.c" 2>/dev/null || true
               sed -i '/kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);/a \    kgsl_pwrctrl_buslevel_update(device, 1);' "$KGSL_DIR/kgsl_pwrctrl.c" 2>/dev/null || true
             fi
             if [ -f "$KGSL_DIR/kgsl_pool.c" ]; then
@@ -961,24 +960,13 @@ jobs:
           cd $GITHUB_WORKSPACE/kernel_workspace
           SYS_HEAP=$(find common drivers -name "system_heap.c" 2>/dev/null | head -n 1)
           if [ -n "$SYS_HEAP" ] && [ -f "$SYS_HEAP" ]; then
-            sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
-            sed -i '/static struct page \*system_heap_alloc_page/i \
-          /* Linux 6.12 Backport: Lockless fast-path allocation */\
-          static inline struct page *dma_buf_fast_pool_pop(struct system_heap_pool *pool) {\
-              struct page *page = NULL;\
-              if (pool && !list_empty(&pool->items)) {\
-                  page = list_first_entry_or_null(&pool->items, struct page, lru);\
-                  if (page) list_del(&page->lru);\
-              }\
-              return page;\
-          }' "$SYS_HEAP" 2>/dev/null || true
-            echo "[INFO] DMA-BUF代码注入完成" | tee -a "$LOG_FILE"
+              sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
+              echo "[INFO] DMA-BUF 页池扩容完成" | tee -a "$LOG_FILE"
           fi
 
 
           KGSL_PWR=$(find vendor_modules -name "kgsl_pwrctrl.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_PWR" ] && [ -f "$KGSL_PWR" ]; then
-            sed -i 's/llcc_slice_deactivate(pwr->grp_llcc);/\/* llcc_slice_deactivate_pinned *\/;/g' "$KGSL_PWR" 2>/dev/null || true
             echo "[INFO] LLCC 死锁完成" | tee -a "$LOG_FILE"
           fi
 
