@@ -946,6 +946,24 @@ jobs:
             done
           fi
           
+      - name: NoC总线死锁无锁页池
+        if: inputs.o3_selective
+        run: |
+          cd $GITHUB_WORKSPACE/kernel_workspace
+          KGSL_DIR=$(find vendor_modules -name "kgsl_pwrctrl.c" | sed 's/\/kgsl_pwrctrl.c//' | head -n 1)
+
+          if [ -n "$KGSL_DIR" ] && [ -d "$KGSL_DIR" ]; then
+            if [ -f "$KGSL_DIR/kgsl_pwrctrl.c" ]; then
+              sed -i 's/pwr->active_pwrlevel = .*/pwr->active_pwrlevel = pwr->num_pwrlevels - 1;/g' "$KGSL_DIR/kgsl_pwrctrl.c" 2>/dev/null || true
+              sed -i '/kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);/a \    kgsl_pwrctrl_buslevel_update(device, 1);' "$KGSL_DIR/kgsl_pwrctrl.c" 2>/dev/null || true
+            fi
+
+            if [ -f "$KGSL_DIR/kgsl_pool.c" ]; then
+              sed -i 's/static u32 kgsl_pool_max_pages = .*/static u32 kgsl_pool_max_pages = 65536;/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
+              sed -i 's/#define KGSL_POOL_MAX_PAGES .*/#define KGSL_POOL_MAX_PAGES 65536/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
+            fi
+          fi
+          
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
         run: |
