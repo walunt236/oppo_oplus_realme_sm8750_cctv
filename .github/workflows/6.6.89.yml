@@ -534,6 +534,7 @@ jobs:
           CONFIG_LTO_CLANG_THIN=y
           CONFIG_ZRAM_DEF_COMP_LZ4=y
           CONFIG_ZRAM_DEF_COMP="lz4"
+          CONFIG_ZRAM_MULTI_COMP=y
           CONFIG_CRYPTO_LZ4=y
           CONFIG_CRYPTO_LZ4HC=y
           CONFIG_LZ4_COMPRESS=y
@@ -546,6 +547,7 @@ jobs:
           CONFIG_ARM64_SIMD=y
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
+          CONFIG_LRU_GEN_STATS=y
           CONFIG_NET_SCH_CAKE=y
           CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
@@ -1015,10 +1017,10 @@ jobs:
           export KBUILD_BUILD_HOST="ubuntu-build"
 
           echo '#!/bin/bash' > ld-wrapper
-          echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
+          echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all) --icf=all' >> ld-wrapper
           chmod +x ld-wrapper
 
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=5 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=6 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
