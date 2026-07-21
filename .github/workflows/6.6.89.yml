@@ -1143,14 +1143,14 @@ jobs:
 
       - name: 上传 Ccache 调试日志
         if: ${{ always() && inputs.ccache_debug && !inputs.diagnosis }}
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v7
         with:
           name: ccache-debug-log
           path: ${{ github.workspace }}/kernel_workspace/ccache.log
 
       - name: 上传 ZIP 工件
         if: ${{ !inputs.diagnosis }}
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v7
         with:
           name: ak3-release
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
@@ -1167,7 +1167,7 @@ jobs:
 
     steps:
       - name: 下载 ZIP 工件
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v7
         with:
           name: ak3-release
           path: ./release_zips
