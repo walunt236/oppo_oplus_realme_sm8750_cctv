@@ -449,11 +449,21 @@ jobs:
           git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git /tmp/zram_patches
           cp /tmp/zram_patches/zram/001-lz4.patch . || (echo "缺LZ4补丁" && exit 1)
           cp /tmp/zram_patches/zram/002-zstd.patch . || (echo "缺ZSTD补丁" && exit 1)
-          mkdir -p lib/lz4/lz4armv8 fs/f2fs/lz4armv8
-          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S 2>/dev/null || true
-          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8.S 2>/dev/null || true
+      
+          # 预置 lz4armv8.S（mrcxlinux 提供）
+          mkdir -p lib/lz4/lz4armv8
+          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S || true
+
+          # 预置 lz4accel.c/h（OnePlus OEM 内核源，补丁 rename 需要）
+          mkdir -p fs/f2fs/lz4armv8
+          wget -q -O fs/f2fs/lz4armv8/lz4accel.c \
+            "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.c"
+          wget -q -O fs/f2fs/lz4armv8/lz4accel.h \
+            "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.h"
+
+          # 现在 rename 源存在了，git apply 能正确处理
           git apply --reject --whitespace=nowarn 001-lz4.patch || true
-          git apply --reject --whitespace=nowarn 002-zstd.patch || true
+          patch -p1 -t -F 3 < 002-zstd.patch || true
           rm -rf /tmp/zram_patches
 
       - name: 应用lz4kd
