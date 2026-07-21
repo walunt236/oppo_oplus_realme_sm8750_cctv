@@ -150,11 +150,14 @@ jobs:
       - name: 安装环境依赖+初始化源码仓库及llvm-Clang19工具链
         id: init_env
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "=== 内核构建关键状态日志汇总 ===" > "$LOG_FILE"
+
           rm -rf kernel_workspace
           mkdir kernel_workspace
           cd kernel_workspace
-          echo "[INFO] 仓库：$GITHUB_REPOSITORY"
-          echo "[INFO] 分支：$GITHUB_REF_NAME"
+          echo "[INFO] 仓库：$GITHUB_REPOSITORY" | tee -a "$LOG_FILE"
+          echo "[INFO] 分支：$GITHUB_REF_NAME" | tee -a "$LOG_FILE"
 
           sudo apt-mark hold firefox
           sudo apt-mark hold libc-bin
@@ -189,20 +192,19 @@ jobs:
             echo "[INFO] 获取 kernel.org stable 最新 6.6 LTS tag..."
             LATEST_TAG=""
             for pattern in 'refs/tags/v6.6.*'; do
-              echo "[INFO] 尝试匹配模式: $pattern"
               LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
                 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
                 "$pattern" 2>/dev/null \
                 | grep -v '\^{}' \
                 | head -1 | awk -F'/' '{print $NF}')
               if [ -n "$LATEST_TAG" ]; then
-                echo "[INFO] 匹配成功: $LATEST_TAG"
+                echo "[INFO] 匹配成功: $LATEST_TAG" | tee -a "$LOG_FILE"
                 break
               fi
             done
 
             if [ -z "$LATEST_TAG" ]; then
-              echo "[ERROR] 无法从 kernel.org stable 获取 v6.6 tag"
+              echo "[ERROR] 无法从 kernel.org stable 获取 v6.6 tag" | tee -a "$LOG_FILE"
               exit 1
             fi
 
@@ -210,7 +212,7 @@ jobs:
             SUB_VER=$(echo "$LATEST_TAG" | sed -E 's/.*6\.6\.([0-9]+).*/\1/')
             if [ -z "$SUB_VER" ] || [ "$SUB_VER" = "$LATEST_TAG" ]; then
               SUB_VER="unknown"
-              echo "[WARN] 无法提取版本号，tag: $LATEST_TAG"
+              echo "[WARN] 无法提取版本号，tag: $LATEST_TAG" | tee -a "$LOG_FILE"
             fi
             echo "SUB_VERSION=$SUB_VER" >> $GITHUB_ENV
 
@@ -225,16 +227,16 @@ jobs:
             else
               echo "[WARN] 浅获取失败，尝试完整获取..."
               git fetch upstream "$LATEST_TAG" || {
-                echo "[ERROR] 无法获取 tag: $LATEST_TAG"
+                echo "[ERROR] 无法获取 tag: $LATEST_TAG" | tee -a "$LOG_FILE"
                 exit 1
               }
             fi
 
             echo "[INFO] 合并上游 $LATEST_TAG 到 OEM 分支..."
             if git merge "$LATEST_TAG" --no-edit -X ours --allow-unrelated-histories; then
-              echo "[INFO] 合并成功"
+              echo "[INFO] 上游合并成功，无冲突" | tee -a "$LOG_FILE"
             else
-              echo "[WARN] 存在冲突，自动保留 OEM 版本..."
+              echo "[WARN] 存在冲突，自动保留 OEM 版本..." | tee -a "$LOG_FILE"
               git diff --name-only --diff-filter=U > /tmp/conflicts.txt 2>/dev/null
               if [ -s /tmp/conflicts.txt ]; then
                 git diff --name-only --diff-filter=U | xargs -r git checkout --ours --
@@ -244,7 +246,7 @@ jobs:
               echo "[INFO] 冲突自动解决（OEM 优先）"
             fi
           else
-            echo "[INFO] 跳过上游合并，使用 OEM 源码"
+            echo "[INFO] 跳过上游合并，使用 OEM 源码 6.6.89" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
             echo "SUB_VERSION=89" >> $GITHUB_ENV
             KERNEL_NAME_VAL="android15-8-gxxx-oneplus_13_6.6.89-4k"
@@ -266,7 +268,7 @@ jobs:
           if ! dpkg -l binutils python3 libssl-dev libelf-dev > /dev/null 2>&1; then
             echo "[WARN] 依赖安装异常，正在重试..."
             sudo apt-get install -y --no-install-recommends binutils python-is-python3 libssl-dev libelf-dev || {
-              echo "[ERROR] 依赖安装失败"
+              echo "[ERROR] 依赖安装失败" | tee -a "$LOG_FILE"
               exit 1
             }
           fi
@@ -277,7 +279,7 @@ jobs:
             sed -i 's/ -dirty//g' "$f"
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
           done
-          echo "[INFO] 源码及工具链初始化完成"
+          echo "[INFO] 源码及工具链初始化完成" | tee -a "$LOG_FILE"
 
       - name: 配置ccache目录
         run: |
@@ -305,8 +307,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           if [ -d "${{ env.CCACHE_DIR }}" ] && [ "$(ls -A ${{ env.CCACHE_DIR }} 2>/dev/null)" ]; then
-            echo "[INFO] 检测到本地 ccache 缓存，跳过公共 ccache 拉取"
+            echo "[INFO] 检测到本地 ccache 缓存，跳过公共 ccache 拉取" | tee -a "$LOG_FILE"
             exit 0
           fi
 
@@ -320,9 +323,9 @@ jobs:
           if gh release download -p "$FILE_NAME" -R cctv18/public_ccache; then
             echo "[INFO] 解压 $FILE_NAME ..."
             tar -I zstd -xf "$FILE_NAME" -C ${{ env.CCACHE_DIR }}
-            echo "[INFO] 公共 ccache 恢复完成"
+            echo "[INFO] 公共 ccache 恢复完成" | tee -a "$LOG_FILE"
           else
-            echo "[INFO] 未找到公共 ccache，进行全新编译"
+            echo "[INFO] 未找到公共 ccache，进行全新编译" | tee -a "$LOG_FILE"
           fi
 
       - name: 清除旧 ccache 缓存
@@ -370,9 +373,10 @@ jobs:
       - name: 添加KernelSU
         id: ksu_version
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace
           if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" || ${{ github.event.inputs.ksu_type }} == "resukisu" ]]; then
-            echo "[INFO] 配置 ReSukiSU..."
+            echo "[INFO] 配置 ReSukiSU..." | tee -a "$LOG_FILE"
             curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh" | bash -s main
             echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
             cd ./KernelSU
@@ -380,7 +384,7 @@ jobs:
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
           elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
-            echo "[INFO] 配置 KernelSU Next..."
+            echo "[INFO] 配置 KernelSU Next..." | tee -a "$LOG_FILE"
             curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
             cd KernelSU-Next
             rm -rf .git
@@ -394,7 +398,7 @@ jobs:
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/apk_sign.patch
             patch -p2 -N -F 3 < apk_sign.patch || true
           elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
-            echo "[INFO] 配置原版 KernelSU..."
+            echo "[INFO] 配置原版 KernelSU..." | tee -a "$LOG_FILE"
             curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/refs/heads/main/kernel/setup.sh" | bash -s main
             cd ./KernelSU
             KSU_VERSION=$(expr $(curl -sI "https://api.github.com/repos/tiann/KernelSU/commits?sha=main&per_page=1" | grep -i "link:" | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p') "+" 30000)
@@ -402,15 +406,16 @@ jobs:
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
             sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" kernel/Kbuild
           else
-            echo "[INFO] 跳过 KernelSU 配置"
+            echo "[INFO] 跳过 KernelSU 配置" | tee -a "$LOG_FILE"
           fi
 
       - name: 应用 KernelSU & SUSFS 补丁
         if: inputs.susfs_enable
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace
           if [[ ${{ github.event.inputs.ksu_type }} != "none" ]]; then
-            echo "[INFO] 添加 susfs 补丁..."
+            echo "[INFO] 添加 susfs 补丁..." | tee -a "$LOG_FILE"
             git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
             cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./common/
@@ -420,17 +425,17 @@ jobs:
             cd ./common
             sed -i -e '/int ret = 0, copied = 0;/a \    unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;' -e '/int ret = 0, copied = 0;/a \    pagemap_entry_t *res = NULL;' ./fs/proc/task_mmu.c || true
 
-            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || echo "[WARN] SUSFS 核心补丁应用失败"
+            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || echo "[WARN] SUSFS 核心补丁应用失败" | tee -a "$LOG_FILE"
 
             sed -i -e '/unsigned int nr_subpages = __PAGE_SIZE \/ PAGE_SIZE;/d' -e '/pagemap_entry_t \*res = NULL;/d' ./fs/proc/task_mmu.c || true
 
             patch -p1 -N -F 3 < 69_hide_stuff.patch || true
             cd ..
           else
-            echo "[INFO] 跳过 susfs 配置"
+            echo "[INFO] 跳过 susfs 配置" | tee -a "$LOG_FILE"
           fi
           if [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
-            echo "[INFO] 为原版 KernelSU 添加补丁..."
+            echo "[INFO] 为原版 KernelSU 添加补丁..." | tee -a "$LOG_FILE"
             cp ./susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
             cd ./KernelSU
             patch -p1 < 10_enable_susfs_for_ksu.patch || true
@@ -439,6 +444,7 @@ jobs:
       - name: 应用lz4 1.10.0 & zstd 1.5.7补丁
         if: inputs.lz4_enable
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "[INFO] 添加 lz4 1.10.0 & zstd 1.5.7 补丁..."
           cd kernel_workspace
           git clone --depth=1 https://github.com/$GITHUB_REPOSITORY.git -b $GITHUB_REF_NAME $GITHUB_ACTOR
@@ -447,20 +453,21 @@ jobs:
           cp ./$GITHUB_ACTOR/zram_patch/002-zstd.patch ./common/
           cd ./common
           if git apply -p1 < 001-lz4.patch 2>/dev/null; then
-            echo "[INFO] LZ4 1.10.0 + ARM64 NEON ASM 应用成功"
+            echo "[INFO] LZ4 1.10.0 + ARM64 NEON ASM 应用成功" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] LZ4 patch 应用失败，回退自带 LZ4"
+            echo "[WARN] LZ4 patch 应用失败，回退自带 LZ4" | tee -a "$LOG_FILE"
           fi
           if patch -p1 -F 3 < 002-zstd.patch 2>/dev/null; then
-            echo "[INFO] ZSTD 1.5.7 应用成功"
+            echo "[INFO] ZSTD 1.5.7 应用成功" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] ZSTD patch 应用失败，回退自带 ZSTD"
+            echo "[WARN] ZSTD patch 应用失败，回退自带 ZSTD" | tee -a "$LOG_FILE"
           fi
 
       - name: 应用 lz4kd 补丁
         if: inputs.lz4kd_enable
         run: |
-          echo "[INFO] 添加 lz4kd 补丁..."
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "[INFO] 添加 lz4kd 补丁..." | tee -a "$LOG_FILE"
           cd kernel_workspace
           if [ ! -d "SukiSU_patch" ]; then
             git clone --depth=1 https://github.com/ShirkNeko/SukiSU_patch.git
@@ -577,12 +584,13 @@ jobs:
           
       - name: 注入内核参数
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "[INFO] 对 init/main.c 注入 cmdline..."
           
           if [ ! -f "init/main.c" ]; then
             REAL_MAIN=$(find . -type f -name "main.c" | grep "/init/")
             if [ -z "$REAL_MAIN" ]; then
-              echo "[ERROR] 无法定位内核入口文件 main.c"
+              echo "[ERROR] 无法定位内核入口文件 main.c" | tee -a "$LOG_FILE"
               exit 1
             fi
             TARGET_MAIN="$REAL_MAIN"
@@ -592,10 +600,12 @@ jobs:
           
           sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
           grep -C 3 "strlcat" "$TARGET_MAIN"
+          echo "[INFO] cmdline 注入成功" | tee -a "$LOG_FILE"
 
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
           CONFIG_NETFILTER_XT_TARGET_HL=y
@@ -645,15 +655,16 @@ jobs:
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/config.patch
           if patch -p1 -F 3 --dry-run < config.patch 2>/dev/null; then
             patch -p1 -F 3 < config.patch
-            echo "[INFO] config.patch 应用成功"
+            echo "[INFO] config.patch 应用成功" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] config.patch 无法干净应用，跳过"
+            echo "[WARN] config.patch 无法干净应用，跳过" | tee -a "$LOG_FILE"
           fi
 
       - name: 添加 BBR 等一系列拥塞控制算法
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           if [[ "${{ github.event.inputs.bbr_enable }}" != "false" ]]; then
-            echo "[INFO] 添加 BBR 拥塞控制算法..."
+            echo "[INFO] 添加 BBR 拥塞控制算法..." | tee -a "$LOG_FILE"
             cd kernel_workspace
             cat >> ./common/arch/arm64/configs/gki_defconfig << 'BBRCFG'
           CONFIG_TCP_CONG_ADVANCED=y
@@ -674,8 +685,9 @@ jobs:
 
       - name: 启用 Droidspaces 容器支持
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           if [[ "${{ github.event.inputs.droidspaces_enable }}" != "false" ]]; then
-            echo "[INFO] 启用 Droidspaces 容器支持..."
+            echo "[INFO] 启用 Droidspaces 容器支持..." | tee -a "$LOG_FILE"
             cd kernel_workspace/common
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch
             patch -p1 -F 3 < fix_sysvipc_kabi_6_7_8.patch || true
@@ -709,7 +721,8 @@ jobs:
       - name: 启用ADIOS IO调度器
         if: inputs.adios_enable
         run: |
-          echo "[INFO] 启用 ADIOS I/O 调度器..."
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "[INFO] 启用 ADIOS I/O 调度器..." | tee -a "$LOG_FILE"
           cd kernel_workspace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
           CONFIG_MQ_IOSCHED_ADIOS=y
@@ -719,14 +732,16 @@ jobs:
       - name: 启用Re-Kernel支持
         if: inputs.rekernel_enable
         run: |
-          echo "[INFO] 启用 Re-Kernel 支持..."
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "[INFO] 启用 Re-Kernel 支持..." | tee -a "$LOG_FILE"
           cd kernel_workspace
           echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 
       - name: 启用基带保护
         if: inputs.baseband_guard
         run: |
-          echo "[INFO] 启用基带保护..."
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "[INFO] 启用基带保护..." | tee -a "$LOG_FILE"
           cd kernel_workspace
           echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
           cd ./common
@@ -754,7 +769,8 @@ jobs:
       - name: 启用 HZ=1000 高精度调度
         if: inputs.hz_1000
         run: |
-          echo "[INFO] 启用 HZ=1000..."
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "[INFO] 启用 HZ=1000..." | tee -a "$LOG_FILE"
           cd kernel_workspace
           cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ1000CFG'
           # CONFIG_HZ_250 is not set
@@ -765,16 +781,17 @@ jobs:
       - name: 启用 BBRv3 TCP 拥塞控制
         if: inputs.bbrv3_enable
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "[INFO] 应用 BBRv3 补丁..."
           cd kernel_workspace/common
           curl -sSL -o bbrv3.patch "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
           
           if git apply -p1 < bbrv3.patch 2>/dev/null; then
-            echo "[INFO] BBRv3 git apply 成功"
+            echo "[INFO] BBRv3 git apply 成功" | tee -a "$LOG_FILE"
           elif patch -p1 -F 3 < bbrv3.patch 2>/dev/null; then
-            echo "[INFO] BBRv3 patch 成功"
+            echo "[INFO] BBRv3 patch 成功" | tee -a "$LOG_FILE"
           else
-            echo "[ERROR] BBRv3 补丁失败"
+            echo "[ERROR] BBRv3 补丁失败" | tee -a "$LOG_FILE"
             exit 1
           fi
           
@@ -783,6 +800,7 @@ jobs:
 
       - name: 构建内核 (生成配置文件与诊断检测)
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
           export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
@@ -800,11 +818,11 @@ jobs:
 
           PATCH_FILE=$(find wild_patches/oneplus/hmbird/ -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
           if [ -z "$PATCH_FILE" ]; then
-            echo "[ERROR] 未匹配到一加 13 专属风驰补丁"
+            echo "[ERROR] 未匹配到一加 13 专属风驰补丁" | tee -a "$LOG_FILE"
             exit 1
           fi
 
-          echo "[INFO] 匹配风驰补丁: $PATCH_FILE"
+          echo "[INFO] 匹配风驰补丁: $PATCH_FILE" | tee -a "$LOG_FILE"
           sed -i 's/\r$//' "$PATCH_FILE"
           
           cd kernel_workspace/common
@@ -844,7 +862,7 @@ jobs:
           
           UNICODE_PATCH=$(find ../../wild_patches/ -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
-            echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH"
+            echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
             sed -i 's/\r$//' "$UNICODE_PATCH"
             patch -p1 --forward -f < "$UNICODE_PATCH" || true
           fi
@@ -854,12 +872,12 @@ jobs:
             echo 'CFLAGS_lz4hc.o += -O3 -march=arm8-a+neon -mfpu=neon' >> lib/Makefile
           fi
           
-          echo "[INFO] 风驰引擎补丁注入完成"
+          echo "[INFO] 风驰引擎补丁注入完成" | tee -a "$LOG_FILE"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ github.event.inputs.diagnosis }}" == "true" ]]; then
-            echo "[INFO] 诊断模式开启，已导出 build_config.txt"
+            echo "[INFO] 诊断模式开启，已导出 build_config.txt" | tee -a "$LOG_FILE"
             cp out/.config out/build_config.txt
           fi
 
@@ -874,6 +892,7 @@ jobs:
       - name: 启用选择性 -O3 优化
         if: inputs.o3_selective
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace/common
           for TARGET_DIR in lib crypto mm fs net; do
             if [ -d "$TARGET_DIR" ]; then
@@ -903,11 +922,12 @@ jobs:
               done
             done
           fi
-          echo "[INFO] 选择性 -O3 优化配置完成"
+          echo "[INFO] 选择性 -O3 优化配置完成" | tee -a "$LOG_FILE"
           
       - name: 注入 GPU 运行态基础优化 (NoC 死锁 + 页池扩容 + MGLRU 保护)
         if: inputs.o3_selective
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd $GITHUB_WORKSPACE/kernel_workspace
 
           KGSL_DIR=$(find vendor_modules -name "kgsl_pwrctrl.c" | sed 's/\/kgsl_pwrctrl.c//' | head -n 1)
@@ -920,42 +940,44 @@ jobs:
               sed -i 's/static u32 kgsl_pool_max_pages = .*/static u32 kgsl_pool_max_pages = 65536;/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
               sed -i 's/#define KGSL_POOL_MAX_PAGES .*/#define KGSL_POOL_MAX_PAGES 65536/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
             fi
-            echo "[INFO] NoC 总线最低下限锁死与 KGSL 页池扩容配置完成"
+            echo "[INFO] NoC 总线最低下限锁死与 KGSL 页池扩容配置完成" | tee -a "$LOG_FILE"
           fi
 
           KGSL_MEM=$(find vendor_modules common -name "kgsl_sharedmem.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_MEM" ] && [ -f "$KGSL_MEM" ]; then
             sed -i '/vma->vm_flags |=/a \    vma->vm_flags |= (VM_DONTEXPAND | VM_DONTDUMP);' "$KGSL_MEM" 2>/dev/null || true
-            echo "[INFO] MGLRU GPU 显存保护机制注入完成"
+            echo "[INFO] MGLRU GPU 显存保护机制注入完成" | tee -a "$LOG_FILE"
           fi
 
       - name: 移植 Linux 6.12 GPU/MM 架构级 Backport (代码注入)
         if: inputs.o3_selective
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd $GITHUB_WORKSPACE/kernel_workspace
 
           SYS_HEAP=$(find common drivers -name "system_heap.c" 2>/dev/null | head -n 1)
           if [ -n "$SYS_HEAP" ] && [ -f "$SYS_HEAP" ]; then
             sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
             sed -i '/static struct page \*system_heap_alloc_page/i /* Linux 6.12 Backport: Lockless fast-path allocation */\nstatic inline struct page *dma_buf_fast_pool_pop(struct system_heap_pool *pool) {\n    struct page *page = NULL;\n    if (pool && !list_empty(&pool->items)) {\n        page = list_first_entry_or_null(&pool->items, struct page, lru);\n        if (page) list_del(&page->lru);\n    }\n    return page;\n}' "$SYS_HEAP" 2>/dev/null || true
-            echo "[INFO] DMA-BUF 无锁 Fast-Path 代码注入完成"
+            echo "[INFO] DMA-BUF 无锁 Fast-Path 代码注入完成" | tee -a "$LOG_FILE"
           fi
 
           KGSL_SYNC=$(find vendor_modules -name "kgsl_sync.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_SYNC" ] && [ -f "$KGSL_SYNC" ]; then
             sed -i 's/schedule_work(&sync_obj->work);/dma_fence_signal(sync_obj->fence);/g' "$KGSL_SYNC" 2>/dev/null || true
-            echo "[INFO] Sync Fence 中断级 Direct Signaling 替换完成"
+            echo "[INFO] Sync Fence 中断级 Direct Signaling 替换完成" | tee -a "$LOG_FILE"
           fi
 
           KGSL_PWR=$(find vendor_modules -name "kgsl_pwrctrl.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_PWR" ] && [ -f "$KGSL_PWR" ]; then
             sed -i 's/llcc_slice_deactivate(pwr->grp_llcc);/\/* llcc_slice_deactivate_pinned *\/;/g' "$KGSL_PWR" 2>/dev/null || true
-            echo "[INFO] LLCC Way-locking SRAM 物理切片死锁完成"
+            echo "[INFO] LLCC Way-locking SRAM 物理切片死锁完成" | tee -a "$LOG_FILE"
           fi
 
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
           export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
@@ -1000,15 +1022,27 @@ jobs:
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
-          echo "[INFO] 内核镜像编译完成"
+          echo "[INFO] 内核镜像编译完成" | tee -a "$LOG_FILE"
           if nm out/vmlinux 2>/dev/null | grep -q "_lz4_decompress_asm"; then
-            echo "[INFO] _lz4_decompress_asm 符号校验通过"
+            echo "[INFO] _lz4_decompress_asm 符号校验通过" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] _lz4_decompress_asm 符号未找到"
+            echo "[WARN] _lz4_decompress_asm 符号未找到" | tee -a "$LOG_FILE"
           fi
           
           grep "CONFIG_IP6_NF_NAT" out/.config 2>/dev/null || echo "CONFIG_IP6_NF_NAT: not set"
           ccache -s
+
+      - name: 汇总并打印构建日志
+        if: always()
+        run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "=================================================="
+          if [ -f "$LOG_FILE" ]; then
+            cat "$LOG_FILE"
+          else
+            echo "[INFO] 暂无构建日志"
+          fi
+          echo "=================================================="
 
       - name: 保存新的 ccache 缓存
         if: (inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true') && ${{ !inputs.diagnosis }}
