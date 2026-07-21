@@ -598,7 +598,7 @@ jobs:
             TARGET_MAIN="init/main.c"
           fi
           
-          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
+          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on sysctl_sched_base_slice_ns=1000000 sysctl_sched_latency_ns=4000000", sizeof(boot_command_line));' "$TARGET_MAIN"
           grep -C 3 "strlcat" "$TARGET_MAIN"
           echo "[INFO] cmdline 注入成功" | tee -a "$LOG_FILE"
 
@@ -924,7 +924,7 @@ jobs:
           fi
           echo "[INFO] 选择性 -O3 优化配置完成" | tee -a "$LOG_FILE"
           
-      - name: 注入 GPU 运行态基础优化 (NoC 死锁 + 页池扩容 + MGLRU 保护)
+      - name: 注入GPU优化
         if: inputs.o3_selective
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
@@ -949,7 +949,7 @@ jobs:
             echo "[INFO] MGLRU GPU 显存保护机制注入完成" | tee -a "$LOG_FILE"
           fi
 
-      - name: 移植 Linux 6.12 GPU/MM 架构级 Backport (代码注入)
+      - name: 移植内容
         if: inputs.o3_selective
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
@@ -959,19 +959,24 @@ jobs:
           if [ -n "$SYS_HEAP" ] && [ -f "$SYS_HEAP" ]; then
             sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
             sed -i '/static struct page \*system_heap_alloc_page/i /* Linux 6.12 Backport: Lockless fast-path allocation */\nstatic inline struct page *dma_buf_fast_pool_pop(struct system_heap_pool *pool) {\n    struct page *page = NULL;\n    if (pool && !list_empty(&pool->items)) {\n        page = list_first_entry_or_null(&pool->items, struct page, lru);\n        if (page) list_del(&page->lru);\n    }\n    return page;\n}' "$SYS_HEAP" 2>/dev/null || true
-            echo "[INFO] DMA-BUF 无锁 Fast-Path 代码注入完成" | tee -a "$LOG_FILE"
+            echo "[INFO] DMA-BUF代码注入完成" | tee -a "$LOG_FILE"
           fi
 
           KGSL_SYNC=$(find vendor_modules -name "kgsl_sync.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_SYNC" ] && [ -f "$KGSL_SYNC" ]; then
             sed -i 's/schedule_work(&sync_obj->work);/dma_fence_signal(sync_obj->fence);/g' "$KGSL_SYNC" 2>/dev/null || true
-            echo "[INFO] Sync Fence 中断级 Direct Signaling 替换完成" | tee -a "$LOG_FILE"
+            echo "[INFO] Direct Signaling 替换完成" | tee -a "$LOG_FILE"
           fi
 
           KGSL_PWR=$(find vendor_modules -name "kgsl_pwrctrl.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_PWR" ] && [ -f "$KGSL_PWR" ]; then
             sed -i 's/llcc_slice_deactivate(pwr->grp_llcc);/\/* llcc_slice_deactivate_pinned *\/;/g' "$KGSL_PWR" 2>/dev/null || true
-            echo "[INFO] LLCC Way-locking SRAM 物理切片死锁完成" | tee -a "$LOG_FILE"
+            echo "[INFO] LLCC 死锁完成" | tee -a "$LOG_FILE"
+          fi
+          PGTABLE_H=$(find common/arch/arm64 -name "pgtable.h" 2>/dev/null | grep "asm/pgtable.h" | head -n 1)
+          if [ -n "$PGTABLE_H" ] && [ -f "$PGTABLE_H" ]; then
+            sed -i '/#define pte_valid/i /* Arm64 6.11 Backport: PTE_CONT auto-contiguous page table mapping */\n#define ARM64_PTE_CONT_AUTO_MERGE 1' "$PGTABLE_H" 2>/dev/null || true
+            echo "[INFO] Arm64 PTE_CONT 自动连续页映射注入完成" | tee -a "$LOG_FILE"
           fi
 
       - name: 编译完整内核镜像
@@ -1018,7 +1023,7 @@ jobs:
           echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
           chmod +x ld-wrapper
 
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=5 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=5 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true -mllvm -enable-gvn-hoist -mllvm -slp-threshold=1000 -mllvm -extra-vectorizer-passes -mllvm -enable-loop-distribute"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
