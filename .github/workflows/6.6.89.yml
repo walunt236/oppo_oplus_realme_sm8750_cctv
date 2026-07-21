@@ -904,7 +904,7 @@ jobs:
 
       - name: 上传诊断配置文本
         if: inputs.diagnosis
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: kernel-config-${{ github.run_id }}
           if-no-files-found: warn
@@ -1143,19 +1143,18 @@ jobs:
 
       - name: 上传 Ccache 调试日志
         if: ${{ always() && inputs.ccache_debug && !inputs.diagnosis }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: ccache-debug-log
           path: ${{ github.workspace }}/kernel_workspace/ccache.log
-          archive: true
 
       - name: 上传 ZIP 工件
         if: ${{ !inputs.diagnosis }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: ak3-release
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
-          archive: false
+          if-no-files-found: error
 
   release:
     needs: build
@@ -1172,7 +1171,6 @@ jobs:
         with:
           name: ak3-release
           path: ./release_zips
-          skip-decompress: true
 
       - name: 设置环境变量
         run: |
