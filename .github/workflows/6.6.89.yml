@@ -224,7 +224,7 @@ jobs:
             fi
 
             echo "[INFO] 合并上游 $LATEST_TAG 到 OEM 分支..."
-            if git merge "$LATEST_TAG" --no-edit -X ours; then
+            if git merge "$LATEST_TAG" --no-edit -X ours --allow-unrelated-histories; then
               echo "[INFO] 上游合并成功，无冲突" | tee -a "$LOG_FILE"
             else
               echo "[WARN] 存在冲突，自动保留 OEM 版本..." | tee -a "$LOG_FILE"
@@ -426,7 +426,6 @@ jobs:
             
             cd ./common
             
-            # 临时注入变量以兼容 SUSFS 补丁对 task_mmu.c 的修改
             sed -i -e '/int ret = 0, copied = 0;/a \    unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;' -e '/int ret = 0, copied = 0;/a \    pagemap_entry_t *res = NULL;' ./fs/proc/task_mmu.c || true
 
             patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || {
@@ -464,8 +463,7 @@ jobs:
              git apply -p1 --3way 001-lz4.patch 2>/dev/null; then
             echo "[INFO] LZ4 1.10.0 + ARM64 NEON ASM 应用成功" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] LZ4 patch 应用失败，干净回退自带 LZ4" | tee -a "$LOG_FILE"
-            git checkout -- lib/lz4/ crypto/lz4* fs/incfs/ include/linux/lz4* 2>/dev/null || true
+            echo "[WARN] LZ4 patch 应用失败，跳过" | tee -a "$LOG_FILE"
           fi
 
           if git apply -p1 --whitespace=fix --ignore-whitespace 002-zstd.patch 2>/dev/null || \
@@ -476,8 +474,7 @@ jobs:
               rm -f lib/zstd/common/portability_macros.h.rej 2>/dev/null || true
               echo "[INFO] ZSTD 1.5.7 容错强打应用成功" | tee -a "$LOG_FILE"
             else
-              echo "[WARN] ZSTD patch 与上游冲突严重，干净回退自带 ZSTD" | tee -a "$LOG_FILE"
-              git checkout -- lib/zstd/ crypto/zstd* include/linux/zstd* 2>/dev/null || true
+              echo "[WARN] ZSTD patch 与上游冲突严重，跳过" | tee -a "$LOG_FILE"
             fi
           fi
 
@@ -620,7 +617,7 @@ jobs:
             exit 1
           fi
           
-          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
+          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
           
           if grep -q "strlcat.*boot_command_line" "$TARGET_MAIN"; then
             echo "[INFO] cmdline 注入成功" | tee -a "$LOG_FILE"
@@ -815,7 +812,6 @@ jobs:
           rm -rf wild_patches
           git clone --depth=1 https://github.com/WildKernels/kernel_patches.git wild_patches
           
-          # 定义绝对路径变量，彻底避免 cd 后的相对路径层级错乱
           WILD_DIR="$GITHUB_WORKSPACE/kernel_workspace/wild_patches"
 
           PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
@@ -904,7 +900,7 @@ jobs:
 
       - name: 上传诊断配置文本
         if: inputs.diagnosis
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: kernel-config-${{ github.run_id }}
           if-no-files-found: warn
@@ -1012,7 +1008,7 @@ jobs:
           echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
           chmod +x ld-wrapper
 
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -enable-misched=true -mllvm -enable-post-misched=true -mllvm -inline-threshold=400"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=5 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
@@ -1143,14 +1139,14 @@ jobs:
 
       - name: 上传 Ccache 调试日志
         if: ${{ always() && inputs.ccache_debug && !inputs.diagnosis }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: ccache-debug-log
           path: ${{ github.workspace }}/kernel_workspace/ccache.log
 
       - name: 上传 ZIP 工件
         if: ${{ !inputs.diagnosis }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: ak3-release
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
@@ -1167,7 +1163,7 @@ jobs:
 
     steps:
       - name: 下载 ZIP 工件
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ak3-release
           path: ./release_zips
