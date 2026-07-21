@@ -8,10 +8,6 @@ env:
   KERNEL_NAME: 'android16-6.6-latest-4k'
   CCACHE_KEY: ccache-ecsv3-6.6-latest
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
-  cancel-in-progress: true
-
 on:
   workflow_dispatch:
     inputs:
