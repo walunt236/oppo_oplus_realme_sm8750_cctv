@@ -14,4 +14,4 @@
 - 基带保护：[vc-teahouse/Baseband-guard](https://github.com/vc-teahouse/Baseband-guard)
 - LZ4 NEON ASM：[ferstar](https://github.com/ferstar) / [Xiaomichael](https://github.com/Xiaomichael) / [cctv18](https://github.com/cctv18)
 - ADIOS：[firelzrd/adios](https://github.com/firelzrd/adios)
-- wild kernmels [https://github.com/WildKernels/OnePlus_KernelSU_SUSFS]
+- wild kernels [https://github.com/WildKernels/OnePlus_KernelSU_SUSFS]
