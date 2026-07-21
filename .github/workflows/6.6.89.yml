@@ -1016,25 +1016,11 @@ jobs:
           export KBUILD_BUILD_USER="OnePlus"
           export KBUILD_BUILD_HOST="ubuntu-build"
 
-          cat << 'EOF' > ld-wrapper
-          #!/bin/bash
-          has_r=0
-          for arg in "$@"; do
-            if [ "$arg" = "-r" ] || [ "$arg" = "-Wl,-r" ]; then
-              has_r=1
-              break
-            fi
-          done
+          echo '#!/bin/bash' > ld-wrapper
+          echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
+          chmod +x ld-wrapper
 
-          if [ $has_r -eq 1 ]; then
-            exec ld.lld "$@" --thinlto-jobs=$(nproc --all)
-          else
-            exec ld.lld "$@" --thinlto-jobs=$(nproc --all) --icf=all
-          fi
-          EOF
-                    chmod +x ld-wrapper
-
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=6 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -enable-misched=true -mllvm -enable-post-misched=true -mllvm -inline-threshold=400"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
