@@ -351,6 +351,7 @@ jobs:
           echo "CCACHE_REAL_KEY=$CCACHE_REAL_KEY" >> $GITHUB_ENV
 
       - name: 载入当前版本内核的 ccache缓存
+        if: inputs.runner_type == 'ubuntu-latest'
         uses: actions/cache@v5
         id: ccache-restore
         with:
@@ -1094,12 +1095,11 @@ jobs:
           echo "=================================================="
 
       - name: 保存新的 ccache 缓存
-        if: ${{ (inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true') && !inputs.diagnosis }}
+        if: ${{ inputs.runner_type == 'ubuntu-latest' && (inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true') && !inputs.diagnosis }}
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
-
       - name: 应用KPM并修补内核
         if: ${{ !inputs.diagnosis }}
         run: |
