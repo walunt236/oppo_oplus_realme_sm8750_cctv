@@ -1243,7 +1243,7 @@ jobs:
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
           if [[ "${{ inputs.runner_type }}" == "self-hosted" ]]; then
-            DESKTOP_PATH="/mnt/c/Users/你的Windows用户名/Desktop"
+            DESKTOP_PATH="/mnt/c/Users/xn5oi/Desktop"
             if [ -d "$DESKTOP_PATH" ]; then
               cp "../$AK3_NAME" "$DESKTOP_PATH/"
               echo "[INFO]刷机包已复制到 Windows 桌面: $AK3_NAME"
