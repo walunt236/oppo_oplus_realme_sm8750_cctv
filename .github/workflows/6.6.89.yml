@@ -236,58 +236,42 @@ jobs:
             git remote remove upstream 2>/dev/null || true
             git remote add upstream https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
   
-            echo "[INFO] 获取6.6LTS tag..."
-            LATEST_TAG=""
-            for pattern in 'refs/tags/v6.6.*'; do
-              LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
-                https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
-                "$pattern" 2>/dev/null \
-                | grep -v '\^{}' \
-                | head -1 | awk -F'/' '{print $NF}')
-              if [ -n "$LATEST_TAG" ]; then
-                echo "[INFO] 匹配成功: $LATEST_TAG" | tee -a "$LOG_FILE"
-                break
-              fi
-            done
+            echo "[INFO] 获取 6.6 LTS 最新 tag..."
+            LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
+              https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
+              'refs/tags/v6.6.*' 2>/dev/null \
+              | grep -v '\^{}' | head -1 | awk -F'/' '{print $NF}')
 
             if [ -z "$LATEST_TAG" ]; then
-              echo "[ERROR] 无法从 kernel.org stable 获取 v6.6 tag" | tee -a "$LOG_FILE"
+              echo "[ERROR] 无法从 kernel.org 获取 v6.6 tag" | tee -a "$LOG_FILE"
               exit 1
             fi
 
             echo "UPSTREAM_TAG=$LATEST_TAG" >> $GITHUB_ENV
             SUB_VER=$(echo "$LATEST_TAG" | sed -E 's/.*6\.6\.([0-9]+).*/\1/')
-            if [ -z "$SUB_VER" ] || [ "$SUB_VER" = "$LATEST_TAG" ]; then
-              SUB_VER="unknown"
-              echo "[WARN] 无法提取版本号，tag: $LATEST_TAG" | tee -a "$LOG_FILE"
-            fi
             echo "SUB_VERSION=$SUB_VER" >> $GITHUB_ENV
-
             KERNEL_NAME_VAL="android16-${LATEST_TAG}-4k"
             echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
             echo "sub_version=$SUB_VER" >> $GITHUB_OUTPUT
             echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
 
-            echo "[INFO] 拉取上游 tag: $LATEST_TAG ..."
-            if git fetch --depth=1 upstream tag "$LATEST_TAG" 2>&1; then
-              echo "[INFO] tag 拉取成功"
+            TAG_MARKER_FILE="$GITHUB_WORKSPACE/kernel_workspace/common/.upstream_tag_done"
+            if [ -f "$TAG_MARKER_FILE" ] && [ "$(cat "$TAG_MARKER_FILE")" = "$LATEST_TAG" ]; then
+              echo "[INFO] [秒过] 本地源码已是最新上游 $LATEST_TAG，跳过拉取与合并！" | tee -a "$LOG_FILE"
             else
-              echo "[WARN] 浅获取失败，尝试完整获取..."
-              git fetch upstream "$LATEST_TAG" || {
-                echo "[ERROR] 无法获取 tag: $LATEST_TAG" | tee -a "$LOG_FILE"
-                exit 1
-              }
-            fi
-
-            echo "[INFO] 合并上游 $LATEST_TAG 到 OEM 分支..."
-            if git merge "$LATEST_TAG" --no-edit -X ours --allow-unrelated-histories; then
-              echo "[INFO] 上游合并成功，无冲突" | tee -a "$LOG_FILE"
-            else
-              echo "[WARN] 存在冲突，自动保留 OEM 版本..." | tee -a "$LOG_FILE"
-              git diff --name-only --diff-filter=U > /tmp/conflicts.txt 2>/dev/null
-              if [ -s /tmp/conflicts.txt ]; then
+              echo "[INFO] 拉取并合并上游 tag: $LATEST_TAG ..."
+              git fetch --depth=1 upstream tag "$LATEST_TAG" || git fetch upstream "$LATEST_TAG"
+              if git merge "$LATEST_TAG" --no-edit -X ours --allow-unrelated-histories; then
+                echo "[INFO] 上游合并成功" | tee -a "$LOG_FILE"
+              else
+                echo "[WARN] 存在冲突，自动保留 OEM 版本..." | tee -a "$LOG_FILE"
                 git diff --name-only --diff-filter=U | xargs -r git checkout --ours --
+                git add -A
+                git commit -m "Merge upstream $LATEST_TAG, keep OEM customizations" || true
               fi
+              echo "$LATEST_TAG" > "$TAG_MARKER_FILE"
+            fi
+          else
               git add -A
               git commit -m "Merge upstream $LATEST_TAG, keep OEM customizations" || true
               echo "[INFO] 冲突自动解决（OEM 优先）"
@@ -495,15 +479,40 @@ jobs:
           cd kernel_workspace
           if [[ '${{ inputs.ksu_type }}' != "none" ]]; then
             echo "[INFO] 添加 susfs 补丁..." | tee -a "$LOG_FILE"
-            rm -rf susfs4ksu  # 👈 增加这行，确保本地重新克隆最新补丁
-            git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
-            curl -fSL -o ./common/69_hide_stuff.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch"
+
+            # --- 1. SUSFS 补丁仓本地持久化与增量更新 ---
+            SUSFS_CACHE_DIR="$HOME/.cache_patches/susfs4ksu"
+            BRANCH_NAME="oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}"
+            mkdir -p "$HOME/.cache_patches"
+
+            if [ -d "$SUSFS_CACHE_DIR/.git" ]; then
+              echo "[INFO] [秒过] SUSFS 补丁仓已存在本地，增量同步上游..." | tee -a "$LOG_FILE"
+              git -C "$SUSFS_CACHE_DIR" fetch --depth=1 origin "$BRANCH_NAME" || true
+              git -C "$SUSFS_CACHE_DIR" reset --hard FETCH_HEAD || true
+            else
+              echo "[INFO] 首次克隆 SUSFS 补丁仓..." | tee -a "$LOG_FILE"
+              git clone --depth=1 https://github.com/cctv18/susfs4oki.git "$SUSFS_CACHE_DIR" -b "$BRANCH_NAME"
+            fi
+
+            # --- 2. 清理工作区残留并复制最新补丁 ---
+            rm -rf susfs4ksu
+            cp -r "$SUSFS_CACHE_DIR" susfs4ksu
+
+            # --- 3. 缓存 69_hide_stuff.patch 避免重复网络下载 ---
+            HIDE_PATCH="$HOME/.cache_patches/69_hide_stuff.patch"
+            if [ ! -f "$HIDE_PATCH" ]; then
+              curl -fSL -o "$HIDE_PATCH" "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch"
+            fi
+            cp "$HIDE_PATCH" ./common/69_hide_stuff.patch
+
+            # 拷贝 SUSFS 关键源码文件到内核目录
             cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./common/
             cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             
             cd ./common
             
+            # 预处理 task_mmu.c 防止补丁偏移报错
             sed -i -e '/int ret = 0, copied = 0;/a \    unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;' -e '/int ret = 0, copied = 0;/a \    pagemap_entry_t *res = NULL;' ./fs/proc/task_mmu.c || true
 
             patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || {
@@ -518,43 +527,66 @@ jobs:
           else
             echo "[INFO] 跳过 susfs 配置（未选择 KernelSU）" | tee -a "$LOG_FILE"
           fi
+
           if [[ '${{ inputs.ksu_type }}' == "ksu" ]]; then
             echo "[INFO] 为原版 KernelSU 添加补丁..." | tee -a "$LOG_FILE"
             cp ./susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
             cd ./KernelSU
             patch -p1 < 10_enable_susfs_for_ksu.patch || true
           fi
-
       - name: 应用lz4/zstd
         run: |
           cd kernel_workspace/common
-          git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git /tmp/zram_patches
-          cp /tmp/zram_patches/zram/001-lz4.patch . || (echo "缺LZ4补丁" && exit 1)
-          cp /tmp/zram_patches/zram/002-zstd.patch . || (echo "缺ZSTD补丁" && exit 1)
+          CACHE_DIR="$HOME/.cache_patches/zram_patches"
+          mkdir -p "$HOME/.cache_patches"
+
+          if [ -d "$CACHE_DIR/.git" ]; then
+            echo "[INFO] [秒过] 本地 LZ4 补丁仓增量更新..."
+            git -C "$CACHE_DIR" fetch --depth=1 origin main || true
+            git -C "$CACHE_DIR" reset --hard FETCH_HEAD || true
+          else
+            echo "[INFO] 克隆 LZ4 补丁仓..."
+            git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git "$CACHE_DIR"
+          fi
+
+          cp "$CACHE_DIR/zram/001-lz4.patch" . || exit 1
+          cp "$CACHE_DIR/zram/002-zstd.patch" . || exit 1
 
           mkdir -p lib/lz4/lz4armv8
-          cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S || true
+          cp "$CACHE_DIR/zram/lz4armv8.S" lib/lz4/lz4armv8/lz4armv8.S || true
 
+          ACCEL_DIR="$HOME/.cache_patches/lz4accel"
+          mkdir -p "$ACCEL_DIR"
+          if [ ! -f "$ACCEL_DIR/lz4accel.c" ]; then
+            wget -q -O "$ACCEL_DIR/lz4accel.c" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.c"
+            wget -q -O "$ACCEL_DIR/lz4accel.h" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.h"
+          fi
           mkdir -p fs/f2fs/lz4armv8
-          wget -q -O fs/f2fs/lz4armv8/lz4accel.c \
-            "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.c"
-          wget -q -O fs/f2fs/lz4armv8/lz4accel.h \
-            "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.h"
+          cp "$ACCEL_DIR/lz4accel.c" fs/f2fs/lz4armv8/
+          cp "$ACCEL_DIR/lz4accel.h" fs/f2fs/lz4armv8/
 
           git apply --reject --whitespace=nowarn 001-lz4.patch || true
           patch -p1 -t -F 3 < 002-zstd.patch || true
-          rm -rf /tmp/zram_patches
-
       - name: 应用lz4kd
         run: |
           cd kernel_workspace/common
-          git clone --depth=1 https://github.com/ShirkNeko/SukiSU_patch.git /tmp/sukisu_patches
-          cp -r /tmp/sukisu_patches/other/zram/lz4k/include/linux/* ./include/linux/
-          cp -r /tmp/sukisu_patches/other/zram/lz4k/lib/* ./lib/
-          cp -r /tmp/sukisu_patches/other/zram/lz4k/crypto/* ./crypto/
-          cp /tmp/sukisu_patches/other/zram/zram_patch/6.6/lz4kd.patch ./
+          CACHE_DIR="$HOME/.cache_patches/sukisu_patches"
+          mkdir -p "$HOME/.cache_patches"
+
+          if [ -d "$CACHE_DIR/.git" ]; then
+            echo "[INFO] [秒过] 本地 LZ4KD 补丁仓增量更新..."
+            git -C "$CACHE_DIR" fetch --depth=1 origin main || true
+            git -C "$CACHE_DIR" reset --hard FETCH_HEAD || true
+          else
+            echo "[INFO] 克隆 LZ4KD 补丁仓..."
+            git clone --depth=1 https://github.com/ShirkNeko/SukiSU_patch.git "$CACHE_DIR"
+          fi
+
+          cp -r "$CACHE_DIR/other/zram/lz4k/include/linux/"* ./include/linux/
+          cp -r "$CACHE_DIR/other/zram/lz4k/lib/"* ./lib/
+          cp -r "$CACHE_DIR/other/zram/lz4k/crypto/"* ./crypto/
+          cp "$CACHE_DIR/other/zram/zram_patch/6.6/lz4kd.patch" ./
           patch -p1 -F 3 < lz4kd.patch || true
-          rm -rf /tmp/sukisu_patches
 
       - name: 配置核心扩展与通用优化
         run: |
