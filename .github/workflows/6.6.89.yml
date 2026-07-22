@@ -304,7 +304,6 @@ jobs:
 
           cd ..
 
-          # --- 工具链本地持久化缓存 ---
           TC_DIR="$HOME/.toolchains/Clang-19.0.0git-20240723"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
           mkdir -p "$HOME/.toolchains"
@@ -496,6 +495,7 @@ jobs:
           cd kernel_workspace
           if [[ '${{ inputs.ksu_type }}' != "none" ]]; then
             echo "[INFO] 添加 susfs 补丁..." | tee -a "$LOG_FILE"
+            rm -rf susfs4ksu  # 👈 增加这行，确保本地重新克隆最新补丁
             git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
             curl -fSL -o ./common/69_hide_stuff.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch"
             cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./common/
