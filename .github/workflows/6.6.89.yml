@@ -339,7 +339,8 @@ jobs:
           echo "[INFO] 源码及工具链初始化完成" | tee -a "$LOG_FILE"
       - name: 配置ccache目录
         run: |
-          echo "CCACHE_DIR=$HOME/.ccache_${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}" >> $GITHUB_ENV
+          # 统一存放在用户根目录的 .ccache 中，不受 Linux 内核小版本变动的影响
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
           echo "CCACHE_MAXSIZE=20G" >> $GITHUB_ENV
           df -h
           if [[ "${{ inputs.droidspaces_enable }}" != "false" ]]; then
@@ -1196,13 +1197,13 @@ jobs:
           zip -r ../$AK3_NAME ./*
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
-          - name: 本地工作区定时瘦身
-            if: always() && inputs.runner_type == 'self-hosted'
-            run: |
-                echo "[INFO] 清理编译中间产生的巨型 out 目录，仅保留 Ccache..."
-                rm -rf kernel_workspace/common/out
-                rm -rf kernel_workspace/vendor_modules/out
-                echo "[INFO] 磁盘瘦身完成！"
+      - name: 本地工作区定时瘦身
+        if: always() && inputs.runner_type == 'self-hosted'
+        run: |
+          echo "[INFO] 刷机包已打包完成，清理 out 目录以释放磁盘空间..."
+          rm -rf kernel_workspace/common/out
+          rm -rf kernel_workspace/vendor_modules/out
+          echo "[INFO] 磁盘瘦身完成！"
     
       - name: 上传 Ccache 调试日志
         if: ${{ always() && inputs.ccache_debug && !inputs.diagnosis }}
