@@ -175,7 +175,7 @@ jobs:
           else
             echo "[INFO] 检测到 本地 self-hosted (WSL2) 环境，跳过危险的系统级 apt 修改..." | tee -a "$LOG_FILE"
             # 自托管环境最小化依赖检查
-            for pkg in binutils python3 libssl-dev libelf-dev aria2 zip zstd; do
+            for pkg in binutils python3 libssl-dev libelf-dev aria2 zip zstd libxml2-dev; do
               if ! dpkg -l "$pkg" >/dev/null 2>&1 && ! command -v "$pkg" >/dev/null 2>&1; then
                 echo "[WARN] 缺少依赖: $pkg，尝试安装..."
                 sudo apt-get install -y --no-install-recommends "$pkg" || {
