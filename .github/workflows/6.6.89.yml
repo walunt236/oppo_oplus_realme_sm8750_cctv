@@ -148,13 +148,23 @@ jobs:
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "=== 内核构建关键状态日志汇总 ===" > "$LOG_FILE"
 
-          sudo rm -rf "$GITHUB_WORKSPACE/kernel_workspace"
+          echo "[INFO] 清理可能残留的后台进程"
+          sudo pkill -9 -f git || true
+          sudo pkill -9 -f aria2c || true
+          sleep 1
 
-          rm -rf kernel_workspace
-          mkdir kernel_workspace
+          echo "[INFO] 修复Git大小写敏感"
+          git config --global core.ignorecase false || true
+
+          echo "[INFO] 正在清理工作区..."
+          cd "$GITHUB_WORKSPACE"
+          sudo rm -rf kernel_workspace
+          mkdir -p kernel_workspace
           cd kernel_workspace
+
           echo "[INFO] 仓库：$GITHUB_REPOSITORY" | tee -a "$LOG_FILE"
           echo "[INFO] 分支：$GITHUB_REF_NAME" | tee -a "$LOG_FILE"
+
 
           if [[ "${{ inputs.runner_type }}" == "ubuntu-latest" ]]; then
             echo "[INFO] 检测到 GitHub 云端环境，执行系统依赖安装及预置优化..."
