@@ -1243,10 +1243,14 @@ jobs:
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
           if [[ "${{ inputs.runner_type }}" == "self-hosted" ]]; then
-            DESKTOP_PATH="/mnt/c/Users/xn5oi/Desktop"
+            WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r')
+            DESKTOP_PATH="/mnt/c/Users/${WIN_USER}/Desktop"
+            
             if [ -d "$DESKTOP_PATH" ]; then
               cp "../$AK3_NAME" "$DESKTOP_PATH/"
-              echo "[INFO]刷机包已复制到 Windows 桌面: $AK3_NAME"
+              echo "[INFO] 已自动复制到 Windows 桌面 (${WIN_USER}): $AK3_NAME"
+            else
+              echo "[WARN] 无法定位 Windows 桌面路径: $DESKTOP_PATH"
             fi
           fi
 
@@ -1273,60 +1277,14 @@ jobs:
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
           if-no-files-found: error
           
-  release:
-    needs: build
-    if: ${{ !inputs.diagnosis }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-      actions: read
 
-    steps:
-      - name: 下载 ZIP 工件
-        uses: actions/download-artifact@v7
-        with:
-          name: ak3-release
-          path: ./release_zips
-
-      - name: 设置环境变量
-        run: |
-          if [[ -n "${{ inputs.kernel_suffix }}" ]]; then
-            FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}-${{ inputs.kernel_suffix }}"
-            echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
-          else
-            FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ needs.build.outputs.sub_version }}-${{ needs.build.outputs.kernel_name }}"
-            echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
-          fi
-          
-          TIME="$(TZ='Asia/Shanghai' date +'%y%m%d%H%M%S')"
-          echo "TIME=$TIME" >> $GITHUB_ENV
-          TAG_HEAD="OPPO-OPlus-Realme-build"
-          echo "TAG_HEAD=$TAG_HEAD" >> $GITHUB_ENV
-          
-          if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
-            UPSTREAM_NOTE="上游补丁：已合并 kernel.org stable 最新 6.6 tag"
-          else
-            UPSTREAM_NOTE="上游补丁：未合并（使用 OEM 纯净 6.6.89）"
-          fi
-          echo "UPSTREAM_NOTE=$UPSTREAM_NOTE" >> $GITHUB_ENV
-
-          case '${{ inputs.ksu_type }}' in
-            sukisu)   KSU_TYPENAME="SukiSU Ultra" ;;
-            resukisu) KSU_TYPENAME="ReSukiSU" ;;
-            ksunext)  KSU_TYPENAME="KernelSU Next" ;;
-            ksu)      KSU_TYPENAME="KSU" ;;
-            *)        KSU_TYPENAME="无内置KSU" ;;
-          esac
-          echo "KSU_TYPENAME=$KSU_TYPENAME" >> $GITHUB_ENV
-
-      - name: 发布
+      - name: 发布 Release
         if: ${{ !inputs.diagnosis }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd "$GITHUB_WORKSPACE/kernel_workspace"
-          
+ 
           TIME_TAG="$(TZ='Asia/Shanghai' date +'%Y%m%d-%H%M')"
           RELEASE_TAG="v${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${TIME_TAG}"
           RELEASE_TITLE="OnePlus13 内核 v${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} [${{ inputs.ksu_type }}]"
