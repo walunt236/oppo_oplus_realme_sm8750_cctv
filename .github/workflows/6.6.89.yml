@@ -148,18 +148,15 @@ jobs:
           export GIT_TERMINAL_PROMPT=0
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "=== 内核构建关键状态日志汇总 ===" > "$LOG_FILE"
-
           echo "[INFO] 清理可能残留的后台进程"
           sudo pkill -9 -f git || true
           sudo pkill -9 -f aria2c || true
           sleep 1
-
           echo "[INFO] 修复Git大小写敏感"
           git config --global core.ignorecase false || true
-
-          echo "[INFO] 正在清理工作区..."
+          echo "[INFO] 仓库：$GITHUB_REPOSITORY" | tee -a "$LOG_FILE"
+          echo "[INFO] 分支：$GITHUB_REF_NAME" | tee -a "$LOG_FILE"
           cd "$GITHUB_WORKSPACE"
-          rm -rf kernel_workspace
           mkdir -p kernel_workspace
           cd kernel_workspace
 
@@ -200,17 +197,37 @@ jobs:
             echo "[INFO] ccache 已存在: $(ccache --version | head -1)"
           fi
 
-          echo "[INFO] 克隆 OEM 内核源码仓库..."
-          git clone --depth=1 \
-            https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
-            -b oneplus/sm8750_b_16.0.0_oneplus_13 \
-            common
 
-          echo "[INFO] 克隆设备树与私有驱动仓库..."
-          git clone --depth=1 \
-            https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git \
-            -b oneplus/sm8750_b_16.0.0_oneplus_13 \
-            vendor_modules &
+          if [ -d "common/.git" ]; then
+            echo "[INFO] common 源码已存在，仅 reset 到 OEM 基准..."
+            cd common
+            git fetch --depth=1 origin oneplus/sm8750_b_16.0.0_oneplus_13
+            git reset --hard FETCH_HEAD
+            git clean -fd
+            cd ..
+          else
+            echo "[INFO] 首次克隆 OEM 内核源码仓库..."
+            git clone --depth=1 \
+              https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
+              -b oneplus/sm8750_b_16.0.0_oneplus_13 \
+              common
+          fi
+
+          if [ -d "vendor_modules/.git" ]; then
+            echo "[INFO] vendor_modules 已存在，仅更新..."
+            cd vendor_modules
+            git fetch --depth=1 origin oneplus/sm8750_b_16.0.0_oneplus_13
+            git reset --hard FETCH_HEAD
+            git clean -fd
+            cd ..
+          else
+            echo "[INFO] 首次克隆设备树与私有驱动仓库..."
+            git clone --depth=1 \
+              https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git \
+              -b oneplus/sm8750_b_16.0.0_oneplus_13 \
+              vendor_modules &
+            wait
+          fi
 
           cd common
           git config user.email "github-actions[bot]@users.noreply.github.com"
