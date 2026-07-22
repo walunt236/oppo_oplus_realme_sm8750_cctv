@@ -275,7 +275,6 @@ jobs:
               git commit -m "Merge upstream $LATEST_TAG, keep OEM customizations" || true
               echo "[INFO] 冲突自动解决（OEM 优先）"
             fi
-          else
             echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
             echo "SUB_VERSION=89" >> $GITHUB_ENV
