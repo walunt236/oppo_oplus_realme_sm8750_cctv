@@ -304,19 +304,33 @@ jobs:
 
           cd ..
 
-          echo "[INFO] 下载 LLVM-Clang 19 工具链..." && mkdir -p clang19 &&
-          aria2c -s16 -x16 -k1M \
-            https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz \
-            -o clang19.tar.gz &&
-          tar -xzf clang19.tar.gz -C clang19 && rm -rf clang19.tar.gz &
+          # --- 工具链本地持久化缓存 ---
+          TC_DIR="$HOME/.toolchains/Clang-19.0.0git-20240723"
+          BT_DIR="$HOME/.toolchains/build-tools-r510928"
+          mkdir -p "$HOME/.toolchains"
 
-          echo "[INFO] 下载构建工具..." &&
-          aria2c -s16 -x16 -k1M \
-            https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip \
-            -o build-tools.zip &&
-          unzip -q build-tools.zip && rm -rf build-tools.zip &
+          if [ ! -d "$TC_DIR/bin" ]; then
+            echo "[INFO] 检测到 Clang 19 未缓存或版本更新，开始下载..."
+            rm -rf "$HOME/.toolchains/Clang-*"
+            mkdir -p "$TC_DIR"
+            aria2c -s16 -x16 -k1M \
+              https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz \
+              -o clang19.tar.gz
+            tar -xzf clang19.tar.gz -C "$TC_DIR" && rm -f clang19.tar.gz
+          else
+            echo "[INFO] [秒过] Clang 19 工具链已存在本地缓存，直接复用！"
+          fi
 
-          wait
+          if [ ! -d "$BT_DIR/bin" ]; then
+            echo "[INFO] 检测到 build-tools 未缓存，开始下载..."
+            mkdir -p "$BT_DIR"
+            aria2c -s16 -x16 -k1M \
+              https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip \
+              -o build-tools.zip
+            unzip -q build-tools.zip -d "$BT_DIR" && rm -f build-tools.zip
+          else
+            echo "[INFO] [秒过] build-tools 工具链已存在本地缓存，直接复用！"
+          fi
 
           if [[ "${{ inputs.runner_type }}" == "ubuntu-latest" ]]; then
             if ! dpkg -l binutils python3 libssl-dev libelf-dev >/dev/null 2>&1; then
@@ -854,10 +868,17 @@ jobs:
           cd "$GITHUB_WORKSPACE/kernel_workspace"
           
           echo "[INFO] 获取 Wild 补丁仓..."
-          rm -rf wild_patches
-          git clone --depth=1 https://github.com/WildKernels/kernel_patches.git wild_patches
-          
-          WILD_DIR="$GITHUB_WORKSPACE/kernel_workspace/wild_patches"
+          WILD_DIR="$HOME/.cache_patches/wild_patches"
+          mkdir -p "$HOME/.cache_patches"
+
+          if [ -d "$WILD_DIR/.git" ]; then
+            echo "[INFO] [秒过] 本地补丁仓已存在，增量同步上游最新提交..."
+            git -C "$WILD_DIR" fetch --depth=1 origin main || true
+            git -C "$WILD_DIR" reset --hard FETCH_HEAD || true
+          else
+            echo "[INFO] 首次克隆风驰补丁仓..."
+            git clone --depth=1 https://github.com/WildKernels/kernel_patches.git "$WILD_DIR"
+          fi
 
           PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
           if [ -z "$PATCH_FILE" ]; then
@@ -942,8 +963,8 @@ jobs:
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
+          export PATH="$HOME/.toolchains/Clang-19.0.0git-20240723/bin:$PATH"
+          export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
           
           cd kernel_workspace/common
           
@@ -1039,8 +1060,8 @@ jobs:
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
           export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang19/bin:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
+          export PATH="$HOME/.toolchains/Clang-19.0.0git-20240723/bin:$PATH"
+          export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
 
           cd kernel_workspace/common
 
