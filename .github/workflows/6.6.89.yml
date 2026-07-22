@@ -234,7 +234,10 @@ jobs:
           git config user.name "github-actions[bot]"
 
           if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
+            # 如果 upstream 已存在则静默删除，防止二次运行报错
+            git remote remove upstream 2>/dev/null || true
             git remote add upstream https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+  
             echo "[INFO] 获取 kernel.org stable 最新 6.6 LTS tag..."
             LATEST_TAG=""
             for pattern in 'refs/tags/v6.6.*'; do
