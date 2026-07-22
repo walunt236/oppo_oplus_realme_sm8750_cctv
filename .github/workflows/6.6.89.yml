@@ -1242,25 +1242,32 @@ jobs:
           zip -r ../$AK3_NAME ./*
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
+          # === 本地编译：打包后 0 秒保存至自定义位置 ===
           if [[ "${{ inputs.runner_type }}" == "self-hosted" ]]; then
-            WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r')
-            DESKTOP_PATH="/mnt/c/Users/${WIN_USER}/Desktop"
-            
-            if [ -d "$DESKTOP_PATH" ]; then
-              cp "../$AK3_NAME" "$DESKTOP_PATH/"
-              echo "[INFO] 已自动复制到 Windows 桌面 (${WIN_USER}): $AK3_NAME"
+            CUSTOM_LOCAL_PATH="/mnt/d/AK3_DOC"
+
+            if [ -n "$CUSTOM_LOCAL_PATH" ]; then
+              TARGET_DIR="$CUSTOM_LOCAL_PATH"
             else
-              echo "[WARN] 无法定位 Windows 桌面路径: $DESKTOP_PATH"
+              WIN_DESKTOP_RAW=$(powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('Desktop')" 2>/dev/null | tr -d '\r')
+              TARGET_DIR=$(wslpath "$WIN_DESKTOP_RAW" 2>/dev/null)
+            fi
+
+            if [ -n "$TARGET_DIR" ]; then
+              mkdir -p "$TARGET_DIR"
+              cp "../$AK3_NAME" "$TARGET_DIR/"
+              echo "[INFO] 已成功保存至本地路径: $TARGET_DIR/$AK3_NAME"
+            else
+              echo "[WARN] 未找到有效的本地输出路径，跳过本地复制"
             fi
           fi
-
-      - name: 本地工作区定时瘦身
+      - name: 本地工作区定时清理
         if: always() && inputs.runner_type == 'self-hosted'
         run: |
           echo "[INFO] 刷机包已打包完成，清理 out 目录以释放磁盘空间..."
           rm -rf kernel_workspace/common/out
           rm -rf kernel_workspace/vendor_modules/out
-          echo "[INFO] 磁盘瘦身完成！"
+          echo "[INFO] 磁盘清理完成！"
     
       - name: 上传 Ccache 调试日志
         if: ${{ always() && inputs.ccache_debug && !inputs.diagnosis }}
@@ -1269,8 +1276,8 @@ jobs:
           name: ccache-debug-log
           path: ${{ github.workspace }}/kernel_workspace/ccache.log
 
-      - name: 上传 ZIP 工件
-        if: ${{ !inputs.diagnosis }}
+      - name: 上传 ZIP 工件 (仅云端)
+        if: ${{ !inputs.diagnosis && inputs.runner_type == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v7
         with:
           name: ak3-release
@@ -1278,21 +1285,11 @@ jobs:
           if-no-files-found: error
           
 
-      - name: 发布 Release
-        if: ${{ !inputs.diagnosis }}
+      - name: 发布 Release (仅云端)
+        if: ${{ !inputs.diagnosis && inputs.runner_type == 'ubuntu-latest' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if ! command -v gh >/dev/null 2>&1; then
-            echo "[INFO] 检测到本地环境未安装 gh 工具，开始自动安装..."
-            sudo mkdir -p -m 755 /etc/apt/keyrings
-            wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
-            sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt-get update -qq && sudo apt-get install -y -qq gh >/dev/null
-            echo "[INFO] gh 工具安装完成！"
-          fi
-
           cd "$GITHUB_WORKSPACE/kernel_workspace"
  
           TIME_TAG="$(TZ='Asia/Shanghai' date +'%Y%m%d-%H%M')"
