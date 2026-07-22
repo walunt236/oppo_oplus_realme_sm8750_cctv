@@ -140,7 +140,7 @@ jobs:
       kernel_name: ${{ steps.init_env.outputs.kernel_name }}
     permissions:
       actions: write
-      contents: read
+      contents: write
     steps:
       - name: 安装环境依赖+初始化源码仓库及llvm-Clang19工具链
         id: init_env
