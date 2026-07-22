@@ -340,7 +340,7 @@ jobs:
       - name: 配置ccache目录
         run: |
           echo "CCACHE_DIR=$HOME/.ccache_${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=5G" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=20G" >> $GITHUB_ENV
           df -h
           if [[ "${{ inputs.droidspaces_enable }}" != "false" ]]; then
             CCACHE_REAL_KEY="${{ env.CCACHE_KEY }}-${{ env.SUB_VERSION }}-Droidspaces"
@@ -1195,6 +1195,14 @@ jobs:
           zip -r ../$AK3_NAME ./*
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
+          - name: 本地工作区定时瘦身
+            if: ${{ always() && inputs.runner_type == 'self-hosted' }}
+            run: |
+                echo "[INFO] 清理编译中间产生的巨型 out 目录，仅保留 Ccache..."
+                rm -rf kernel_workspace/common/out
+                rm -rf kernel_workspace/vendor_modules/out
+                echo "[INFO] 磁盘瘦身完成！"
+    
       - name: 上传 Ccache 调试日志
         if: ${{ always() && inputs.ccache_debug && !inputs.diagnosis }}
         uses: actions/upload-artifact@v7
