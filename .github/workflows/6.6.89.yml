@@ -271,7 +271,6 @@ jobs:
               fi
               echo "$LATEST_TAG" > "$TAG_MARKER_FILE"
             fi
-          else
               git add -A
               git commit -m "Merge upstream $LATEST_TAG, keep OEM customizations" || true
               echo "[INFO] 冲突自动解决（OEM 优先）"
@@ -429,6 +428,8 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace
+          rm -rf KernelSU KernelSU-Next KernelSU-Next-dev common/drivers/kernelsu
+          
           if [[ '${{ inputs.ksu_type }}' == "sukisu" || '${{ inputs.ksu_type }}' == "resukisu" ]]; then
             echo "[INFO] 配置 ReSukiSU..." | tee -a "$LOG_FILE"
             curl -fSL "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh" | bash -s main || {
