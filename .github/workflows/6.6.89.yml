@@ -148,6 +148,8 @@ jobs:
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "=== 内核构建关键状态日志汇总 ===" > "$LOG_FILE"
 
+          sudo rm -rf "$GITHUB_WORKSPACE/kernel_workspace"
+
           rm -rf kernel_workspace
           mkdir kernel_workspace
           cd kernel_workspace
