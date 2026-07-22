@@ -1196,7 +1196,7 @@ jobs:
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
           - name: 本地工作区定时瘦身
-            if: ${{ always() && inputs.runner_type == 'self-hosted' }}
+            if: always() && inputs.runner_type == 'self-hosted'
             run: |
                 echo "[INFO] 清理编译中间产生的巨型 out 目录，仅保留 Ccache..."
                 rm -rf kernel_workspace/common/out
