@@ -1270,7 +1270,7 @@ jobs:
           path: ${{ github.workspace }}/kernel_workspace/ccache.log
 
       - name: 上传 ZIP 工件
-        if: ${{ !inputs.diagnosis && inputs.runner_type == 'ubuntu-latest' }}
+        if: ${{ !inputs.diagnosis }}
         uses: actions/upload-artifact@v7
         with:
           name: ak3-release
@@ -1283,6 +1283,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "[INFO] 检测到本地环境未安装 gh 工具，开始自动安装..."
+            sudo mkdir -p -m 755 /etc/apt/keyrings
+            wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+            sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt-get update -qq && sudo apt-get install -y -qq gh >/dev/null
+            echo "[INFO] gh 工具安装完成！"
+          fi
+
           cd "$GITHUB_WORKSPACE/kernel_workspace"
  
           TIME_TAG="$(TZ='Asia/Shanghai' date +'%Y%m%d-%H%M')"
