@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       runner_type:
-        description: '编译节点 (self-hosted: 本地电脑 / ubuntu-latest: GitHub云端)'
+        description: '编译节点'
         required: true
         type: choice
         default: 'self-hosted' 
@@ -20,7 +20,7 @@ on:
           - 'self-hosted'
           - 'ubuntu-latest'
       ksu_type:
-        description: 'KernelSU分支(ReSukiSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认KSU)'
+        description: 'KernelSU分支'
         required: true
         type: choice
         default: 'ksu'
@@ -173,8 +173,7 @@ jobs:
             sudo apt-get install -y --no-install-recommends \
               binutils python-is-python3 libssl-dev libelf-dev aria2 &
           else
-            echo "[INFO] 检测到 本地 self-hosted (WSL2) 环境，跳过危险的系统级 apt 修改..." | tee -a "$LOG_FILE"
-            # 自托管环境最小化依赖检查
+            echo "[INFO] 检测到 本地 self-hosted (WSL2) 环境，跳过危险修改..." | tee -a "$LOG_FILE"
             for pkg in binutils python3 libssl-dev libelf-dev aria2 zip zstd libxml2-dev; do
               if ! dpkg -l "$pkg" >/dev/null 2>&1 && ! command -v "$pkg" >/dev/null 2>&1; then
                 echo "[WARN] 缺少依赖: $pkg，尝试安装..."
@@ -199,7 +198,7 @@ jobs:
 
 
           if [ -d "common/.git" ]; then
-            echo "[INFO] common 源码已存在，仅 reset 到 OEM 基准..."
+            echo "[INFO] common 源码已存在，仅reset到OEM"
             cd common
             git fetch --depth=1 origin oneplus/sm8750_b_16.0.0_oneplus_13
             git reset --hard FETCH_HEAD
@@ -234,11 +233,10 @@ jobs:
           git config user.name "github-actions[bot]"
 
           if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
-            # 如果 upstream 已存在则静默删除，防止二次运行报错
             git remote remove upstream 2>/dev/null || true
             git remote add upstream https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
   
-            echo "[INFO] 获取 kernel.org stable 最新 6.6 LTS tag..."
+            echo "[INFO] 获取6.6LTS tag..."
             LATEST_TAG=""
             for pattern in 'refs/tags/v6.6.*'; do
               LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
@@ -295,7 +293,7 @@ jobs:
               echo "[INFO] 冲突自动解决（OEM 优先）"
             fi
           else
-            echo "[INFO] 跳过上游合并，使用 OEM 源码 6.6.89" | tee -a "$LOG_FILE"
+            echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
             echo "SUB_VERSION=89" >> $GITHUB_ENV
             KERNEL_NAME_VAL="android16-6.6.89-4k"
@@ -339,7 +337,6 @@ jobs:
           echo "[INFO] 源码及工具链初始化完成" | tee -a "$LOG_FILE"
       - name: 配置ccache目录
         run: |
-          # 统一存放在用户根目录的 .ccache 中，不受 Linux 内核小版本变动的影响
           echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
           echo "CCACHE_MAXSIZE=20G" >> $GITHUB_ENV
           df -h
@@ -520,19 +517,16 @@ jobs:
           git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git /tmp/zram_patches
           cp /tmp/zram_patches/zram/001-lz4.patch . || (echo "缺LZ4补丁" && exit 1)
           cp /tmp/zram_patches/zram/002-zstd.patch . || (echo "缺ZSTD补丁" && exit 1)
-      
-          # 预置 lz4armv8.S（mrcxlinux 提供）
+
           mkdir -p lib/lz4/lz4armv8
           cp /tmp/zram_patches/zram/lz4armv8.S lib/lz4/lz4armv8/lz4armv8.S || true
 
-          # 预置 lz4accel.c/h（OnePlus OEM 内核源，补丁 rename 需要）
           mkdir -p fs/f2fs/lz4armv8
           wget -q -O fs/f2fs/lz4armv8/lz4accel.c \
             "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.c"
           wget -q -O fs/f2fs/lz4armv8/lz4accel.h \
             "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.h"
 
-          # 现在 rename 源存在了，git apply 能正确处理
           git apply --reject --whitespace=nowarn 001-lz4.patch || true
           patch -p1 -t -F 3 < 002-zstd.patch || true
           rm -rf /tmp/zram_patches
@@ -867,7 +861,7 @@ jobs:
 
           PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
           if [ -z "$PATCH_FILE" ]; then
-            echo "[ERROR] 未匹配到一加 13 专属风驰补丁" | tee -a "$LOG_FILE"
+            echo "[ERROR] 未匹配到一加13风驰补丁" | tee -a "$LOG_FILE"
             exit 1
           fi
 
@@ -876,7 +870,7 @@ jobs:
           
           cd common
           
-          echo "[INFO] 注入风驰引擎调度补丁..."
+          echo "[INFO] 注入风驰引擎补丁..."
           patch -p1 -F 3 -f < "$PATCH_FILE" || true
           REJ_COUNT=$(find . -name "*.rej" 2>/dev/null | wc -l)
           if [ "$REJ_COUNT" -gt 0 ]; then
@@ -1065,9 +1059,9 @@ jobs:
           export KBUILD_BUILD_HOST="ubuntu-build"
 
           echo '#!/bin/bash' > ld-wrapper
-          echo 'ld.lld "$@" --thinlto-jobs=$(nproc --all)' >> ld-wrapper
+          echo "ld.lld \"\$@\" --thinlto-jobs=\$(nproc --all) --thinlto-cache-dir=$HOME/.thinlto-cache" >> ld-wrapper
           chmod +x ld-wrapper
-
+          
           KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=5 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
