@@ -184,10 +184,11 @@ jobs:
           fi
 
           echo "[INFO] 克隆 OEM 内核源码仓库..."
-          git clone --depth=1 \
-            https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
-            -b oneplus/sm8750_b_16.0.0_oneplus_13 \
-            common
+          if [ ! -d "common" ]; then
+            git clone --depth=1 https://github.com/xxxx/xxxx.git common
+          else
+            echo "[INFO] common 源码目录已存在，跳过克隆。"
+          fi
 
           # ... 后续克隆、合并上游、下载 Clang19 等代码完全保持原样不变 ...
           echo "[INFO] 克隆 OEM 内核源码仓库..."
