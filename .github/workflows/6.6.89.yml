@@ -1136,6 +1136,7 @@ jobs:
         id: create_zip
         run: |
           cd kernel_workspace
+          rm -rf AnyKernel3
           git clone https://github.com/cctv18/AnyKernel3 --depth=1
           rm -rf ./AnyKernel3/.git
           cd AnyKernel3
