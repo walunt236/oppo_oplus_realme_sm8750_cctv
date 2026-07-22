@@ -1242,6 +1242,14 @@ jobs:
           zip -r ../$AK3_NAME ./*
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
+          if [[ "${{ inputs.runner_type }}" == "self-hosted" ]]; then
+            DESKTOP_PATH="/mnt/c/Users/你的Windows用户名/Desktop"
+            if [ -d "$DESKTOP_PATH" ]; then
+              cp "../$AK3_NAME" "$DESKTOP_PATH/"
+              echo "[INFO]刷机包已复制到 Windows 桌面: $AK3_NAME"
+            fi
+          fi
+
       - name: 本地工作区定时瘦身
         if: always() && inputs.runner_type == 'self-hosted'
         run: |
@@ -1258,13 +1266,13 @@ jobs:
           path: ${{ github.workspace }}/kernel_workspace/ccache.log
 
       - name: 上传 ZIP 工件
-        if: ${{ !inputs.diagnosis }}
+        if: ${{ !inputs.diagnosis && inputs.runner_type == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v7
         with:
           name: ak3-release
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
           if-no-files-found: error
-
+          
   release:
     needs: build
     if: ${{ !inputs.diagnosis }}
