@@ -738,7 +738,7 @@ jobs:
             exit 1
           fi
 
-          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " cpuidle.governor=teo schedstats=disable panic=10 page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
+          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " cpuidle.governor=teo schedstats=disable panic=10 page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 skew_tick=1 random.trust_cpu=on nosoftlockup kfence.sample_interval=0", sizeof(boot_command_line));' "$TARGET_MAIN"
           
           if grep -q "strlcat.*boot_command_line" "$TARGET_MAIN"; then
             echo "[INFO] cmdline 注入成功" | tee -a "$LOG_FILE"
