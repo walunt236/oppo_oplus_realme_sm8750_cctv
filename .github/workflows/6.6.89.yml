@@ -122,7 +122,7 @@ on:
         description: 'HZ=1000'
         required: true
         type: boolean
-        default: true
+        default: false
       o3_selective:
         description: '选择性-O3'
         required: true
@@ -706,7 +706,7 @@ jobs:
             exit 1
           fi
           
-          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable mitigations=off panic=10 nokaslr page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 irqaffinity=0-7 rcu_nocb_poll skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
+          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable panic=10 page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 skew_tick=1 random.trust_cpu=on", sizeof(boot_command_line));' "$TARGET_MAIN"
           
           if grep -q "strlcat.*boot_command_line" "$TARGET_MAIN"; then
             echo "[INFO] cmdline 注入成功" | tee -a "$LOG_FILE"
@@ -1034,11 +1034,6 @@ jobs:
               elif [ -f "$G_DIR/Kbuild" ]; then
                 sed -i '1i ccflags-y += -O3 -ftree-vectorize' "$G_DIR/Makefile"
               fi
-              
-              for T_FILE in $(find "$G_DIR" -type f -name "*tz*.c" -o -name "*pwrscale*.c" 2>/dev/null || true); do
-                sed -i 's/filter_down = .*/filter_down = 0;/g' "$T_FILE" 2>/dev/null || true
-                sed -i 's/sample_time = .*/sample_time = 10;/g' "$T_FILE" 2>/dev/null || true
-              done
             done
           fi
           echo "[INFO] 选择性 -O3 优化配置完成" | tee -a "$LOG_FILE"
@@ -1051,16 +1046,13 @@ jobs:
 
           KGSL_DIR=$(find vendor_modules -name "kgsl_pwrctrl.c" | sed 's/\/kgsl_pwrctrl.c//' | head -n 1)
           if [ -n "$KGSL_DIR" ] && [ -d "$KGSL_DIR" ]; then
-            if [ -f "$KGSL_DIR/kgsl_pwrctrl.c" ]; then
-              sed -i '/kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);/a \    kgsl_pwrctrl_buslevel_update(device, 1);' "$KGSL_DIR/kgsl_pwrctrl.c" 2>/dev/null || true
-            fi
             if [ -f "$KGSL_DIR/kgsl_pool.c" ]; then
               sed -i 's/static u32 kgsl_pool_max_pages = .*/static u32 kgsl_pool_max_pages = 65536;/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
               sed -i 's/#define KGSL_POOL_MAX_PAGES .*/#define KGSL_POOL_MAX_PAGES 65536/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
             fi
-            echo "[INFO] NoC 总线最低下限锁死与 KGSL 页池扩容配置完成" | tee -a "$LOG_FILE"
+            echo "[INFO] KGSL 页池扩容配置完成" | tee -a "$LOG_FILE"
           fi
-
+          
           KGSL_MEM=$(find vendor_modules common -name "kgsl_sharedmem.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_MEM" ] && [ -f "$KGSL_MEM" ]; then
             sed -i '/vma->vm_flags |=/a \    vma->vm_flags |= (VM_DONTEXPAND | VM_DONTDUMP);' "$KGSL_MEM" 2>/dev/null || true
@@ -1113,7 +1105,7 @@ jobs:
           echo "ld.lld \"\$@\" --thinlto-jobs=\$(nproc --all) --thinlto-cache-dir=$HOME/.thinlto-cache" >> ld-wrapper
           chmod +x ld-wrapper
           
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -fstrict-aliasing -mllvm -align-all-functions=5 -mllvm -unroll-threshold=350 -mllvm -enable-misched=true"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -fno-math-errno -mllvm -enable-misched=true"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
