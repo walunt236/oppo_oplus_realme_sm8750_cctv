@@ -746,7 +746,7 @@ jobs:
             echo "[ERROR] cmdline 注入失败" | tee -a "$LOG_FILE"
             exit 1
           fi
-            - name: ARM优化字符串库
+      - name: ARM优化字符串库
         run: |
           cd kernel_workspace/common
           ROUTINES_DIR="$HOME/.cache_patches/arm-routines"
