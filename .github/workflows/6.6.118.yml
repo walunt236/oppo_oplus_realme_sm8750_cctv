@@ -746,7 +746,35 @@ jobs:
             echo "[ERROR] cmdline 注入失败" | tee -a "$LOG_FILE"
             exit 1
           fi
-            
+      - name: ARM优化字符串库
+        run: |
+          cd kernel_workspace/common
+          ROUTINES_DIR="$HOME/.cache_patches/arm-routines"
+          mkdir -p "$HOME/.cache_patches"
+
+          if [ ! -d "$ROUTINES_DIR/.git" ]; then
+            git clone --depth=1 https://github.com/ARM-software/optimized-routines.git "$ROUTINES_DIR"
+          fi
+
+          cp "$ROUTINES_DIR/string/aarch64/memcpy.S" arch/arm64/lib/memcpy.S
+          cp "$ROUTINES_DIR/string/aarch64/memset.S" arch/arm64/lib/memset.S
+
+          for f in arch/arm64/lib/memcpy.S arch/arm64/lib/memset.S; do
+            func=$(basename "$f" .S)
+            # 前置头文件
+            sed -i '1i #include <linux/linkage.h>' "$f"
+            sed -i '1i #include <asm/assembler.h>' "$f"
+            # 去掉 libc 声明
+            sed -i '/\.globl '"$func"'/d' "$f"
+            sed -i '/\.type '"$func"',%function/d' "$f"
+            sed -i '/\.size '"$func"', .-'"$func"'/d' "$f"
+            # 替换入口标签
+            sed -i 's/^'"$func"':/SYM_FUNC_START('"$func"')/' "$f"
+            # 追加出口宏
+            printf '\nSYM_FUNC_END(%s)\nSYM_FUNC_ALIAS(__pi_%s, %s)\n' "$func" "$func" "$func" >> "$f"
+          done
+
+          echo "[INFO] ARM优化字符串库适配内核并替换完成"      
       - name: F2FS检查点优化
         run: |
           cd kernel_workspace/common
