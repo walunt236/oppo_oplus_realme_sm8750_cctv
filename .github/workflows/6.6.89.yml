@@ -285,22 +285,22 @@ jobs:
           cd ..
 
          
-          # 集中定义 Clang 23 参数
-          CLANG_DIR_NAME="Clang-23.0.0git-20260130"
-          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
+          # 集中定义 Clang 20 参数 
+          CLANG_DIR_NAME="Clang-20.0.0git"
+          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250129-release/Clang-20.0.0git-20250129.tar.gz"
 
           TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
           mkdir -p "$HOME/.toolchains"
 
           if [ ! -d "$TC_DIR/bin" ]; then
-            echo "[INFO] 检测到 Clang 23 未缓存或版本更新，开始下载..."
+            echo "[INFO] 检测到 Clang 20 未缓存或版本更新，开始下载..."
             rm -rf "$HOME/.toolchains/Clang-*"
             mkdir -p "$TC_DIR"
             aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang_new.tar.gz
             tar -xzf clang_new.tar.gz -C "$TC_DIR" && rm -f clang_new.tar.gz
           else
-            echo "[INFO] [秒过] Clang 23 工具链已存在本地缓存，直接复用！"
+            echo "[INFO] [秒过] Clang 20 工具链已存在本地缓存，直接复用！"
           fi
           
           if [ ! -d "$BT_DIR/bin" ]; then
@@ -995,13 +995,13 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="Clang-23.0.0git-20260130"
+          CLANG_DIR_NAME="Clang-20.0.0git"
           
           # 第一步：垫底加载旧版 build-tools
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
-          # 第二步：加载 Clang 23，利用高优先级覆盖掉 build-tools 里的旧版 lld、ar、nm 等核心组件
+          # 第二步：加载 Clang 20
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
-          # 第三步：加载 ccache，确保它是编译入口的绝对第一顺位
+          # 第三步：加载 ccache
           export PATH="/usr/lib/ccache:$PATH"
           
           cd kernel_workspace/common
@@ -1078,12 +1078,12 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="Clang-23.0.0git-20260130"
+          CLANG_DIR_NAME="Clang-20.0.0git"
           
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
           export PATH="/usr/lib/ccache:$PATH"
-
+          
           cd kernel_workspace/common
 
           if [[ "${{ inputs.runner_type }}" == "ubuntu-latest" ]]; then
@@ -1106,7 +1106,7 @@ jobs:
           EOF
           chmod +x ld-wrapper
           
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing"
+         KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
           
