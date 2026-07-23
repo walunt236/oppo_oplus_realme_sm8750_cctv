@@ -859,7 +859,7 @@ jobs:
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
-      - name: 启用 HZ=1000 高精度调度
+      - name: 启用 HZ=300调度
         if: inputs.hz_1000
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
@@ -1090,14 +1090,16 @@ jobs:
           export KBUILD_BUILD_USER="OnePlus"
           export KBUILD_BUILD_HOST="ubuntu-build"
 
-          echo '#!/bin/bash' > ld-wrapper
-          echo "ld.lld \"\$@\" --thinlto-jobs=\$(nproc --all) --thinlto-cache-dir=$HOME/.thinlto-cache" >> ld-wrapper
+          cat << 'EOF' > ld-wrapper
+          #!/bin/sh
+          exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" "$@"
+          EOF
           chmod +x ld-wrapper
           
           KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
           
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
-
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
+          
           echo "[INFO] 内核镜像编译完成" | tee -a "$LOG_FILE"
           if nm out/vmlinux 2>/dev/null | grep -q "_lz4_decompress_asm"; then
             echo "[INFO] _lz4_decompress_asm 符号校验通过" | tee -a "$LOG_FILE"
