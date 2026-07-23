@@ -307,7 +307,7 @@ jobs:
             echo "[INFO] 检测到 build-tools 未缓存，开始下载..."
             mkdir -p "$BT_DIR"
             aria2c -s16 -x16 -k1M \
-              https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang20-r547379/build-tools.zip \
+              https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip \
               -o build-tools.zip
             unzip -q build-tools.zip -d "$BT_DIR" && rm -f build-tools.zip
           else
