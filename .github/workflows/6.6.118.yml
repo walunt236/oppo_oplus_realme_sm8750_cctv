@@ -770,6 +770,8 @@ jobs:
           printf '\nSYM_FUNC_ALIAS(memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
           printf 'SYM_FUNC_ALIAS(__memcpy, memcpy)\n' >> arch/arm64/lib/memcpy.S
           printf 'SYM_FUNC_ALIAS(__memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
+          printf 'SYM_FUNC_ALIAS(__pi_memcpy, memcpy)\n' >> arch/arm64/lib/memcpy.S
+          printf 'SYM_FUNC_ALIAS(__pi_memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
 
           echo "[INFO] ARM优化字符串库替换完成"
       - name: F2FS检查点优化
