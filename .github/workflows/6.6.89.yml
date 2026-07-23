@@ -285,22 +285,22 @@ jobs:
           cd ..
 
          
-          # 集中定义 Clang 20 参数 
-          CLANG_DIR_NAME="Clang-20.0.0git"
-          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250129-release/Clang-20.0.0git-20250129.tar.gz"
+          # 恢复原始的 Clang 19 参数
+          CLANG_DIR_NAME="Clang-19.0.0git-20240723"
+          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz"
 
           TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
           mkdir -p "$HOME/.toolchains"
 
           if [ ! -d "$TC_DIR/bin" ]; then
-            echo "[INFO] 检测到 Clang 20 未缓存或版本更新，开始下载..."
+            echo "[INFO] 检测到 Clang 19 未缓存或版本更新，开始下载..."
             rm -rf "$HOME/.toolchains/Clang-*"
             mkdir -p "$TC_DIR"
-            aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang_new.tar.gz
-            tar -xzf clang_new.tar.gz -C "$TC_DIR" && rm -f clang_new.tar.gz
+            aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang19.tar.gz
+            tar -xzf clang19.tar.gz -C "$TC_DIR" && rm -f clang19.tar.gz
           else
-            echo "[INFO] [秒过] Clang 20 工具链已存在本地缓存，直接复用！"
+            echo "[INFO] [秒过] Clang 19 工具链已存在本地缓存，直接复用！"
           fi
           
           if [ ! -d "$BT_DIR/bin" ]; then
@@ -995,11 +995,11 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="Clang-20.0.0git"
+          CLANG_DIR_NAME="Clang-19.0.0git-20240723"
           
           # 第一步：垫底加载旧版 build-tools
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
-          # 第二步：加载 Clang 20
+          # 第二步：加载 Clang 19 核心编译器
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
           # 第三步：加载 ccache
           export PATH="/usr/lib/ccache:$PATH"
@@ -1078,7 +1078,7 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="Clang-20.0.0git"
+          CLANG_DIR_NAME="Clang-19.0.0git-20240723"
           
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
