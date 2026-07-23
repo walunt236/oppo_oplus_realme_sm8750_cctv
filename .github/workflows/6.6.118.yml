@@ -746,34 +746,7 @@ jobs:
             echo "[ERROR] cmdline 注入失败" | tee -a "$LOG_FILE"
             exit 1
           fi
-      - name: ARM优化字符串库
-        run: |
-          cd kernel_workspace/common
-          ROUTINES_DIR="$HOME/.cache_patches/arm-routines"
-          mkdir -p "$HOME/.cache_patches"
-
-          if [ ! -d "$ROUTINES_DIR/.git" ]; then
-            git clone --depth=1 https://github.com/ARM-software/optimized-routines.git "$ROUTINES_DIR"
-          fi
-
-          # --- memcpy ---
-          cp "$ROUTINES_DIR/string/aarch64/memcpy.S" arch/arm64/lib/memcpy.S
-
-          sed -i 's|#include "asmdefs.h"|#include <linux/linkage.h>\n#define L(l) .L ## l|' arch/arm64/lib/memcpy.S
-
-          sed -i '/^ENTRY_ALIAS/d' arch/arm64/lib/memcpy.S
-
-          sed -i '/^ENTRY (__memcpy_aarch64)/c\SYM_FUNC_START(memcpy)' arch/arm64/lib/memcpy.S
-
-          sed -i '/^END (__memcpy_aarch64)/c\SYM_FUNC_END(memcpy)' arch/arm64/lib/memcpy.S
-
-          printf '\nSYM_FUNC_ALIAS(memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
-          printf 'SYM_FUNC_ALIAS(__memcpy, memcpy)\n' >> arch/arm64/lib/memcpy.S
-          printf 'SYM_FUNC_ALIAS(__memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
-          printf 'SYM_FUNC_ALIAS(__pi_memcpy, memcpy)\n' >> arch/arm64/lib/memcpy.S
-          printf 'SYM_FUNC_ALIAS(__pi_memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
-
-          echo "[INFO] ARM优化字符串库替换完成"
+      
       - name: F2FS检查点优化
         run: |
           cd kernel_workspace/common
