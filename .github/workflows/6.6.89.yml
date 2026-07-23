@@ -284,10 +284,7 @@ jobs:
 
           cd ..
 
-          # 集中定义 Clang 20 参数
-          CLANG_DIR_NAME="Clang-20.0.0git"
-          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-XXXXXX-release/Clang-20.0.0git.tar.gz"
-          
+         
           # 集中定义 Clang 23 参数
           CLANG_DIR_NAME="Clang-23.0.0git-20260130"
           CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
