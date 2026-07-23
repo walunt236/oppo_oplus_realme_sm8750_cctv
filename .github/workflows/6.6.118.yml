@@ -746,7 +746,15 @@ jobs:
             echo "[ERROR] cmdline 注入失败" | tee -a "$LOG_FILE"
             exit 1
           fi
-
+          
+      - name: 内核能效预设值调优
+        run: |
+          cd kernel_workspace/common
+          sed -i 's/dirty_writeback_interval = 5 \* 100/dirty_writeback_interval = 15 * 100/' mm/page-writeback.c
+          sed -i 's/int vm_dirty_ratio = 20/int vm_dirty_ratio = 10/' mm/page-writeback.c
+          sed -i 's/int dirty_background_ratio = 10/int dirty_background_ratio = 5/' mm/page-writeback.c
+          echo "[INFO] 内核能效预设值调优完成"
+          
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
