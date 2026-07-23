@@ -1149,7 +1149,7 @@ jobs:
 
           cat << 'EOF' > ld-wrapper
           #!/bin/sh
-          exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" --icf=safe "$@"
+          exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" "$@"
           EOF
           chmod +x ld-wrapper
           
