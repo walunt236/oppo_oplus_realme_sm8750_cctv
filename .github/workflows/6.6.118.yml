@@ -693,7 +693,7 @@ jobs:
           CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
           echo "CONFIG_KSM=y" >> $DCFG
-          echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y" >> $DCFG
+
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "[INFO] 开启 RCU_NOCB_CPU..."
             cat >> $DCFG << 'RCUCFG'
