@@ -747,6 +747,31 @@ jobs:
             exit 1
           fi
           
+      - name: ARM优化字符串库
+        run: |
+          cd kernel_workspace/common
+          ROUTINES_DIR="$HOME/.cache_patches/arm-routines"
+          mkdir -p "$HOME/.cache_patches"
+
+          if [ ! -d "$ROUTINES_DIR/.git" ]; then
+            git clone --depth=1 https://github.com/ARM-software/optimized-routines.git "$ROUTINES_DIR"
+          fi
+
+          cp "$ROUTINES_DIR/string/aarch64/memcpy.S" arch/arm64/lib/memcpy.S
+          cp "$ROUTINES_DIR/string/aarch64/memmove.S" arch/arm64/lib/memmove.S
+          cp "$ROUTINES_DIR/string/aarch64/memset.S" arch/arm64/lib/memset.S
+
+          echo "[INFO] ARM优化字符串库替换完成"
+
+          
+      - name: F2FS检查点优化
+        run: |
+          cd kernel_workspace/common
+
+          sed -i 's/#define MAX_FLUSH_RETRIES 200/#define MAX_FLUSH_RETRIES 8/' fs/f2fs/checkpoint.c
+
+          echo "[INFO] F2FS检查点优化完成"
+          
       - name: 内核能效预设值调优-P1-2
         run: |
           cd kernel_workspace/common
