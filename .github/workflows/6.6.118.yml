@@ -756,25 +756,27 @@ jobs:
             git clone --depth=1 https://github.com/ARM-software/optimized-routines.git "$ROUTINES_DIR"
           fi
 
+          # --- memcpy ---
           cp "$ROUTINES_DIR/string/aarch64/memcpy.S" arch/arm64/lib/memcpy.S
-          cp "$ROUTINES_DIR/string/aarch64/memset.S" arch/arm64/lib/memset.S
 
-          for f in arch/arm64/lib/memcpy.S arch/arm64/lib/memset.S; do
-            func=$(basename "$f" .S)
-            # 前置头文件
-            sed -i '1i #include <linux/linkage.h>' "$f"
-            sed -i '1i #include <asm/assembler.h>' "$f"
-            # 去掉 libc 声明
-            sed -i '/\.globl '"$func"'/d' "$f"
-            sed -i '/\.type '"$func"',%function/d' "$f"
-            sed -i '/\.size '"$func"', .-'"$func"'/d' "$f"
-            # 替换入口标签
-            sed -i 's/^'"$func"':/SYM_FUNC_START('"$func"')/' "$f"
-            # 追加出口宏
-            printf '\nSYM_FUNC_END(%s)\nSYM_FUNC_ALIAS(__pi_%s, %s)\n' "$func" "$func" "$func" >> "$f"
-          done
+          # include 替换
+          sed -i 's|#include "asmdefs.h"|#include <linux/linkage.h>|' arch/arm64/lib/memcpy.S
 
-          echo "[INFO] ARM优化字符串库适配内核并替换完成"      
+          # 删除 ARM 的 ENTRY_ALIAS 声明行
+          sed -i '/^ENTRY_ALIAS/d' arch/arm64/lib/memcpy.S
+
+          # ENTRY → SYM_FUNC_START
+          sed -i '/^ENTRY (__memcpy_aarch64)/c\SYM_FUNC_START(memcpy)' arch/arm64/lib/memcpy.S
+
+          # END → SYM_FUNC_END
+          sed -i '/^END (__memcpy_aarch64)/c\SYM_FUNC_END(memcpy)' arch/arm64/lib/memcpy.S
+
+          # 追加内核需要的别名
+          printf '\nSYM_FUNC_ALIAS(memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
+          printf 'SYM_FUNC_ALIAS(__memcpy, memcpy)\n' >> arch/arm64/lib/memcpy.S
+          printf 'SYM_FUNC_ALIAS(__memmove, memcpy)\n' >> arch/arm64/lib/memcpy.S
+
+          echo "[INFO] ARM优化字符串库替换完成"
       - name: F2FS检查点优化
         run: |
           cd kernel_workspace/common
