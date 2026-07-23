@@ -118,11 +118,11 @@ on:
         required: true
         type: boolean
         default: true
-      hz_1000:
-        description: 'HZ=1000'
+      hz_300:
+        description: 'HZ=300'
         required: true
         type: boolean
-        default: false
+        default: true
       o3_selective:
         description: '选择性-O3'
         required: true
@@ -863,7 +863,7 @@ jobs:
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
       - name: 启用 HZ=300调度
-        if: inputs.hz_1000
+        if: inputs.hz_300
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "[INFO] 启用 HZ=1000..." | tee -a "$LOG_FILE"
