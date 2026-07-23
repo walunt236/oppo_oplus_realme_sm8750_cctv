@@ -758,10 +758,10 @@ jobs:
           fi
 
           cp "$ROUTINES_DIR/string/aarch64/memcpy.S" arch/arm64/lib/memcpy.S
-          cp "$ROUTINES_DIR/string/aarch64/memmove.S" arch/arm64/lib/memmove.S
           cp "$ROUTINES_DIR/string/aarch64/memset.S" arch/arm64/lib/memset.S
 
           echo "[INFO] ARM优化字符串库替换完成"
+
 
           
       - name: F2FS检查点优化
