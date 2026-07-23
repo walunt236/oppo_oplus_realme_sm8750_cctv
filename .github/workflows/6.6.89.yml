@@ -1094,7 +1094,7 @@ jobs:
           echo "ld.lld \"\$@\" --thinlto-jobs=\$(nproc --all) --thinlto-cache-dir=$HOME/.thinlto-cache" >> ld-wrapper
           chmod +x ld-wrapper
           
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fstrict-aliasing -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
           
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD="$(pwd)/ld-wrapper" O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
 
