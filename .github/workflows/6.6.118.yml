@@ -746,24 +746,7 @@ jobs:
             echo "[ERROR] cmdline 注入失败" | tee -a "$LOG_FILE"
             exit 1
           fi
-          
-      - name: ARM优化字符串库
-        run: |
-          cd kernel_workspace/common
-          ROUTINES_DIR="$HOME/.cache_patches/arm-routines"
-          mkdir -p "$HOME/.cache_patches"
-
-          if [ ! -d "$ROUTINES_DIR/.git" ]; then
-            git clone --depth=1 https://github.com/ARM-software/optimized-routines.git "$ROUTINES_DIR"
-          fi
-
-          cp "$ROUTINES_DIR/string/aarch64/memcpy.S" arch/arm64/lib/memcpy.S
-          cp "$ROUTINES_DIR/string/aarch64/memset.S" arch/arm64/lib/memset.S
-
-          echo "[INFO] ARM优化字符串库替换完成"
-
-
-          
+            
       - name: F2FS检查点优化
         run: |
           cd kernel_workspace/common
