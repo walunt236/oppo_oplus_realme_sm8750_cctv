@@ -284,22 +284,28 @@ jobs:
 
           cd ..
 
-          TC_DIR="$HOME/.toolchains/Clang-19.0.0git-20240723"
+          # 集中定义 Clang 20 参数
+          CLANG_DIR_NAME="Clang-20.0.0git"
+          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-XXXXXX-release/Clang-20.0.0git.tar.gz"
+          
+          # 集中定义 Clang 23 参数
+          CLANG_DIR_NAME="Clang-23.0.0git-20260130"
+          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
+
+          TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
           mkdir -p "$HOME/.toolchains"
 
           if [ ! -d "$TC_DIR/bin" ]; then
-            echo "[INFO] 检测到 Clang 19 未缓存或版本更新，开始下载..."
+            echo "[INFO] 检测到 Clang 23 未缓存或版本更新，开始下载..."
             rm -rf "$HOME/.toolchains/Clang-*"
             mkdir -p "$TC_DIR"
-            aria2c -s16 -x16 -k1M \
-              https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz \
-              -o clang19.tar.gz
-            tar -xzf clang19.tar.gz -C "$TC_DIR" && rm -f clang19.tar.gz
+            aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang_new.tar.gz
+            tar -xzf clang_new.tar.gz -C "$TC_DIR" && rm -f clang_new.tar.gz
           else
-            echo "[INFO] [秒过] Clang 19 工具链已存在本地缓存，直接复用！"
+            echo "[INFO] [秒过] Clang 23 工具链已存在本地缓存，直接复用！"
           fi
-
+          
           if [ ! -d "$BT_DIR/bin" ]; then
             echo "[INFO] 检测到 build-tools 未缓存，开始下载..."
             mkdir -p "$BT_DIR"
@@ -992,9 +998,14 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$HOME/.toolchains/Clang-19.0.0git-20240723/bin:$PATH"
+          CLANG_DIR_NAME="Clang-23.0.0git-20260130"
+          
+          # 第一步：垫底加载旧版 build-tools
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
+          # 第二步：加载 Clang 23，利用高优先级覆盖掉 build-tools 里的旧版 lld、ar、nm 等核心组件
+          export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
+          # 第三步：加载 ccache，确保它是编译入口的绝对第一顺位
+          export PATH="/usr/lib/ccache:$PATH"
           
           cd kernel_workspace/common
           
@@ -1070,9 +1081,11 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$HOME/.toolchains/Clang-19.0.0git-20240723/bin:$PATH"
+          CLANG_DIR_NAME="Clang-23.0.0git-20260130"
+          
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
+          export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
+          export PATH="/usr/lib/ccache:$PATH"
 
           cd kernel_workspace/common
 
