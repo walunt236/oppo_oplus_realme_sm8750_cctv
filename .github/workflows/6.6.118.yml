@@ -1149,11 +1149,11 @@ jobs:
 
           cat << 'EOF' > ld-wrapper
           #!/bin/sh
-          exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" "$@"
+          exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" --icf=all "$@"
           EOF
           chmod +x ld-wrapper
           
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -mllvm -enable-machine-outliner=always"
           # --- 工具链版本校验 ---
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
