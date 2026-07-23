@@ -694,15 +694,6 @@ jobs:
           TUNECFG
           echo "CONFIG_KSM=y" >> $DCFG
           echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y" >> $DCFG
-          echo "CONFIG_SCHEDSTATS=n" >> $DCFG
-          echo "CONFIG_SCHED_DEBUG=n" >> $DCFG
-          echo "CONFIG_SLUB_DEBUG=n" >> $DCFG
-          echo "CONFIG_PM_DEBUG=n" >> $DCFG
-          echo "CONFIG_PM_ADVANCED_DEBUG=n" >> $DCFG
-          echo "CONFIG_PM_SLEEP_DEBUG=n" >> $DCFG
-          echo "CONFIG_DEBUG_MEMORY_INIT=n" >> $DCFG
-          echo "CONFIG_PAGE_OWNER=n" >> $DCFG
-          echo "CONFIG_PAGE_PINNER=n" >> $DCFG
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "[INFO] 开启 RCU_NOCB_CPU..."
             cat >> $DCFG << 'RCUCFG'
