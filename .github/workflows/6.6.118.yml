@@ -242,6 +242,7 @@ jobs:
             else
               echo "[WARN] AOSP fetch 失败，跳过上游合并" | tee -a "$LOG_FILE"
             fi
+            echo "UPSTREAM_TAG=aosp-16" >> $GITHUB_ENV
             OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
             OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
             echo "SUB_VERSION=$OEM_SUBLEVEL" >> $GITHUB_ENV
@@ -252,7 +253,7 @@ jobs:
           else
             echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
-            OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' common/Makefile)
+            OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
             OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
             echo "SUB_VERSION=$OEM_SUBLEVEL" >> $GITHUB_ENV
             KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}-4k"
@@ -262,7 +263,6 @@ jobs:
           fi
 
           cd ..
-
          
           # 恢复原始的 Clang 19 参数
           CLANG_DIR_NAME="Clang-19.0.0git-20240723"
