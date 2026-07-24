@@ -1005,14 +1005,10 @@ jobs:
           
           cat "$WILD_DIR/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || echo "[WARN] clear_page_16bytes_align.patch 应用失败，继续..."
 
-          patch -p1 --forward -f < "$WILD_DIR/common/disable_cache_hot_buddy.patch" || echo "[WARN] disable_cache_hot_buddy.patch 应用失败，继续..."
-
           patch -p1 --forward -f < "$WILD_DIR/common/f2fs_reduce_congestion.patch" || echo "[WARN] f2fs_reduce_congestion.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/f2fs_enlarge_min_fsync_blocks.patch" || echo "[WARN] f2fs_enlarge_min_fsync_blocks.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/increase_ext4_default_commit_age.patch" || echo "[WARN] increase_ext4_default_commit_age.patch 应用失败，继续..."
 
-          patch -p1 --forward -f < "$WILD_DIR/common/silence_system_logspam.patch" || echo "[WARN] silence_system_logspam.patch 应用失败，继续..."
-          patch -p1 --forward -f < "$WILD_DIR/common/adjust_cpu_scan_order.patch" || echo "[WARN] adjust_cpu_scan_order.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/int_sqrt.patch" || echo "[WARN] int_sqrt.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/reduce_gc_thread_sleep_time.patch" || echo "[WARN] reduce_gc_thread_sleep_time.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/increase_sk_mem_packets.patch" || echo "[WARN] increase_sk_mem_packets.patch 应用失败，继续..."
