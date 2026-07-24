@@ -1032,9 +1032,8 @@ jobs:
           patch -p1 --forward -f < /tmp/mm_vmpressure.patch || echo "[WARN] mm_vmpressure 应用失败，继续..."
           git -C "$GITHUB_WORKSPACE/kernel_workspace/common" fetch --depth=200 https://android.googlesource.com/kernel/common android15-6.6
           git -C "$GITHUB_WORKSPACE/kernel_workspace/common" cherry-pick --abort 2>/dev/null || true
-          git -C "$GITHUB_WORKSPACE/kernel_workspace/common" checkout -- . 2>/dev/null || true
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba dab84cf3cb13 27ba8dd0e911 9eecad532ad3 c7a8aea27b87; do
-            git -C "$GITHUB_WORKSPACE/kernel_workspace/common" cherry-pick --no-commit $hash 2>/dev/null || true
+            git -C "$GITHUB_WORKSPACE/kernel_workspace/common" cherry-pick $hash 2>/dev/null || git -C "$GITHUB_WORKSPACE/kernel_workspace/common" cherry-pick --abort 2>/dev/null
           done
           UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
