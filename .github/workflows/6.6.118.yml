@@ -1036,6 +1036,9 @@ jobs:
             patch -p1 -t --forward -F 3 < "/tmp/aosp_$hash.patch" 2>/dev/null || true
           done
           find . -name "*.rej" -delete 2>/dev/null
+          for hash in e8400a0 a09e19e 40f0cbf; do
+            patch -p1 --forward -F 3 < "$HOME/.cache_patches/palazik/$hash.patch" 2>/dev/null || true
+          done
           UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
