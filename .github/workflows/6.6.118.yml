@@ -1030,16 +1030,8 @@ jobs:
           patch -p1 --forward -f < /tmp/mm_slab.patch || echo "[WARN] mm_slab 应用失败，继续..."
           curl -fSL -o /tmp/mm_vmpressure.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/99b920c.patch"
           patch -p1 --forward -f < /tmp/mm_vmpressure.patch || echo "[WARN] mm_vmpressure 应用失败，继续..."
-                    wget -q -O /tmp/f2fs_gc_type.patch "https://android.googlesource.com/kernel/common/+/47f80469849a?format=PATCH" && patch -p1 --forward -f < /tmp/f2fs_gc_type.patch || echo "[WARN] f2fs_gc_type 应用失败"
-          wget -q -O /tmp/f2fs_gc_plug.patch "https://android.googlesource.com/kernel/common/+/5fddd8e6a0a7?format=PATCH" && patch -p1 --forward -f < /tmp/f2fs_gc_plug.patch || echo "[WARN] f2fs_gc_plug 应用失败"
-          wget -q -O /tmp/f2fs_gc_ratio.patch "https://android.googlesource.com/kernel/common/+/0a9eef42768c?format=PATCH" && patch -p1 --forward -f < /tmp/f2fs_gc_ratio.patch || echo "[WARN] f2fs_gc_ratio 应用失败"
-          wget -q -O /tmp/f2fs_gc_onetime.patch "https://android.googlesource.com/kernel/common/+/71bd6942e33f?format=PATCH" && patch -p1 --forward -f < /tmp/f2fs_gc_onetime.patch || echo "[WARN] f2fs_gc_onetime 应用失败"
-          wget -q -O /tmp/f2fs_gc_empty.patch "https://android.googlesource.com/kernel/common/+/ef0123e95425?format=PATCH" && patch -p1 --forward -f < /tmp/f2fs_gc_empty.patch || echo "[WARN] f2fs_gc_empty 应用失败"
-          wget -q -O /tmp/f2fs_gc_freeze.patch "https://android.googlesource.com/kernel/common/+/7abe312b37cf?format=PATCH" && patch -p1 --forward -f < /tmp/f2fs_gc_freeze.patch || echo "[WARN] f2fs_gc_freeze 应用失败"
-          wget -q -O /tmp/mm_pcp_cma.patch "https://android.googlesource.com/kernel/common/+/6a42fccfc2bc?format=PATCH" && patch -p1 --forward -f < /tmp/mm_pcp_cma.patch || echo "[WARN] mm_pcp_cma 应用失败"
-          wget -q -O /tmp/mm_mglru.patch "https://android.googlesource.com/kernel/common/+/d43ee181a478?format=PATCH" && patch -p1 --forward -f < /tmp/mm_mglru.patch || echo "[WARN] mm_mglru 应用失败"
-          wget -q -O /tmp/erofs_noio.patch "https://android.googlesource.com/kernel/common/+/5c8ecdcfbfb0?format=PATCH" && patch -p1 --forward -f < /tmp/erofs_noio.patch || echo "[WARN] erofs_noio 应用失败"
-          wget -q -O /tmp/ufs_hibern8.patch "https://android.googlesource.com/kernel/common/+/c5d6863c9aba?format=PATCH" && patch -p1 --forward -f < /tmp/ufs_hibern8.patch || echo "[WARN] ufs_hibern8 应用失败"
+          git -C "$GITHUB_WORKSPACE/kernel_workspace/common" fetch --depth=200 https://android.googlesource.com/kernel/common android15-6.6
+          git -C "$GITHUB_WORKSPACE/kernel_workspace/common" cherry-pick --no-commit 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 2>/dev/null || echo "[WARN] AOSP补丁部分冲突，继续"
           UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
