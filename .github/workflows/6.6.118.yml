@@ -1118,7 +1118,7 @@ jobs:
             echo "[INFO] KGSL 页池扩容配置完成" | tee -a "$LOG_FILE"
           fi
           
-          KGSL_MEM=$(find vendor_modules common -name "kgsl_sharedmem.c" 2>/dev/null | head -n 1)
+          KGSL_MEM=$(find vendor_modules -name "kgsl_sharedmem.c" 2>/dev/null | head -n 1)
           if [ -n "$KGSL_MEM" ] && [ -f "$KGSL_MEM" ]; then
             sed -i '/vma->vm_flags |=/a \    vma->vm_flags |= (VM_DONTEXPAND | VM_DONTDUMP);' "$KGSL_MEM" 2>/dev/null || true
             echo "[INFO] MGLRU GPU 显存保护机制注入完成" | tee -a "$LOG_FILE"
