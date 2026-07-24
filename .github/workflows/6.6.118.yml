@@ -1033,7 +1033,7 @@ jobs:
           git -C "$GITHUB_WORKSPACE/kernel_workspace/common" fetch --depth=500 https://android.googlesource.com/kernel/common android15-6.6 2>/dev/null || true
           find . -name "*.rej" -delete 2>/dev/null
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 9eecad532ad3 c7a8aea27b87; do
-            patch -p1 -t --forward -F 3 < "/tmp/aosp_$hash.patch" 2>/dev/null || true
+            patch -p1 --forward -F 3 < "$HOME/.cache_patches/aosp/$hash.patch" 2>/dev/null || true
           done
           find . -name "*.rej" -delete 2>/dev/null
           for hash in e8400a0 a09e19e 40f0cbf; do
@@ -1042,8 +1042,7 @@ jobs:
           for hash in f91a704f7161 a6293b3e285c 9b7e9e2f5d5c f567377e406c 7dc4e97a4f9a 44350256ab94 4a90451bbc7f 57e1176e6086 5ca73468612d fda0b98ef0a6 aef8acd79f36 20121d3f58f0; do
             patch -p1 --forward -F 3 < "$HOME/.cache_patches/fuse/$hash.patch" 2>/dev/null || true
           done
-          [ -f fs/fuse/passthrough.c ] && echo "CONFIG_FUSE_PASSTHROUGH=y" >> "$GITHUB_WORKSPACE/kernel_workspace/common/arch/arm64/configs/gki_defconfig"
-          UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
+
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
             sed -i 's/\r$//' "$UNICODE_PATCH"
