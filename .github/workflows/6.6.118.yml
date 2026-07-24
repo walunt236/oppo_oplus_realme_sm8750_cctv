@@ -692,6 +692,7 @@ jobs:
           CONFIG_NET_SCH_CAKE=y
           CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
+          echo "CONFIG_CRYPTO_CRC32_ARM64=y" >> $DCFG
 
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "[INFO] 开启 RCU_NOCB_CPU..."
@@ -1015,7 +1016,11 @@ jobs:
           patch -p1 --forward -f < "$WILD_DIR/common/silence_system_logspam.patch" || echo "[WARN] silence_system_logspam.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/silence_irq_cpu_logspam.patch" || echo "[WARN] silence_irq_cpu_logspam.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/use_unlikely_wrap_cpufreq.patch" || echo "[WARN] use_unlikely_wrap_cpufreq.patch 应用失败，继续..."
-          
+          patch -p1 --forward -f < "$WILD_DIR/common/reduce_freeze_timeout.patch" || echo "[WARN] reduce_freeze_timeout.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/add_timeout_wakelocks_globally.patch" || echo "[WARN] add_timeout_wakelocks_globally.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/adjust_cpu_scan_order.patch" || echo "[WARN] adjust_cpu_scan_order.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/int_sqrt.patch" || echo "[WARN] int_sqrt.patch 应用失败，继续..."
+          patch -p1 --forward -f < "$WILD_DIR/common/re_write_limitation_scaling_min_freq.patch" || echo "[WARN] re_write_limitation_scaling_min_freq.patch 应用失败，继续..."
           UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
