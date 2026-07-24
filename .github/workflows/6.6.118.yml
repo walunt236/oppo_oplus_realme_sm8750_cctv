@@ -192,46 +192,13 @@ jobs:
             echo "[INFO] ccache 已存在: $(ccache --version | head -1)"
           fi
 
-
-          SKIP_UPSTREAM_MERGE=false
-          MERGE_BRANCH=""
-          if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
-            echo "[INFO] 获取 6.6 LTS 最新 tag..."
-            LATEST_TAG=$(git ls-remote --tags --sort=-v:refname \
-              https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
-              'refs/tags/v6.6.*' 2>/dev/null \
-              | grep -v '\^{}' | head -1 | awk -F'/' '{print $NF}')
-
-            if [ -z "$LATEST_TAG" ]; then
-              echo "[ERROR] 无法从 kernel.org 获取 v6.6 tag" | tee -a "$LOG_FILE"
-              exit 1
-            fi
-
-            UPSTREAM_MARKER="$HOME/.cache_patches/upstream_tag_done"
-            mkdir -p "$HOME/.cache_patches"
-            MERGE_BRANCH="merged-upstream-$LATEST_TAG"
-
-            if [ -f "$UPSTREAM_MARKER" ] && [ "$(cat "$UPSTREAM_MARKER")" = "$LATEST_TAG" ]; then
-              SKIP_UPSTREAM_MERGE=true
-            fi
-          fi
-
-          if [ -d "common/.git" ]; then
-            if [ "$SKIP_UPSTREAM_MERGE" = "true" ] && git -C common rev-parse "$MERGE_BRANCH" >/dev/null 2>&1; then
-              echo "[INFO] [秒过] 本地源码已是最新上游 $LATEST_TAG，直接复用已合并状态" | tee -a "$LOG_FILE"
-              cd common
-              git reset --hard "$MERGE_BRANCH"
-              git clean -fd
-              cd ..
-            else
-              echo "[INFO] common 源码已存在，仅reset到OEM"
-              cd common
-              git fetch --depth=1 origin oneplus/sm8750_b_16.0.0_oneplus_13
-              git reset --hard FETCH_HEAD
-              git clean -fd
-              cd ..
-              SKIP_UPSTREAM_MERGE=false
-            fi
+            if [ -d "common/.git" ]; then
+            echo "[INFO] common 源码已存在，reset到OEM"
+            cd common
+            git fetch --depth=1 origin oneplus/sm8750_b_16.0.0_oneplus_13
+            git reset --hard FETCH_HEAD
+            git clean -fd
+            cd ..
           else
             echo "[INFO] 首次克隆 OEM 内核源码仓库..."
             git clone --depth=1 \
@@ -262,34 +229,26 @@ jobs:
           git config user.name "github-actions[bot]"
 
           if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
-            git remote remove upstream 2>/dev/null || true
-            git remote add upstream https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
-
-            echo "UPSTREAM_TAG=$LATEST_TAG" >> $GITHUB_ENV
-            SUB_VER=$(echo "$LATEST_TAG" | sed -E 's/.*6\.6\.([0-9]+).*/\1/')
-            echo "SUB_VERSION=$SUB_VER" >> $GITHUB_ENV
-            KERNEL_NAME_VAL="android16-${LATEST_TAG}-4k"
-            echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
-            echo "sub_version=$SUB_VER" >> $GITHUB_OUTPUT
-            echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
-
-            if [ "$SKIP_UPSTREAM_MERGE" = "true" ]; then
-              echo "[INFO] [秒过] 跳过上游拉取与合并（标记匹配）" | tee -a "$LOG_FILE"
-            else
-              echo "[INFO] 拉取并合并上游 tag: $LATEST_TAG ..."
-              git fetch --depth=1 upstream tag "$LATEST_TAG" || git fetch upstream "$LATEST_TAG"
-              if git merge "$LATEST_TAG" --no-edit -X ours --allow-unrelated-histories; then
-                echo "[INFO] 上游合并成功" | tee -a "$LOG_FILE"
+            echo "[INFO] 拉取 Google AOSP android15-6.6 ..." | tee -a "$LOG_FILE"
+            if git fetch --depth=1 https://android.googlesource.com/kernel/common android15-6.6 2>/dev/null; then
+              if git merge FETCH_HEAD --no-edit -X ours --allow-unrelated-histories; then
+                echo "[INFO] AOSP上游合并成功" | tee -a "$LOG_FILE"
               else
                 echo "[WARN] 存在冲突，自动保留 OEM 版本..." | tee -a "$LOG_FILE"
                 git diff --name-only --diff-filter=U | xargs -r git checkout --ours --
                 git add -A
-                git commit -m "Merge upstream $LATEST_TAG, keep OEM customizations" || true
-                echo "[INFO] 冲突自动解决（OEM 优先）" | tee -a "$LOG_FILE"
+                git commit -m "Merge AOSP android15-6.6, keep OEM" || true
               fi
-              git branch -f "$MERGE_BRANCH" HEAD
-              echo "$LATEST_TAG" > "$UPSTREAM_MARKER"
+            else
+              echo "[WARN] AOSP fetch 失败，跳过上游合并" | tee -a "$LOG_FILE"
             fi
+            OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
+            OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
+            echo "SUB_VERSION=$OEM_SUBLEVEL" >> $GITHUB_ENV
+            KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}-4k"
+            echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
+            echo "sub_version=$OEM_SUBLEVEL" >> $GITHUB_OUTPUT
+            echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
           else
             echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
