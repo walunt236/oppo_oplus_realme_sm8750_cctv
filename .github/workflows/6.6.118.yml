@@ -755,13 +755,6 @@ jobs:
 
           echo "[INFO] F2FS检查点优化完成"
           
-      - name: 内核能效预设值调优-P1-2
-        run: |
-          cd kernel_workspace/common
-          sed -i 's/sysctl_sched_uclamp_util_min_rt_default = SCHED_CAPACITY_SCALE/sysctl_sched_uclamp_util_min_rt_default = SCHED_CAPACITY_SCALE \/ 2/' kernel/sched/core.c
-          sed -i 's/rcu_resched_ns = 3 \* NSEC_PER_MSEC/rcu_resched_ns = 10 * NSEC_PER_MSEC/' kernel/rcu/tree.c
-          echo "[INFO] 内核能效预设值调优完成"
-          
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
