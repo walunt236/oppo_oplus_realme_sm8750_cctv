@@ -1023,6 +1023,14 @@ jobs:
           patch -p1 --forward -f < "$WILD_DIR/common/reduce_gc_thread_sleep_time.patch" || echo "[WARN] reduce_gc_thread_sleep_time.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/reduce_gc_thread_sleep_time.patch" || echo "[WARN] reduce_gc_thread_sleep_time.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/increase_sk_mem_packets.patch" || echo "[WARN] increase_sk_mem_packets.patch 应用失败，继续..."
+          curl -fSL -o /tmp/mm_zsmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/d831954.patch"
+          patch -p1 --forward -f < /tmp/mm_zsmalloc.patch || echo "[WARN] mm_zsmalloc 应用失败，继续..."
+          curl -fSL -o /tmp/mm_kvmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/a8093f3.patch"
+          patch -p1 --forward -f < /tmp/mm_kvmalloc.patch || echo "[WARN] mm_kvmalloc 应用失败，继续..."
+          curl -fSL -o /tmp/mm_slab.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/936de3f.patch"
+          patch -p1 --forward -f < /tmp/mm_slab.patch || echo "[WARN] mm_slab 应用失败，继续..."
+          curl -fSL -o /tmp/mm_vmpressure.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/99b920c.patch"
+          patch -p1 --forward -f < /tmp/mm_vmpressure.patch || echo "[WARN] mm_vmpressure 应用失败，继续..."
           UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
