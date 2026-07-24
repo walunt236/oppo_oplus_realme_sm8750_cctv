@@ -561,16 +561,7 @@ jobs:
             cd ./KernelSU
             patch -p1 < 10_enable_susfs_for_ksu.patch || true
           fi
-      - name: LZ4/ZSTD完整升级至v1.10.0+1.5.7
-        run: |
-          cd kernel_workspace/common
-          curl -fSL -o /tmp/lz4_zstd_upgrade.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/db91f34.patch"
-          patch -p1 -F 3 -f < /tmp/lz4_zstd_upgrade.patch || {
-            echo "[WARN] LZ4/ZSTD升级应用不全，回退到基础版"
-            rm -f /tmp/lz4_zstd_upgrade.patch
-          }
-          rm -f /tmp/lz4_zstd_upgrade.patch
-          echo "[INFO] LZ4/ZSTD完整升级完成"
+    
       - name: 应用lz4/zstd
         if: inputs.lz4_enable
         run: |
