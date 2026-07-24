@@ -1048,6 +1048,8 @@ jobs:
             echo 'CFLAGS_lz4hc.o += -O3' >> lib/Makefile
           fi
           
+          git -C "$GITHUB_WORKSPACE/kernel_workspace/common" checkout -- drivers/dma-buf/dma-buf.c 2>/dev/null || true
+          
           TOTAL_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
           
           if [ "$TOTAL_REJ" -gt 15 ]; then
