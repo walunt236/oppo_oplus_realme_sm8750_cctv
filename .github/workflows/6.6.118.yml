@@ -1031,6 +1031,8 @@ jobs:
           curl -fSL -o /tmp/mm_vmpressure.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/99b920c.patch"
           patch -p1 --forward -f < /tmp/mm_vmpressure.patch || echo "[WARN] mm_vmpressure 应用失败，继续..."
           git -C "$GITHUB_WORKSPACE/kernel_workspace/common" fetch --depth=200 https://android.googlesource.com/kernel/common android15-6.6
+          git -C "$GITHUB_WORKSPACE/kernel_workspace/common" cherry-pick --abort 2>/dev/null || true
+          git -C "$GITHUB_WORKSPACE/kernel_workspace/common" checkout -- . 2>/dev/null || true
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba dab84cf3cb13 27ba8dd0e911 9eecad532ad3 c7a8aea27b87; do
             git -C "$GITHUB_WORKSPACE/kernel_workspace/common" cherry-pick --no-commit $hash 2>/dev/null || true
           done
@@ -1306,7 +1308,6 @@ jobs:
           zip -r ../$AK3_NAME ./*
           echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
 
-          # === 本地编译：打包后 0 秒保存至自定义位置 ===
           if [[ "${{ inputs.runner_type }}" == "self-hosted" ]]; then
             CUSTOM_LOCAL_PATH="/mnt/d/AK3_DOC"
 
@@ -1328,10 +1329,16 @@ jobs:
       - name: 本地工作区定时清理
         if: success() && inputs.runner_type == 'self-hosted'
         run: |
-          echo "[INFO] 刷机包已打包完成，清理 out 目录以释放磁盘空间..."
+          echo "[INFO] 清理编译产出和临时文件..."
           rm -rf kernel_workspace/common/out
           rm -rf kernel_workspace/vendor_modules/out
-          echo "[INFO] 磁盘清理完成！"
+          rm -f /tmp/*.patch
+          ccache -c
+          echo "[INFO] ccache 已裁剪至上限"
+          for repo in "$HOME/.cache_patches/"*; do
+            [ -d "$repo/.git" ] && git -C "$repo" gc --auto 2>/dev/null || true
+          done
+          echo "[INFO] 磁盘清理完成"
     
       - name: 上传 Ccache 调试日志
         if: ${{ always() && inputs.ccache_debug && !inputs.diagnosis }}
