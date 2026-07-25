@@ -170,7 +170,7 @@ jobs:
               binutils python-is-python3 libssl-dev libelf-dev aria2
           else
             echo "[INFO] 检测到 本地 self-hosted (WSL2) 环境，跳过危险修改..." | tee -a "$LOG_FILE"
-            for pkg in binutils python3 libssl-dev libelf-dev aria2 zip zstd libxml2-dev; do
+            for pkg in binutils python3 libssl-dev libelf-dev aria2 zip zstd libxml2-dev unzip; do
               if ! dpkg -l "$pkg" >/dev/null 2>&1 && ! command -v "$pkg" >/dev/null 2>&1; then
                 echo "[WARN] 缺少依赖: $pkg，尝试安装..."
                 sudo apt-get install -y --no-install-recommends "$pkg" || {
@@ -264,22 +264,22 @@ jobs:
 
           cd ..
          
-          # 恢复原始的 Clang 19 参数
-          CLANG_DIR_NAME="Clang-19.0.0git-20240723"
-          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz"
+          # AOSP Google Clang 20 (PGO+BOLT+LTO+MLGO, built for kernel)
+          CLANG_DIR_NAME="clang-r547379"
+          CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel/clang-r547379.tar.gz"
 
           TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
           mkdir -p "$HOME/.toolchains"
 
           if [ ! -d "$TC_DIR/bin" ]; then
-            echo "[INFO] 检测到 Clang 19 未缓存或版本更新，开始下载..."
+            echo "[INFO] 检测到 Clang 20 未缓存，开始下载..."
             rm -rf "$TC_DIR"
             mkdir -p "$TC_DIR"
-            aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang19.tar.gz
-            tar -xzf clang19.tar.gz -C "$TC_DIR" && rm -f clang19.tar.gz
+            aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang20.tar.gz
+            tar -xzf clang20.tar.gz -C "$TC_DIR" && rm -f clang20.tar.gz
           else
-            echo "[INFO] [秒过] Clang 19 工具链已存在本地缓存，直接复用！"
+            echo "[INFO] [秒过] Clang 20 工具链已存在本地缓存，直接复用！"
           fi
           
           if [ ! -d "$BT_DIR/bin" ]; then
