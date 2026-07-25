@@ -265,7 +265,7 @@ jobs:
           cd ..
          
           CLANG_DIR_NAME="clang-r536225"
-          CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz"
+          CLANG_URL="https://github.com/SA9990/Toolchain/releases/download/clang-r536225/clang-r536225.tar.gz"
 
           TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
