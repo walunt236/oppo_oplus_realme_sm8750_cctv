@@ -266,7 +266,7 @@ jobs:
          
           # AOSP Google Clang 20 (PGO+BOLT+LTO+MLGO, built for kernel)
           CLANG_DIR_NAME="llvm-19.1.7-aarch64"
-          CLANG_URL="https://cdn.kernel.org/pub/tools/llvm/files/llvm-19.1.7-aarch64.tar.xz"
+          CLANG_URL="https://cdn.kernel.org/pub/tools/llvm/files/llvm-19.1.7-x86_64.tar.xz"
 
           TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
@@ -1017,7 +1017,7 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="llvm-19.1.7-aarch64"
+          CLANG_DIR_NAME="llvm-19.1.7-x86_64"
           
           # 第一步：垫底加载旧版 build-tools
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
@@ -1100,7 +1100,7 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="llvm-19.1.7-aarch64"
+          CLANG_DIR_NAME="llvm-19.1.7-x86_64"
           
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
