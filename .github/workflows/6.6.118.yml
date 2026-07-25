@@ -1050,7 +1050,7 @@ jobs:
 
           for TARGET_DIR in lib crypto; do
             if [ -d "$TARGET_DIR" ]; then
-              echo 'subdir-ccflags-y += -O3 -mllvm -polly -mllvm -polly-vectorizer=stripmine' >> $TARGET_DIR/Makefile
+              echo 'subdir-ccflags-y += -O3' >> $TARGET_DIR/Makefile
             fi
           done
           
@@ -1134,7 +1134,7 @@ jobs:
           echo "[INFO] 链接器版本检查："
           ld.lld --version
           # --------------------------
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
           
           echo "[INFO] 内核镜像编译完成" | tee -a "$LOG_FILE"
           if nm out/vmlinux 2>/dev/null | grep -q "_lz4_decompress_asm"; then
