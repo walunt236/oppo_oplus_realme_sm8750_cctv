@@ -635,7 +635,8 @@ jobs:
           echo 'CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y' >> $DCFG
           
           cat >> $DCFG << 'TUNECFG'
-          CONFIG_LTO_CLANG_THIN=y
+          # CONFIG_LTO_CLANG_THIN is not set
+          CONFIG_LTO_NONE=y
           CONFIG_ZRAM_DEF_COMP_LZ4=y
           CONFIG_ZRAM_DEF_COMP="lz4"
           CONFIG_CRYPTO_LZ4=y
