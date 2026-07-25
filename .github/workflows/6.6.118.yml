@@ -265,21 +265,21 @@ jobs:
           cd ..
          
           # AOSP Google Clang 20 (PGO+BOLT+LTO+MLGO, built for kernel)
-          CLANG_DIR_NAME="clang-r547379"
-          CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel/clang-r547379.tar.gz"
+          CLANG_DIR_NAME="llvm-19.1.7-aarch64"
+          CLANG_URL="https://cdn.kernel.org/pub/tools/llvm/files/llvm-19.1.7-aarch64.tar.xz"
 
           TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
           mkdir -p "$HOME/.toolchains"
 
           if [ ! -d "$TC_DIR/bin" ]; then
-            echo "[INFO] 检测到 Clang 20 未缓存，开始下载..."
+            echo "[INFO] 检测到 LLVM 19.1.7 未缓存，开始下载..."
             rm -rf "$TC_DIR"
             mkdir -p "$TC_DIR"
-            aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang20.tar.gz
-            tar -xzf clang20.tar.gz -C "$TC_DIR" && rm -f clang20.tar.gz
+            aria2c -s16 -x16 -k1M "$CLANG_URL" -o llvm19.tar.xz
+            tar -xJf llvm19.tar.xz --strip-components=1 -C "$TC_DIR" && rm -f llvm19.tar.xz
           else
-            echo "[INFO] [秒过] Clang 20 工具链已存在本地缓存，直接复用！"
+            echo "[INFO] [秒过] LLVM 19.1.7 工具链已存在本地缓存，直接复用！"
           fi
           
           if [ ! -d "$BT_DIR/bin" ]; then
@@ -1017,7 +1017,7 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="clang-r547379"
+          CLANG_DIR_NAME="llvm-19.1.7-aarch64"
           
           # 第一步：垫底加载旧版 build-tools
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
@@ -1100,7 +1100,7 @@ jobs:
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           WORKDIR="$(pwd)"
-          CLANG_DIR_NAME="clang-r547379"
+          CLANG_DIR_NAME="llvm-19.1.7-aarch64"
           
           export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
