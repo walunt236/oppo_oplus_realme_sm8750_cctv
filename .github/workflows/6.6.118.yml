@@ -681,7 +681,7 @@ jobs:
           CONFIG_UBSAN_BOUNDS=y
           CONFIG_UBSAN_ARRAY_BOUNDS=y
           CONFIG_UBSAN_LOCAL_BOUNDS=y
-          CONFIG_UBSAN_SANITIZE_ALL=n
+          CONFIG_UBSAN_SANITIZE_ALL=y
           CONFIG_KUNIT=m
           CONFIG_KUNIT_DEBUGFS=y
           OEMDEPENDS
@@ -891,7 +891,7 @@ jobs:
           echo "CONFIG_TCP_CONG_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
 
-      - name: 应用风驰引擎及优化补丁
+            - name: 应用风驰引擎及优化补丁
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           
@@ -967,26 +967,7 @@ jobs:
           patch -p1 --forward -f < "$WILD_DIR/common/f2fs_reduce_congestion.patch" || echo "[WARN] f2fs_reduce_congestion.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/f2fs_enlarge_min_fsync_blocks.patch" || echo "[WARN] f2fs_enlarge_min_fsync_blocks.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/increase_ext4_default_commit_age.patch" || echo "[WARN] increase_ext4_default_commit_age.patch 应用失败，继续..."
-
-          patch -p1 --forward -f < "$WILD_DIR/common/int_sqrt.patch" || echo "[WARN] int_sqrt.patch 应用失败，继续..."
-          patch -p1 --forward -f < "$WILD_DIR/common/reduce_gc_thread_sleep_time.patch" || echo "[WARN] reduce_gc_thread_sleep_time.patch 应用失败，继续..."
-          patch -p1 --forward -f < "$WILD_DIR/common/increase_sk_mem_packets.patch" || echo "[WARN] increase_sk_mem_packets.patch 应用失败，继续..."
-          curl -fSL -o /tmp/mm_zsmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/d831954.patch"
-          patch -p1 --forward -f < /tmp/mm_zsmalloc.patch || echo "[WARN] mm_zsmalloc 应用失败，继续..."
-          curl -fSL -o /tmp/mm_kvmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/a8093f3.patch"
-          patch -p1 --forward -f < /tmp/mm_kvmalloc.patch || echo "[WARN] mm_kvmalloc 应用失败，继续..."
-          curl -fSL -o /tmp/mm_slab.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/936de3f.patch"
-          patch -p1 --forward -f < /tmp/mm_slab.patch || echo "[WARN] mm_slab 应用失败，继续..."
-          curl -fSL -o /tmp/mm_vmpressure.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/99b920c.patch"
-          patch -p1 --forward -f < /tmp/mm_vmpressure.patch || echo "[WARN] mm_vmpressure 应用失败，继续..."
-          find . -name "*.rej" -delete 2>/dev/null
-          for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 9eecad532ad3 c7a8aea27b87; do
-            patch -p1 --forward -F 3 < "$HOME/.cache_patches/aosp/$hash.patch" 2>/dev/null || true
-          done
-          find . -name "*.rej" -delete 2>/dev/null
-          for hash in e8400a0 a09e19e 40f0cbf; do
-            patch -p1 --forward -F 3 < "$HOME/.cache_patches/palazik/$hash.patch" 2>/dev/null || true
-          done
+          
           UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
@@ -998,8 +979,6 @@ jobs:
             echo 'CFLAGS_lz4.o += -O3' >> lib/Makefile
             echo 'CFLAGS_lz4hc.o += -O3' >> lib/Makefile
           fi
-          
-          git -C "$GITHUB_WORKSPACE/kernel_workspace/common" checkout -- drivers/dma-buf/dma-buf.c 2>/dev/null || true
           
           TOTAL_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
           
