@@ -1165,7 +1165,7 @@ jobs:
           chmod +x ld-wrapper
           
           if [[ "$PGO_ENABLED" == "true" ]] && [ -f "$PGO_PROFILE" ]; then
-            PGO_FLAGS="-fprofile-sample-use=$PGO_PROFILE -mllvm -sample-profile-inline-threshold=0 -mllvm -profile-sample-accurate=0 -Wno-backend-plugin"
+            PGO_FLAGS="-fprofile-sample-use=$PGO_PROFILE -mllvm --sample-profile-hot-inline-threshold=0 -mllvm -profile-sample-accurate=0 -Wno-backend-plugin"
             echo "[INFO] PGO 优化已启用: $PGO_PROFILE" | tee -a "$LOG_FILE"
           else
             PGO_FLAGS=""
