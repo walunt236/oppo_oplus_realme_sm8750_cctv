@@ -922,7 +922,15 @@ jobs:
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace/common
           sed -i 's/SCHED_FEAT(HRTICK, false)/SCHED_FEAT(HRTICK, true)/' kernel/sched/features.h
-          echo "[INFO] HRTICK 高精度调度已启用" | tee -a "$LOG_FILE"
+                    echo "[INFO] HRTICK 高精度调度已启用" | tee -a "$LOG_FILE"
+
+      - name: 启用 SIS_PROP 并行唤醒扫描
+        run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          cd kernel_workspace/common
+          sed -i 's/SCHED_FEAT(SIS_PROP, false)/SCHED_FEAT(SIS_PROP, true)/' kernel/sched/features.h
+          echo "[INFO] SIS_PROP 并行唤醒扫描已启用" | tee -a "$LOG_FILE"
+
 
 
       - name: 应用风驰引擎及优化补丁
