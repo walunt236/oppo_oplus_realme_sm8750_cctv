@@ -123,11 +123,6 @@ on:
         required: true
         type: boolean
         default: true
-      pgo_enable:
-        description: 'PGO 编译优化 (实验性)'
-        required: true
-        type: boolean
-        default: false
       o3_selective:
         description: '选择性-O3'
         required: true
@@ -1098,39 +1093,6 @@ jobs:
             echo "[INFO] LLCC 死锁完成" | tee -a "$LOG_FILE"
           fi
 
-      - name: 配置 PGO 编译优化
-        if: inputs.pgo_enable
-        run: |
-          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
-          echo "[INFO] 配置 PGO (Profile-Guided Optimization)..." | tee -a "$LOG_FILE"
-
-          cd kernel_workspace/common
-
-          PGO_DIR="$HOME/.cache_patches/pgo_profiles"
-          mkdir -p "$PGO_DIR"
-
-          # Android GKI AutoFDO profile (架构无关, Pixel 采集, 匹配 Clang 19)
-          # 从 Google kernel/common 下载 base64 编码的 kernel.afdo
-          PGO_URL="https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT"
-
-          echo "[INFO] 下载 Google GKI AutoFDO profile..." | tee -a "$LOG_FILE"
-          if curl -fSL --connect-timeout 30 --max-time 120 -o "$PGO_DIR/kernel.afdo.b64" "$PGO_URL" 2>/dev/null; then
-            base64 -d "$PGO_DIR/kernel.afdo.b64" > "$PGO_DIR/kernel.afdo" 2>/dev/null
-            AFDO_SIZE=$(wc -c < "$PGO_DIR/kernel.afdo")
-            if [ "$AFDO_SIZE" -gt 1000 ]; then
-              rm -f "$PGO_DIR/kernel.afdo.b64"
-              echo "[INFO] Google GKI AutoFDO profile 下载成功 ($AFDO_SIZE bytes)" | tee -a "$LOG_FILE"
-              echo "PGO_PROFILE=$PGO_DIR/kernel.afdo" >> $GITHUB_ENV
-              echo "PGO_ENABLED=true" >> $GITHUB_ENV
-            else
-              echo "[WARN] profile 解码后过小 ($AFDO_SIZE bytes), 回退到无 PGO 编译" | tee -a "$LOG_FILE"
-              echo "PGO_ENABLED=false" >> $GITHUB_ENV
-            fi
-          else
-            echo "[WARN] Google GKI AutoFDO profile 下载失败，回退到无 PGO 编译" | tee -a "$LOG_FILE"
-            echo "PGO_ENABLED=false" >> $GITHUB_ENV
-          fi
-
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
         run: |
@@ -1164,13 +1126,7 @@ jobs:
           EOF
           chmod +x ld-wrapper
           
-          if [[ "$PGO_ENABLED" == "true" ]] && [ -f "$PGO_PROFILE" ]; then
-            PGO_FLAGS="-fprofile-sample-use=$PGO_PROFILE -mllvm --sample-profile-hot-inline-threshold=0 -mllvm -profile-sample-accurate=0 -Wno-backend-plugin"
-            echo "[INFO] PGO 优化已启用: $PGO_PROFILE" | tee -a "$LOG_FILE"
-          else
-            PGO_FLAGS=""
-          fi
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 $PGO_FLAGS"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
           echo "[INFO] 链接器版本检查："
