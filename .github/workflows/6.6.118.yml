@@ -264,21 +264,22 @@ jobs:
 
           cd ..
           
-          # ZyC Clang 19
+          # 恢复原始的 Clang 19 参数
           CLANG_DIR_NAME="Clang-19.0.0git-20240723"
           CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz"
 
           TC_DIR="$HOME/.toolchains/$CLANG_DIR_NAME"
           BT_DIR="$HOME/.toolchains/build-tools-r510928"
           mkdir -p "$HOME/.toolchains"
- 
+
           if [ ! -d "$TC_DIR/bin" ]; then
-            echo "[INFO] 检测到 Google Clang 19 未缓存，开始下载..."
+            echo "[INFO] 检测到 Clang 19 未缓存或版本更新，开始下载..."
             rm -rf "$TC_DIR"
+            mkdir -p "$TC_DIR"
             aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang19.tar.gz
             tar -xzf clang19.tar.gz -C "$TC_DIR" && rm -f clang19.tar.gz
           else
-            echo "[INFO] [秒过] Google Clang 19 工具链已存在本地缓存，直接复用！"
+            echo "[INFO] [秒过] Clang 19 工具链已存在本地缓存，直接复用！"
           fi
           
           if [ ! -d "$BT_DIR/bin" ]; then
@@ -1125,8 +1126,7 @@ jobs:
           EOF
           chmod +x ld-wrapper
           
-          KCFLAGS_EXTRA="-march=armv8.7-a+crypto+fp16+dotprod+rcpc+bf16+i8mm -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
-          # --- 工具链版本校验 ---
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
           echo "[INFO] 链接器版本检查："
