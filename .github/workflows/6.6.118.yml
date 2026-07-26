@@ -908,7 +908,15 @@ jobs:
           #define LOAD_AVG_PERIOD 16
           #define LOAD_AVG_MAX 24130
           PELTEOF
-          echo "[INFO] PELT 半衰期已切换为 16ms" | tee -a "$LOG_FILE"
+                    echo "[INFO] PELT 半衰期已切换为 16ms" | tee -a "$LOG_FILE"
+
+      - name: 启用 NEXT_BUDDY 调度优化
+        run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          cd kernel_workspace/common
+          sed -i 's/SCHED_FEAT(NEXT_BUDDY, false)/SCHED_FEAT(NEXT_BUDDY, true)/' kernel/sched/features.h
+          echo "[INFO] NEXT_BUDDY 调度优化已启用" | tee -a "$LOG_FILE"
+
       - name: 应用风驰引擎及优化补丁
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
