@@ -1167,6 +1167,13 @@ jobs:
           echo "[INFO] 链接器版本检查："
           ld.lld --version
           # --------------------------
+          # Apply MGLRU aggressive aging (last source mod to avoid being overwritten by prior patches)
+          if grep -q 'if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)' mm/vmscan.c; then
+            sed -i '/if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)/,+1d' mm/vmscan.c
+            echo "[INFO] MGLRU aging threshold relaxed" | tee -a "$LOG_FILE"
+          else
+            echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
+          fi
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
           
           echo "[INFO] 内核镜像编译完成" | tee -a "$LOG_FILE"
