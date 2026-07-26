@@ -1109,27 +1109,26 @@ jobs:
           PGO_DIR="$HOME/.cache_patches/pgo_profiles"
           mkdir -p "$PGO_DIR"
 
-          PGO_URLS=(
-            "https://android.googlesource.com/kernel/prebuilts/+/refs/heads/main/profiles/android15-6.6/gki_profile_aarch64.profdata?format=TEXT"
-            "https://raw.githubusercontent.com/google/android-gki-pgo/refs/heads/main/android15-6.6/gki_profile_aarch64.profdata"
-          )
+          # Android GKI AutoFDO profile (架构无关, Pixel 采集, 匹配 Clang 19)
+          # 从 Google kernel/common 下载 base64 编码的 kernel.afdo
+          PGO_URL="https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT"
 
-          PGO_DOWNLOADED=false
-          for url in "${PGO_URLS[@]}"; do
-            echo "[INFO] 尝试下载 PGO profile: $url" | tee -a "$LOG_FILE"
-            if curl -fSL --connect-timeout 15 --max-time 60 -o "$PGO_DIR/gki.profdata" "$url" 2>/dev/null; then
-              PGO_DOWNLOADED=true
-              echo "[INFO] PGO profile 下载成功" | tee -a "$LOG_FILE"
-              break
+          echo "[INFO] 下载 Google GKI AutoFDO profile..." | tee -a "$LOG_FILE"
+          if curl -fSL --connect-timeout 30 --max-time 120 -o "$PGO_DIR/kernel.afdo.b64" "$PGO_URL" 2>/dev/null; then
+            base64 -d "$PGO_DIR/kernel.afdo.b64" > "$PGO_DIR/kernel.afdo" 2>/dev/null
+            AFDO_SIZE=$(wc -c < "$PGO_DIR/kernel.afdo")
+            if [ "$AFDO_SIZE" -gt 1000 ]; then
+              rm -f "$PGO_DIR/kernel.afdo.b64"
+              echo "[INFO] Google GKI AutoFDO profile 下载成功 ($AFDO_SIZE bytes)" | tee -a "$LOG_FILE"
+              echo "PGO_PROFILE=$PGO_DIR/kernel.afdo" >> $GITHUB_ENV
+              echo "PGO_ENABLED=true" >> $GITHUB_ENV
+            else
+              echo "[WARN] profile 解码后过小 ($AFDO_SIZE bytes), 回退到无 PGO 编译" | tee -a "$LOG_FILE"
+              echo "PGO_ENABLED=false" >> $GITHUB_ENV
             fi
-          done
-
-          if [ "$PGO_DOWNLOADED" = false ]; then
-            echo "[WARN] 所有 PGO profile 源均不可用，回退到无 PGO 编译" | tee -a "$LOG_FILE"
-            echo "PGO_ENABLED=false" >> $GITHUB_ENV
           else
-            echo "PGO_PROFILE=$PGO_DIR/gki.profdata" >> $GITHUB_ENV
-            echo "PGO_ENABLED=true" >> $GITHUB_ENV
+            echo "[WARN] Google GKI AutoFDO profile 下载失败，回退到无 PGO 编译" | tee -a "$LOG_FILE"
+            echo "PGO_ENABLED=false" >> $GITHUB_ENV
           fi
 
       - name: 编译完整内核镜像
@@ -1166,7 +1165,7 @@ jobs:
           chmod +x ld-wrapper
           
           if [[ "$PGO_ENABLED" == "true" ]] && [ -f "$PGO_PROFILE" ]; then
-            PGO_FLAGS="-fprofile-use=$PGO_PROFILE -Wno-backend-plugin"
+            PGO_FLAGS="-fprofile-sample-use=$PGO_PROFILE -Wno-backend-plugin"
             echo "[INFO] PGO 优化已启用: $PGO_PROFILE" | tee -a "$LOG_FILE"
           else
             PGO_FLAGS=""
