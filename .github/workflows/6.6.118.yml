@@ -665,7 +665,7 @@ jobs:
             echo 'CONFIG_RCU_BOOST_DELAY=300' >> ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_RCU_NOCB_CPU_CB_BOOST=y' >> ./common/arch/arm64/configs/gki_defconfig
           fi
-          echo "CONFIG_CFI_CLANG=n" >> $DCFG
+
           cat >> $DCFG << 'NSCFG'
           CONFIG_UTS_NS=y
           CONFIG_USER_NS=y
