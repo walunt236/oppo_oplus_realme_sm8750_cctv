@@ -123,6 +123,11 @@ on:
         required: true
         type: boolean
         default: true
+      pgo_enable:
+        description: 'PGO 编译优化 (实验性)'
+        required: true
+        type: boolean
+        default: false
       o3_selective:
         description: '选择性-O3'
         required: true
@@ -1093,6 +1098,40 @@ jobs:
             echo "[INFO] LLCC 死锁完成" | tee -a "$LOG_FILE"
           fi
 
+      - name: 配置 PGO 编译优化
+        if: inputs.pgo_enable
+        run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          echo "[INFO] 配置 PGO (Profile-Guided Optimization)..." | tee -a "$LOG_FILE"
+
+          cd kernel_workspace/common
+
+          PGO_DIR="$HOME/.cache_patches/pgo_profiles"
+          mkdir -p "$PGO_DIR"
+
+          PGO_URLS=(
+            "https://android.googlesource.com/kernel/prebuilts/+/refs/heads/main/profiles/android15-6.6/gki_profile_aarch64.profdata?format=TEXT"
+            "https://raw.githubusercontent.com/google/android-gki-pgo/refs/heads/main/android15-6.6/gki_profile_aarch64.profdata"
+          )
+
+          PGO_DOWNLOADED=false
+          for url in "${PGO_URLS[@]}"; do
+            echo "[INFO] 尝试下载 PGO profile: $url" | tee -a "$LOG_FILE"
+            if curl -fSL --connect-timeout 15 --max-time 60 -o "$PGO_DIR/gki.profdata" "$url" 2>/dev/null; then
+              PGO_DOWNLOADED=true
+              echo "[INFO] PGO profile 下载成功" | tee -a "$LOG_FILE"
+              break
+            fi
+          done
+
+          if [ "$PGO_DOWNLOADED" = false ]; then
+            echo "[WARN] 所有 PGO profile 源均不可用，回退到无 PGO 编译" | tee -a "$LOG_FILE"
+            echo "PGO_ENABLED=false" >> $GITHUB_ENV
+          else
+            echo "PGO_PROFILE=$PGO_DIR/gki.profdata" >> $GITHUB_ENV
+            echo "PGO_ENABLED=true" >> $GITHUB_ENV
+          fi
+
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
         run: |
@@ -1126,7 +1165,13 @@ jobs:
           EOF
           chmod +x ld-wrapper
           
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
+          if [[ "$PGO_ENABLED" == "true" ]] && [ -f "$PGO_PROFILE" ]; then
+            PGO_FLAGS="-fprofile-use=$PGO_PROFILE -Wno-backend-plugin"
+            echo "[INFO] PGO 优化已启用: $PGO_PROFILE" | tee -a "$LOG_FILE"
+          else
+            PGO_FLAGS=""
+          fi
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 $PGO_FLAGS"
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
           echo "[INFO] 链接器版本检查："
