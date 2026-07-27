@@ -1175,8 +1175,53 @@ jobs:
           exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" "$@"
           EOF
           chmod +x ld-wrapper
+          # Decode self-collected kernel PGO profile
+          base64 -d << 'PGOEOF' > kernel.afdo
+          X3Jhd19zcGluX3VubG9ja19pcnFyZXN0b3JlOjIwODQzNzcwMDQ6MjA4NDM3NzAwNAowOiAyMDg0
+          Mzc3MDA0CmFyY2hfbG9jYWxfaXJxX2VuYWJsZToxNDIxOTMyOTk3OjE0MjE5MzI5OTcKMDogMTQy
+          MTkzMjk5NwpmaW5pc2hfdGFza19zd2l0Y2g6MTM0ODc4Mzk4OToxMzQ4NzgzOTg5CjA6IDEzNDg3
+          ODM5ODkKX3Jhd19zcGluX3VubG9ja19pcnE6ODE5MjA4MTMwOjgxOTIwODEzMAowOiA4MTkyMDgx
+          MzAKTFo0X2NvbXByZXNzX2Zhc3RfZXh0U3RhdGU6NjAxMDYxMzI1OjYwMTA2MTMyNQowOiA2MDEw
+          NjEzMjUKX19hcmNoX2NvcHlfdG9fdXNlcjo0NDgyMzQ5MTM6NDQ4MjM0OTEzCjA6IDQ0ODIzNDkx
+          MwpfX21lbWNweV9hYXJjaDY0X250OjQ0MTMyMDMxNTo0NDEzMjAzMTUKMDogNDQxMzIwMzE1Cl9f
+          cGlfY2xlYXJfcGFnZTo0MDE0NzQyNjY6NDAxNDc0MjY2CjA6IDQwMTQ3NDI2NgpzZXFfcHV0X2hl
+          eF9sbDoyNjkxOTE3NTU6MjY5MTkxNzU1CjA6IDI2OTE5MTc1NQpsb2NhbF9kYWlmX3Jlc3RvcmU6
+          MjUxMDg0MDY1OjI1MTA4NDA2NQowOiAyNTEwODQwNjUKYXZ0YWJfc2VhcmNoX25vZGU6MjQ5Mjky
+          MTA2OjI0OTI5MjEwNgowOiAyNDkyOTIxMDYKc2NoZWRfY2xvY2tfbm9pbnN0cjoyMDU4NzM1Mjc6
+          MjA1ODczNTI3CjA6IDIwNTg3MzUyNwpAcGx0OjE5ODIxOTI2NDoxOTgyMTkyNjQKMDogMTk4MjE5
+          MjY0CmluZmxhdGVfZmFzdDoxNzQzMzcxMDg6MTc0MzM3MTA4CjA6IDE3NDMzNzEwOApfcmF3X3Nw
+          aW5fbG9jazoxMjA3ODI1NDM6MTIwNzgyNTQzCjA6IDEyMDc4MjU0MwpxdWV1ZWRfc3Bpbl9sb2Nr
+          X3Nsb3dwYXRoOjExNzczMzEwMToxMTc3MzMxMDEKMDogMTE3NzMzMTAxCnB0aHJlYWRfbXV0ZXhf
+          bG9jazoxMTE3NDMzMTk6MTExNzQzMzE5CjA6IDExMTc0MzMxOQpfX21lbXNldF9hYXJjaDY0X250
+          OjEwNzE0NDEyNDoxMDcxNDQxMjQKMDogMTA3MTQ0MTI0CnBvc3RfYWxsb2NfaG9vazoxMDQwMjcz
+          NDM6MTA0MDI3MzQzCjA6IDEwNDAyNzM0MwpfcmF3X3NwaW5fbG9ja19pcnFzYXZlOjk1Nzc1ODc0
+          Ojk1Nzc1ODc0CjA6IDk1Nzc1ODc0CnBlcmNwdV9jb3VudGVyX2FkZF9iYXRjaDo5NTI0NjI3Nzo5
+          NTI0NjI3NwowOiA5NTI0NjI3NwpfX21lbWNtcF9hYXJjaDY0Ojk0ODE3Mjg5Ojk0ODE3Mjg5CjA6
+          IDk0ODE3Mjg5CkV4ZWN1dGVOdGVycEltcGw6OTQ3MTgxOTA6OTQ3MTgxOTAKMDogOTQ3MTgxOTAK
+          d3JpdGVsX3JlbGF4ZWQ6OTQ0MjY0MDI6OTQ0MjY0MDIKMDogOTQ0MjY0MDIKamVfbWFsbG9jOjkz
+          MzE0MDIwOjkzMzE0MDIwCjA6IDkzMzE0MDIwCnN0cnRvdWxsOjkyMzc2OTEwOjkyMzc2OTEwCjA6
+          IDkyMzc2OTEwCm1fbmV4dDo5MTkwNjM0Mjo5MTkwNjM0MgowOiA5MTkwNjM0MgpnZXR0aWQ6ODM0
+          MjcxMDg6ODM0MjcxMDgKMDogODM0MjcxMDgKcHRocmVhZF9tdXRleF91bmxvY2s6ODEwMDcxMDU6
+          ODEwMDcxMDUKMDogODEwMDcxMDUKaGFuZGxlX3NvZnRpcnFzLmxsdm0uNTc2MjMxOTMxMDAxNzIw
+          MDUwMzo3NzIyNTY4NTo3NzIyNTY4NQowOiA3NzIyNTY4NQpjb3B5X2Zyb21fa2VybmVsX25vZmF1
+          bHQ6NzM2NzQxNjQ6NzM2NzQxNjQKMDogNzM2NzQxNjQKX19zdHJsZW5fYWFyY2g2NDo2Nzk3MjQw
+          NDo2Nzk3MjQwNAowOiA2Nzk3MjQwNAp0cnlfdG9fdW5tYXBfZmx1c2hfZGlydHk6NjY5NDgzMjA6
+          NjY5NDgzMjAKMDogNjY5NDgzMjAKTnRlcnBHZXRNZXRob2Q6NjMwNDYyMzI6NjMwNDYyMzIKMDog
+          NjMwNDYyMzIKcHRocmVhZF9nZXRzcGVjaWZpYzo2Mjc1MDEyNzo2Mjc1MDEyNwowOiA2Mjc1MDEy
+          NwpfbHo0X2RlY29tcHJlc3NfYXNtOjYyNzI4NjkwOjYyNzI4NjkwCjA6IDYyNzI4NjkwCm1lbXNl
+          dDo2MjQ5MzM1Mzo2MjQ5MzM1MwowOiA2MjQ5MzM1MwppZnJlZTo2MjE0MjI1ODo2MjE0MjI1OAow
+          OiA2MjE0MjI1OApMWjRfZGVjb21wcmVzc19zYWZlOjYwMDEzNjA3OjYwMDEzNjA3CjA6IDYwMDEz
+          NjA3CmNsb2NrX2dldHRpbWU6NTgwMjIzODU6NTgwMjIzODUKMDogNTgwMjIzODUKcmVjb3JkX3J3
+          c2VtX2xvY2tfc3RhcnR0aW1lX2hhbmRsZXIgW29wbHVzX2xvY2tpbmdfc3RyYXRlZ3ldOjU3MDM0
+          NTkzOjU3MDM0NTkzCjA6IDU3MDM0NTkzCmNoYXJnZV9tZW1jZzo1NTkwMTIzMDo1NTkwMTIzMAow
+          OiA1NTkwMTIzMApnZXRfcHRlX3Bmbjo1NDcwNDgxNjo1NDcwNDgxNgowOiA1NDcwNDgxNgpwYWdl
+          X3ZtYV9tYXBwZWRfd2Fsazo1NDUwMTk4OTo1NDUwMTk4OQowOiA1NDUwMTk4OQpfX3NoYTI1Nl9j
+          ZV9maW51cDJ4OjU0MzczNDg0OjU0MzczNDg0CjA6IDU0MzczNDg0CnNsYWJfZnJlZV9mcmVlbGlz
+          dF9ob29rOjUzNzgxMDA5OjUzNzgxMDA5CjA6IDUzNzgxMDA5CmhhbmRsZV9tbV9mYXVsdDo0ODM5
+          MTY0Njo0ODM5MTY0NgowOiA0ODM5MTY0Ng==
+          PGOEOF
           
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -fprofile-sample-use=kernel.afdo -mllvm -profile-sample-accurate=0"
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
           echo "[INFO] 链接器版本检查："
