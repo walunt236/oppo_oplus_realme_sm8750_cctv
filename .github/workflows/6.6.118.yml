@@ -1190,6 +1190,8 @@ jobs:
             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
           fi
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
+            # Save unstripped vmlinux for PGO profile generation
+            cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
           echo "[INFO] 内核镜像编译完成" | tee -a "$LOG_FILE"
           if nm out/vmlinux 2>/dev/null | grep -q "_lz4_decompress_asm"; then
