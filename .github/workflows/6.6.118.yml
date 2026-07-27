@@ -652,6 +652,7 @@ jobs:
           CONFIG_ARM64_NEON=y
           CONFIG_ARM64_SIMD=y
           CONFIG_ARM_SPE_PMU=y
+          CONFIG_GCOV_KERNEL=y
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
           CONFIG_DAMON_PADDR=y
@@ -1077,6 +1078,12 @@ jobs:
           
           cd kernel_workspace/common
           
+          # Enable GCOV profiling on hot kernel subsystems (partial, not ALL)
+          for d in mm kernel/sched kernel/locking lib block fs drivers/block; do
+            [ -f "\$d/Makefile" ] && echo "GCOV_PROFILE := y" >> "\$d/Makefile"
+          done
+          # GCOV: also instrument key kernel subsystems recursively
+          echo "GCOV_PROFILE := y" >> kernel/Makefile
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ inputs.diagnosis }}" == "true" ]]; then
