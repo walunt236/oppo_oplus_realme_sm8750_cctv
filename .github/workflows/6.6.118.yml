@@ -1077,25 +1077,6 @@ jobs:
           
           cd kernel_workspace/common
           
-          # GCOV partial profiling by round
-          case "\${{ inputs.gcov_mode }}" in
-            round1_mm_locking)
-              for d in mm kernel/locking; do
-                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
-              done ;;
-            round2_sched)
-              for d in kernel/sched; do
-                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
-              done ;;
-            round3_lib_block)
-              for d in lib block drivers/block; do
-                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
-              done ;;
-            round4_fs)
-              for d in fs; do
-                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
-              done ;;
-          esac
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ inputs.diagnosis }}" == "true" ]]; then
