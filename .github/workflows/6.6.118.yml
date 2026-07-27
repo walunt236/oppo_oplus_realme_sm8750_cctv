@@ -1177,6 +1177,7 @@ jobs:
           EOF
           chmod +x ld-wrapper
 
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -fprofile-sample-use=/home/dev/.pgo/kernel.afdo -mllvm -profile-sample-accurate=0"
 
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
