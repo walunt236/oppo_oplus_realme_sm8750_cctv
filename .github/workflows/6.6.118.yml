@@ -649,6 +649,7 @@ jobs:
           CONFIG_ARM64_SIMD=y
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
+          CONFIG_KSM=y
           CONFIG_DAMON_RECLAIM=y
           CONFIG_DAMON_LRU_SORT=y
           CONFIG_NET_SCH_CAKE=y
