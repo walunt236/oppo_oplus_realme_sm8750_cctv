@@ -380,7 +380,7 @@ jobs:
           echo "CCACHE_FILE_CLONE=true" >> $GITHUB_ENV
           echo "CCACHE_INODE_CACHE=true" >> $GITHUB_ENV
           echo "CCACHE_COMPRESSION=true" >> $GITHUB_ENV
-          echo "CCACHE_COMPRESSION_LEVEL=3" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESSION_LEVEL=1" >> $GITHUB_ENV
           echo "CCACHE_UMASK=002" >> $GITHUB_ENV
           echo "CCACHE_IS_KERNEL_COMPILING=true" >> $GITHUB_ENV
           echo "CCACHE_IGNOREOPTIONS=--sysroot*" >> $GITHUB_ENV
@@ -1170,6 +1170,7 @@ jobs:
           export KBUILD_BUILD_USER="OnePlus"
           export KBUILD_BUILD_HOST="ubuntu-build"
 
+          mkdir -p "$HOME/.thinlto-cache"
           cat << 'EOF' > ld-wrapper
           #!/bin/sh
           exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" "$@"
