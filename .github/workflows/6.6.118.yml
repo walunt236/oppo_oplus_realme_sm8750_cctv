@@ -1221,7 +1221,7 @@ jobs:
           MTY0Njo0ODM5MTY0NgowOiA0ODM5MTY0Ng==
           PGOEOF
           
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -fprofile-sample-use=kernel.afdo -mllvm -profile-sample-accurate=0"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -fprofile-sample-use=../kernel.afdo -mllvm -profile-sample-accurate=0"
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
           echo "[INFO] 链接器版本检查："
