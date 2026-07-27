@@ -123,6 +123,17 @@ on:
         required: true
         type: boolean
         default: true
+      gcov_mode:
+        description: 'GCOV 插桩轮次'
+        required: true
+        type: choice
+        default: 'off'
+        options:
+          - 'off'
+          - 'round1_mm_locking'
+          - 'round2_sched'
+          - 'round3_lib_block'
+          - 'round4_fs'
       o3_selective:
         description: '选择性-O3'
         required: true
@@ -1078,10 +1089,25 @@ jobs:
           
           cd kernel_workspace/common
           
-          # Enable GCOV profiling on hot kernel subsystems (partial, not ALL)
-          for d in mm kernel/sched kernel/locking lib block fs drivers/block; do
-            [ -f "\$d/Makefile" ] && echo "GCOV_PROFILE := y" >> "\$d/Makefile"
-          done
+          # GCOV partial profiling by round
+          case "\${{ inputs.gcov_mode }}" in
+            round1_mm_locking)
+              for d in mm kernel/locking; do
+                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
+              done ;;
+            round2_sched)
+              for d in kernel/sched; do
+                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
+              done ;;
+            round3_lib_block)
+              for d in lib block drivers/block; do
+                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
+              done ;;
+            round4_fs)
+              for d in fs; do
+                [ -f "\$d/Makefile" ] && echo 'GCOV_PROFILE := y' >> "\$d/Makefile"
+              done ;;
+          esac
           # GCOV: also instrument key kernel subsystems recursively
           echo "GCOV_PROFILE := y" >> kernel/Makefile
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
