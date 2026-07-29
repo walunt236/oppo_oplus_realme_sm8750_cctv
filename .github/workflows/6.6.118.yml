@@ -895,17 +895,6 @@ jobs:
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
 
 
-      - name: MGLRU 匿名页优先回收补丁 (sed注入)
-        run: |
-          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
-          cd kernel_workspace/common
-          if ! grep -q 'SWAPPINESS_ANON_ONLY' include/linux/swap.h; then
-            sed -i '/^#define MAX_SWAPPINESS 200$/a #define SWAPPINESS_ANON_ONLY (MAX_SWAPPINESS + 1)' include/linux/swap.h
-            echo "[INFO] SWAPPINESS_ANON_ONLY 定义已注入 swap.h" | tee -a "$LOG_FILE"
-          else
-            echo "[INFO] SWAPPINESS_ANON_ONLY 已存在" | tee -a "$LOG_FILE"
-          fi
-
           - name: 调度器优化合集 (PELT 16ms + NEXT_BUDDY + HRTICK + SIS_PROP)
             run: |
               LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
