@@ -846,6 +846,13 @@ jobs:
           echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
           cd ./common
           curl -fSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash || {
+            echo "[ERROR] Baseband-guard 安装失败" | tee -a "$LOG_FILE"
+            exit 1
+          }
+          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
+
+      - name: 添加制作名称及固化版本信息
+        run: |
           cd kernel_workspace
           echo "CONFIG_LOCALVERSION_AUTO=y" >> ./common/arch/arm64/configs/gki_defconfig
 
@@ -853,14 +860,6 @@ jobs:
             sed -i "\$s|echo \"\\\$res\"|echo \"-${KERNEL_SUFFIX}\"|" "$f"
           done
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
-          else
-            for f in ./common/scripts/setlocalversion; do
-              sed -i "\$s|echo \"\\\$res\"|echo \"-${UPSTREAM_TAG}\"|" "$f"
-            done
-            sed -i "s/-4k/-${UPSTREAM_TAG}/g" ./common/arch/arm64/configs/gki_defconfig
-          fi
-          sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
-
       - name: 启用 HZ=300调度
         if: inputs.hz_300
         run: |
