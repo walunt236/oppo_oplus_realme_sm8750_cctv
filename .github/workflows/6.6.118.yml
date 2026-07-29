@@ -904,7 +904,8 @@ jobs:
           elif patch -p1 -F 3 < mglru.patch; then
             echo "[INFO] MGLRU anon-only 补丁应用成功 (patch)" | tee -a "$LOG_FILE"
           else
-            echo "[WARN] MGLRU anon-only 补丁跳过，上游已变更" | tee -a "$LOG_FILE"
+            echo "[ERROR] MGLRU anon-only 补丁应用失败，中止编译" | tee -a "$LOG_FILE"
+            exit 1
           fi
 
           - name: 调度器优化合集 (PELT 16ms + NEXT_BUDDY + HRTICK + SIS_PROP)
