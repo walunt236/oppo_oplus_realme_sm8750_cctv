@@ -895,6 +895,18 @@ jobs:
           echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
 
 
+      - name: MGLRU 匿名页优先回收补丁
+        run: |
+          cd kernel_workspace/common
+          curl -fSL -o mglru.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/mglru_anon_only.patch"
+          if git apply -p1 < mglru.patch 2>/dev/null; then
+            echo "[INFO] MGLRU anon-only 补丁应用成功" | tee -a "$LOG_FILE"
+          elif patch -p1 -F 3 < mglru.patch; then
+            echo "[INFO] MGLRU anon-only 补丁应用成功 (patch)" | tee -a "$LOG_FILE"
+          else
+            echo "[WARN] MGLRU anon-only 补丁跳过，上游已变更" | tee -a "$LOG_FILE"
+          fi
+
           - name: 调度器优化合集 (PELT 16ms + NEXT_BUDDY + HRTICK + SIS_PROP)
             run: |
               LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
