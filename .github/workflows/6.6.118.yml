@@ -230,7 +230,10 @@ jobs:
 
           if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
             echo "[INFO] 拉取 Google AOSP android15-6.6 ..." | tee -a "$LOG_FILE"
-            if git fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common android15-6.6 2>/dev/null; then
+            LATEST_AOSP_TAG=$(git ls-remote --tags --sort=-v:refname https://android.googlesource.com/kernel/common 'refs/tags/android15-6.6.*_r00' 2>/dev/null | head -1 | awk '{print $2}' | sed 's|refs/tags/||')
+              LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
+              echo "[INFO] AOSP 最新发布标签: $LATEST_AOSP_TAG" | tee -a "$LOG_FILE"
+              if git fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG" 2>/dev/null; then
               UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
               UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
               echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> $GITHUB_ENV
