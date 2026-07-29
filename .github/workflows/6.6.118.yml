@@ -243,28 +243,35 @@ jobs:
               echo "[WARN] AOSP fetch 失败，跳过上游合并" | tee -a "$LOG_FILE"
             fi
             echo "UPSTREAM_TAG=aosp-16" >> $GITHUB_ENV
-            OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
-            OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
-            OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
-            OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
-            echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> $GITHUB_ENV
-            KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}${OEM_EXTRAVERSION}-4k"
-            echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
-            echo "sub_version=$OEM_SUBLEVEL" >> $GITHUB_OUTPUT
-            echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
           else
             echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
-            OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
-            OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
-            OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
-            OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
-            echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> $GITHUB_ENV
-            KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}${OEM_EXTRAVERSION}-4k"
-            echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
-            echo "sub_version=$OEM_SUBLEVEL" >> $GITHUB_OUTPUT
-            echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
           fi
+
+          OEM_VERSION=$(sed -n 's/^VERSION\s*=\s*\(.*\)/\1/p' Makefile)
+          OEM_PATCHLEVEL=$(sed -n 's/^PATCHLEVEL\s*=\s*\(.*\)/\1/p' Makefile)
+          OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
+          OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
+          OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
+          OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
+
+          KERNEL_VERSION_FULL="${OEM_VERSION}.${OEM_PATCHLEVEL}.${OEM_SUBLEVEL}${OEM_EXTRAVERSION}"
+          echo "KERNEL_VERSION_FULL=$KERNEL_VERSION_FULL" >> $GITHUB_ENV
+          echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> $GITHUB_ENV
+
+          if [[ -n "${{ inputs.kernel_suffix }}" ]]; then
+            KERNEL_SUFFIX="${{ inputs.kernel_suffix }}"
+          elif [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
+            KERNEL_SUFFIX="oneplus13-4k-aosp16"
+          else
+            KERNEL_SUFFIX="oneplus13-4k-oem"
+          fi
+
+          echo "KERNEL_SUFFIX=$KERNEL_SUFFIX" >> $GITHUB_ENV
+          KERNEL_NAME_VAL="android16-${KERNEL_VERSION_FULL}-${KERNEL_SUFFIX}"
+          echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
+          echo "sub_version=$OEM_SUBLEVEL" >> $GITHUB_OUTPUT
+          echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
 
           cd ..
           
@@ -839,21 +846,13 @@ jobs:
           echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
           cd ./common
           curl -fSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash || {
-            echo "[ERROR] Baseband-guard 安装失败" | tee -a "$LOG_FILE"
-            exit 1
-          }
-          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
-
-      - name: 添加制作名称及固化版本信息
-        run: |
           cd kernel_workspace
           echo "CONFIG_LOCALVERSION_AUTO=y" >> ./common/arch/arm64/configs/gki_defconfig
 
-          if [[ -n "${{ inputs.kernel_suffix }}" ]]; then
-            for f in ./common/scripts/setlocalversion; do
-              sed -i "\$s|echo \"\\\$res\"|echo \"-${{ inputs.kernel_suffix }}\"|" "$f"
-            done
-            sed -i "s/-4k/-${{ inputs.kernel_suffix }}/g" ./common/arch/arm64/configs/gki_defconfig
+          for f in ./common/scripts/setlocalversion; do
+            sed -i "\$s|echo \"\\\$res\"|echo \"-${KERNEL_SUFFIX}\"|" "$f"
+          done
+          sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
           else
             for f in ./common/scripts/setlocalversion; do
               sed -i "\$s|echo \"\\\$res\"|echo \"-${UPSTREAM_TAG}\"|" "$f"
@@ -1281,14 +1280,8 @@ jobs:
           fi
 
           BUILD_DATE="$(TZ=Asia/Shanghai date +%Y%m%d)"
-          if [[ -n "${{ inputs.kernel_suffix }}" ]]; then
-            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}-${BUILD_DATE}.zip"
-            FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ inputs.kernel_suffix }}"
-          else
-            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}-${BUILD_DATE}.zip"
-            FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ env.KERNEL_NAME }}"
-          fi
-
+          AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION_FULL }}-${{ env.KERNEL_SUFFIX }}-${BUILD_DATE}.zip"
+          FULL_VERSION="${{ env.KERNEL_VERSION_FULL }}-${{ env.KERNEL_SUFFIX }}"
           TIME_NOW="$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
           {
             echo "Author: $GITHUB_ACTOR"
