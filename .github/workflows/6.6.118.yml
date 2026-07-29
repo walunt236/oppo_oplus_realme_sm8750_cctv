@@ -866,11 +866,16 @@ jobs:
           cd kernel_workspace
           echo "CONFIG_LOCALVERSION_AUTO=y" >> ./common/arch/arm64/configs/gki_defconfig
 
+          LOCALVER="-${KERNEL_SUFFIX}"
+          if [[ -n "$UPSTREAM_SUBLEVEL" ]] && [[ "$UPSTREAM_SUBLEVEL" != "0" ]]; then
+            LOCALVER="${LOCALVER}_${UPSTREAM_SUBLEVEL}"
+          fi
+
           for f in ./common/scripts/setlocalversion; do
-            sed -i "\$s|echo \"\\\$res\"|echo \"-${KERNEL_SUFFIX}\"|" "$f"
+            sed -i "\$s|echo \"\\\$res\"|echo \"${LOCALVER}\"|" "$f"
           done
-          sed -i "s/CONFIG_LOCALVERSION=\\\"-4k\\\"/CONFIG_LOCALVERSION=\\\"-${KERNEL_SUFFIX}\\\"/" ./common/arch/arm64/configs/gki_defconfig
-          sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
+          sed -i "s/CONFIG_LOCALVERSION=\\"-4k\\"/CONFIG_LOCALVERSION=\\"\${LOCALVER}\\"/" ./common/arch/arm64/configs/gki_defconfig
+          sed -i 's/\${scm_version}//' ./common/scripts/setlocalversion
       - name: 启用 HZ=300调度
         if: inputs.hz_300
         run: |
