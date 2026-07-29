@@ -245,8 +245,10 @@ jobs:
             echo "UPSTREAM_TAG=aosp-16" >> $GITHUB_ENV
             OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
             OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
-            echo "SUB_VERSION=$OEM_SUBLEVEL" >> $GITHUB_ENV
-            KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}-4k"
+            OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
+            OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
+            echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> $GITHUB_ENV
+            KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}${OEM_EXTRAVERSION}-4k"
             echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
             echo "sub_version=$OEM_SUBLEVEL" >> $GITHUB_OUTPUT
             echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
@@ -255,8 +257,10 @@ jobs:
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
             OEM_SUBLEVEL=$(sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p' Makefile)
             OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
-            echo "SUB_VERSION=$OEM_SUBLEVEL" >> $GITHUB_ENV
-            KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}-4k"
+            OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
+            OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
+            echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> $GITHUB_ENV
+            KERNEL_NAME_VAL="android16-6.6.${OEM_SUBLEVEL}${OEM_EXTRAVERSION}-4k"
             echo "KERNEL_NAME=$KERNEL_NAME_VAL" >> $GITHUB_ENV
             echo "sub_version=$OEM_SUBLEVEL" >> $GITHUB_OUTPUT
             echo "kernel_name=$KERNEL_NAME_VAL" >> $GITHUB_OUTPUT
@@ -1287,10 +1291,10 @@ jobs:
           fi
 
           if [[ -n "${{ inputs.kernel_suffix }}" ]]; then
-            AK3_NAME="AnyKernel3_${KSU_TYPENAME}_${{ env.KSUVER }}_${{ env.KERNEL_VERSION }}_${{ inputs.kernel_suffix }}.zip"
+            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}.zip"
             FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ inputs.kernel_suffix }}"
           else
-            AK3_NAME="AnyKernel3_${KSU_TYPENAME}_${{ env.KSUVER }}_${{ env.KERNEL_VERSION }}_${{ env.KERNEL_NAME }}.zip"
+            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}.zip"
             FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ env.KERNEL_NAME }}"
           fi
 
