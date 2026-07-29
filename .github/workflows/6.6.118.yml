@@ -775,15 +775,7 @@ jobs:
           CONFIG_NET_SCH_PIE=y
           CONFIG_DEFAULT_FQ=y
           NETCFG
-          cd common
-          echo "[INFO] 尝试应用 config.patch..."
-          curl -fSL -o config.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/config.patch"
-          if patch -p1 -F 3 --dry-run < config.patch 2>/dev/null; then
-            patch -p1 -F 3 < config.patch
-            echo "[INFO] config.patch 应用成功" | tee -a "$LOG_FILE"
-          else
-            echo "[WARN] config.patch 无法干净应用，跳过" | tee -a "$LOG_FILE"
-          fi
+
 
       - name: 启用 Droidspaces 容器支持
         run: |
