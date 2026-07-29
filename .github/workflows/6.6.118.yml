@@ -874,8 +874,8 @@ jobs:
           for f in ./common/scripts/setlocalversion; do
             sed -i "\$s|echo \"\\\$res\"|echo \"${LOCALVER}\"|" "$f"
           done
-          sed -i "s/CONFIG_LOCALVERSION=\\"-4k\\"/CONFIG_LOCALVERSION=\\"\${LOCALVER}\\"/" ./common/arch/arm64/configs/gki_defconfig
-          sed -i 's/\${scm_version}//' ./common/scripts/setlocalversion
+          sed -i "s/CONFIG_LOCALVERSION=\"-4k\"/CONFIG_LOCALVERSION=\"${LOCALVER}\"/" ./common/arch/arm64/configs/gki_defconfig
+          sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
       - name: 启用 HZ=300调度
         if: inputs.hz_300
         run: |
