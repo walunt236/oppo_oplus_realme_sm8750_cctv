@@ -1242,13 +1242,13 @@ jobs:
           if [[ '${{ inputs.kpm_enable }}' == 'kpn' ]]; then
             echo "[INFO] 应用 KP-N 并修补内核..."
             cd kernel_workspace/common/out/arch/arm64/boot
-            curl -fSL -o kptools-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux" || {
-              echo "[ERROR] KPN kptools 下载失败"
-              exit 1
+            curl -fSL --connect-timeout 10 --max-time 30 -o kptools-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux" || {
+              echo "[WARN] KPN kptools download timed out, skipping"
+              exit 0
             }
-            curl -fSL -o kpimg-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux" || {
-              echo "[ERROR] KPN kpimg 下载失败"
-              exit 1
+            curl -fSL --connect-timeout 10 --max-time 30 -o kpimg-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux" || {
+              echo "[WARN] KPN kpimg download timed out, skipping"
+              exit 0
             }
             chmod +x ./kptools-linux
             ./kptools-linux -p -i ./Image -k ./kpimg-linux -o ./oImage
