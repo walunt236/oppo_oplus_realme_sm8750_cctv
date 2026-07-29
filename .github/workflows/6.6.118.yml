@@ -1290,11 +1290,12 @@ jobs:
             curl -fSL -o kpn.zip "https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip"
           fi
 
+          BUILD_DATE="$(TZ=Asia/Shanghai date +%Y%m%d)"
           if [[ -n "${{ inputs.kernel_suffix }}" ]]; then
-            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}.zip"
+            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}-${BUILD_DATE}.zip"
             FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ inputs.kernel_suffix }}"
           else
-            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}.zip"
+            AK3_NAME="AnyKernel3-${KSU_TYPENAME}-${{ env.KSUVER }}-${{ env.KERNEL_VERSION }}-${{ env.SUB_VERSION }}-${BUILD_DATE}.zip"
             FULL_VERSION="${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ env.KERNEL_NAME }}"
           fi
 
