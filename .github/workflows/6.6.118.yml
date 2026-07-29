@@ -230,7 +230,10 @@ jobs:
 
           if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
             echo "[INFO] 拉取 Google AOSP android15-6.6 ..." | tee -a "$LOG_FILE"
-            if git fetch --depth=1 https://android.googlesource.com/kernel/common android15-6.6 2>/dev/null; then
+            if git fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common android15-6.6 2>/dev/null; then
+              UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
+              UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
+              echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> $GITHUB_ENV
               if git merge FETCH_HEAD --no-edit -X ours --allow-unrelated-histories; then
                 echo "[INFO] AOSP上游合并成功" | tee -a "$LOG_FILE"
               else
@@ -263,6 +266,10 @@ jobs:
             KERNEL_SUFFIX="${{ inputs.kernel_suffix }}"
           elif [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
             KERNEL_SUFFIX="oneplus13-4k-aosp16"
+            if [[ -n "$UPSTREAM_SUBLEVEL" ]] && [[ "$UPSTREAM_SUBLEVEL" != "0" ]]; then
+              KERNEL_VERSION_FULL="${KERNEL_VERSION_FULL}_${UPSTREAM_SUBLEVEL}"
+              echo "KERNEL_VERSION_FULL=$KERNEL_VERSION_FULL" >> $GITHUB_ENV
+            fi
           else
             KERNEL_SUFFIX="oneplus13-4k-oem"
           fi
