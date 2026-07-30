@@ -791,7 +791,6 @@ jobs:
           CONFIG_NET_SCH_FQ=y
           CONFIG_NET_SCH_PIE=y
           CONFIG_DEFAULT_FQ=y
-          CONFIG_TCP_FASTOPEN=y
           CONFIG_NET_SCH_FQ_CODEL=y
           CONFIG_TCP_CONG_CUBIC=y
           NETCFG
