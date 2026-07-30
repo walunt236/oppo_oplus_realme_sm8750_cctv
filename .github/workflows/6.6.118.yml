@@ -653,6 +653,7 @@ jobs:
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
           echo 'CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y' >> $DCFG
+          echo 'CONFIG_IOMMU_DEFAULT_DMA_LAZY=y' >> $DCFG
           
           cat >> $DCFG << 'TUNECFG'
           CONFIG_LTO_CLANG_THIN=y
