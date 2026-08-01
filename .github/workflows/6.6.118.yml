@@ -245,10 +245,11 @@ jobs:
                 git add -A
                 git commit -m "Merge AOSP android15-6.6, keep OEM" || true
               fi
+              echo "UPSTREAM_TAG=aosp-16" >> $GITHUB_ENV
             else
               echo "[WARN] AOSP fetch 失败，跳过上游合并" | tee -a "$LOG_FILE"
+              echo "UPSTREAM_TAG=fetch-failed" >> $GITHUB_ENV
             fi
-            echo "UPSTREAM_TAG=aosp-16" >> $GITHUB_ENV
           else
             echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
@@ -1041,14 +1042,29 @@ jobs:
           patch -p1 --forward -f < /tmp/mm_slab.patch || echo "[WARN] mm_slab 应用失败，继续..."
           curl -fSL -o /tmp/mm_vmpressure.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/99b920c.patch"
           patch -p1 --forward -f < /tmp/mm_vmpressure.patch || echo "[WARN] mm_vmpressure 应用失败，继续..."
+          TOTAL_REJ=0
+          BATCH_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
+          TOTAL_REJ=$((TOTAL_REJ + BATCH_REJ))
+          echo "[INFO] 风驰批补丁 reject: $BATCH_REJ" | tee -a "$LOG_FILE"
           find . -name "*.rej" -delete 2>/dev/null
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 9eecad532ad3 c7a8aea27b87; do
-            patch -p1 --forward -F 3 < "$HOME/.cache_patches/aosp/$hash.patch" 2>/dev/null || true
+            patch -p1 --forward -F 3 < "$HOME/.cache_patches/aosp/$hash.patch" 2>/dev/null || echo "[WARN] aosp/$hash.patch 应用失败，继续..."
           done
+          BATCH_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
+          TOTAL_REJ=$((TOTAL_REJ + BATCH_REJ))
+          echo "[INFO] AOSP 补丁 reject: $BATCH_REJ" | tee -a "$LOG_FILE"
           find . -name "*.rej" -delete 2>/dev/null
           for hash in e8400a0 a09e19e 40f0cbf; do
-            patch -p1 --forward -F 3 < "$HOME/.cache_patches/palazik/$hash.patch" 2>/dev/null || true
+            if [ -s "$HOME/.cache_patches/palazik/$hash.patch" ]; then
+              patch -p1 --forward -F 3 < "$HOME/.cache_patches/palazik/$hash.patch" 2>/dev/null || echo "[WARN] palazik/$hash.patch 应用失败，继续..."
+            else
+              echo "[WARN] palazik/$hash.patch 缺失或为空，跳过" | tee -a "$LOG_FILE"
+            fi
           done
+          BATCH_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
+          TOTAL_REJ=$((TOTAL_REJ + BATCH_REJ))
+          echo "[INFO] Palazik 补丁 reject: $BATCH_REJ" | tee -a "$LOG_FILE"
+          find . -name "*.rej" -delete 2>/dev/null
           UNICODE_PATCH=$(find "$WILD_DIR/" -name "*unicode*.patch" | head -n 1)
           if [ -n "$UNICODE_PATCH" ]; then
             echo "[INFO] 匹配到 Unicode 防检测路径补丁: $UNICODE_PATCH" | tee -a "$LOG_FILE"
@@ -1063,13 +1079,18 @@ jobs:
           
           git -C "$GITHUB_WORKSPACE/kernel_workspace/common" checkout -- drivers/dma-buf/dma-buf.c 2>/dev/null || true
           
-          TOTAL_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
-          
+          BATCH_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
+          TOTAL_REJ=$((TOTAL_REJ + BATCH_REJ))
+          find . -name "*.rej" -delete 2>/dev/null
+          echo "[INFO] Unicode/收尾补丁 reject: $BATCH_REJ" | tee -a "$LOG_FILE"
+
           if [ "$TOTAL_REJ" -gt 15 ]; then
             echo "[ERROR] 风驰+优化补丁总计 $TOTAL_REJ 个 reject（>15），请检查补丁兼容性" | tee -a "$LOG_FILE"
             exit 1
           elif [ "$TOTAL_REJ" -gt 10 ]; then
             echo "[WARN] 风驰+优化补丁总计 $TOTAL_REJ 个 reject，部分优化可能未生效" | tee -a "$LOG_FILE"
+          else
+            echo "[INFO] 风驰+优化补丁 reject 总计 $TOTAL_REJ 个，正常" | tee -a "$LOG_FILE"
           fi
           
           echo "[INFO] 风驰引擎补丁注入完成" | tee -a "$LOG_FILE"
