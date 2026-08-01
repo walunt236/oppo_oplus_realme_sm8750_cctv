@@ -234,20 +234,20 @@ jobs:
             LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
             echo "[INFO] AOSP 最新发布标签: $LATEST_AOSP_TAG" | tee -a "$LOG_FILE"
             if git fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG" 2>/dev/null; then
-            UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
-            UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
-            echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> $GITHUB_ENV
-            if git merge FETCH_HEAD --no-edit -X ours --allow-unrelated-histories; then
-              echo "[INFO] AOSP上游合并成功" | tee -a "$LOG_FILE"
+              UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
+              UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
+              echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> $GITHUB_ENV
+              if git merge FETCH_HEAD --no-edit -X ours --allow-unrelated-histories; then
+                echo "[INFO] AOSP上游合并成功" | tee -a "$LOG_FILE"
+              else
+                echo "[WARN] 存在冲突，自动保留 OEM 版本..." | tee -a "$LOG_FILE"
+                git diff --name-only --diff-filter=U | xargs -r git checkout --ours --
+                git add -A
+                git commit -m "Merge AOSP android15-6.6, keep OEM" || true
+              fi
             else
-              echo "[WARN] 存在冲突，自动保留 OEM 版本..." | tee -a "$LOG_FILE"
-              git diff --name-only --diff-filter=U | xargs -r git checkout --ours --
-              git add -A
-              git commit -m "Merge AOSP android15-6.6, keep OEM" || true
+              echo "[WARN] AOSP fetch 失败，跳过上游合并" | tee -a "$LOG_FILE"
             fi
-          else
-            echo "[WARN] AOSP fetch 失败，跳过上游合并" | tee -a "$LOG_FILE"
-          fi
             echo "UPSTREAM_TAG=aosp-16" >> $GITHUB_ENV
           else
             echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
