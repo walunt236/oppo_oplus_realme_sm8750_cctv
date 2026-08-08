@@ -1210,7 +1210,7 @@ jobs:
           EOF
           chmod +x ld-wrapper
 
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -fipa-pta -falign-functions=32"
 
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
@@ -1224,7 +1224,7 @@ jobs:
            else
              echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
              fi
-             make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
+              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
           # Save unstripped vmlinux for PGO profile generation
           cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
