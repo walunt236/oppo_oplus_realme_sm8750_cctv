@@ -1227,31 +1227,9 @@ jobs:
             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
           fi
           # --------------------------
-          # 下载官方 AutoFDO profile 并与本地自采集 profile 合并 (骁龙 8 Elite 热点加权)
-          # 失败即停摆整个编译 (fail-fast)，绝不静默跳过 PGO
-          echo "[INFO] 下载官方 AutoFDO profile..." | tee -a "$LOG_FILE"
-          PGO_PROFILE=""
-          if curl -sL --max-time 120 -o /tmp/kernel.afdo.b64 "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" && base64 -d /tmp/kernel.afdo.b64 > /tmp/kernel.afdo 2>/dev/null && [ -s /tmp/kernel.afdo ]; then
-            PGO_PROFILE="/tmp/kernel.afdo"
-            echo "[INFO] 官方 AutoFDO profile 就绪: $(stat -c %s /tmp/kernel.afdo) 字节" | tee -a "$LOG_FILE"
-            if [ -f /home/dev/.pgo/kernel.profdata ]; then
-              if [ -x "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" ] && "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" merge --sample -output=/tmp/kernel_merged.afdo /tmp/kernel.afdo /home/dev/.pgo/kernel.profdata 2>/dev/null; then
-                PGO_PROFILE="/tmp/kernel_merged.afdo"
-                echo "[INFO] 已合并本地自采集 profile (骁龙热点加权): $(stat -c %s /tmp/kernel_merged.afdo) 字节" | tee -a "$LOG_FILE"
-              else
-                echo "[ERROR] 本地自采集 profile 合并失败, 停摆编译" | tee -a "$LOG_FILE"
-                exit 1
-              fi
-            fi
-          else
-            echo "[ERROR] 官方 AutoFDO profile 下载/解码失败, 停摆编译" | tee -a "$LOG_FILE"
-            exit 1
-          fi
-          if [ -n "$PGO_PROFILE" ]; then
-            make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE=$PGO_PROFILE Image
-          else
-            make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
-          fi
+          # PGO 已回滚: 官方 afdo (Pixel 10/6.6.123) 与本地自采集 profile 合并后导致 bootloop
+          # 根因: 本地 kernel.profdata 为 0-偏移伪数据, merge 污染锁/调度函数热点; 官方 profile 版本不匹配 6.6.118 OEM 内核
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
             # Save unstripped vmlinux for PGO profile generation
             cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
