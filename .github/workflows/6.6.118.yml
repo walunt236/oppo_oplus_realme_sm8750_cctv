@@ -1227,21 +1227,10 @@ jobs:
             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
           fi
           # --------------------------
-          # AutoFDO PGO: 官方 android15-6.6 GKI profile (Google 官方 GKI 构建同款, 验证充分)
-          # 重要: 不合并本地自采集数据 (混入用户态/错误架构符号且零分支信息, 曾导致 bootloop)
-          echo "[INFO] 下载官方 AutoFDO profile..." | tee -a "$LOG_FILE"
-          PGO_PROFILE=""
-          if curl -sL --max-time 120 -o /tmp/kernel.afdo.b64 "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" && base64 -d /tmp/kernel.afdo.b64 > /tmp/kernel.afdo 2>/dev/null && [ -s /tmp/kernel.afdo ]; then
-            PGO_PROFILE="/tmp/kernel.afdo"
-            echo "[INFO] 官方 AutoFDO profile 就绪: $(stat -c %s /tmp/kernel.afdo) 字节" | tee -a "$LOG_FILE"
-          else
-            echo "[WARN] 官方 AutoFDO profile 下载失败, 本次构建降级为无 PGO" | tee -a "$LOG_FILE"
-          fi
-          if [ -n "$PGO_PROFILE" ]; then
-            make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE=$PGO_PROFILE Image
-          else
-            make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
-          fi
+          # AutoFDO PGO 已放弃: 官方 GKI afdo (6.6.123 Pixel 采集) 与本地自采集均导致 bootloop
+          # 根因: profile 采集自 6.6.123 AOSP 源码, 与 6.6.118+OEM 改动偏移不匹配, AutoFDO 生成错误分支优化
+          # 若需 PGO 必须用真机 perf record + create_llvm_prof 重新采集本内核专属数据
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
           # Save unstripped vmlinux for PGO profile generation
           cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
