@@ -676,7 +676,6 @@ jobs:
           CONFIG_ARM64_NEON=y
           CONFIG_ARM64_SIMD=y
           CONFIG_ARM_SPE_PMU=y
-          CONFIG_AUTOFDO_CLANG=y
           CONFIG_LRU_GEN=y
           CONFIG_LRU_GEN_ENABLED=y
           CONFIG_DAMON_PADDR=y
@@ -1225,12 +1224,12 @@ jobs:
             echo "[INFO] MGLRU aging threshold relaxed" | tee -a "$LOG_FILE"
           else
             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
-          fi
-          # --------------------------
-          # AutoFDO PGO 容器模式: 保留机制 (CLANG_AUTOFDO_PROFILE), 内容为空占位 (零计数)
-          # 官方 afdo (6.6.123 Pixel) 与本内核偏移不匹配导致 bootloop, 已弃用真实 profile
-          # 需要 PGO 时: 真机 perf record + create_llvm_prof 重新采集后填入 /home/dev/.pgo/kernel.profdata
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE=/home/dev/.pgo/kernel.profdata Image
+           fi
+           # --------------------------
+           # AutoFDO PGO 已彻底废弃: 任何真实 profile (官方 6.6.123 / 本地伪数据) 均导致 bootloop
+           # 根因: profile 符号偏移与本内核不匹配 + ccache 复用带 PGO 的旧对象文件
+           # 注意: 若重新启用 PGO, 必须先清空 ~/.ccache 并确保 profile 由本内核真机采集
+           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
           # Save unstripped vmlinux for PGO profile generation
           cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
