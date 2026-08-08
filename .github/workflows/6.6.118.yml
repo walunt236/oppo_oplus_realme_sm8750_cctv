@@ -1227,13 +1227,21 @@ jobs:
             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
           fi
           # --------------------------
-          # 下载官方 AutoFDO profile (android15-6.6 分支, 6.6.123 Pixel 10 采集)
+          # 下载官方 AutoFDO profile 并与本地自采集 profile 合并 (骁龙 8 Elite 热点加权)
           echo "[INFO] 下载官方 AutoFDO profile..." | tee -a "$LOG_FILE"
+          PGO_PROFILE=""
           if curl -sL --max-time 120 -o /tmp/kernel.afdo.b64 "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" && base64 -d /tmp/kernel.afdo.b64 > /tmp/kernel.afdo 2>/dev/null && [ -s /tmp/kernel.afdo ]; then
             PGO_PROFILE="/tmp/kernel.afdo"
-            echo "[INFO] AutoFDO profile 就绪: $(stat -c %s /tmp/kernel.afdo) 字节" | tee -a "$LOG_FILE"
+            echo "[INFO] 官方 AutoFDO profile 就绪: $(stat -c %s /tmp/kernel.afdo) 字节" | tee -a "$LOG_FILE"
+            if [ -f /home/dev/.pgo/kernel.profdata ] && [ -x "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" ]; then
+              if "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" merge --sample -output=/tmp/kernel_merged.afdo /tmp/kernel.afdo /home/dev/.pgo/kernel.profdata 2>/dev/null; then
+                PGO_PROFILE="/tmp/kernel_merged.afdo"
+                echo "[INFO] 已合并本地自采集 profile (骁龙热点加权): $(stat -c %s /tmp/kernel_merged.afdo) 字节" | tee -a "$LOG_FILE"
+              else
+                echo "[WARN] profile 合并失败, 回退官方原版" | tee -a "$LOG_FILE"
+              fi
+            fi
           else
-            PGO_PROFILE=""
             echo "[WARN] AutoFDO profile 下载失败, 本次构建不使用 PGO" | tee -a "$LOG_FILE"
           fi
           if [ -n "$PGO_PROFILE" ]; then
