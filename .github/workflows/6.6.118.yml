@@ -684,6 +684,7 @@ jobs:
           CONFIG_DAMON_LRU_SORT=y
           CONFIG_NET_SCH_CAKE=y
           CONFIG_SECURITY_LANDLOCK=y
+          CONFIG_CFS_BANDWIDTH=y
           TUNECFG
 
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
@@ -1225,7 +1226,21 @@ jobs:
           else
             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
           fi
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE=/home/dev/.pgo/kernel.profdata Image
+          # --------------------------
+          # 下载官方 AutoFDO profile (android15-6.6 分支, 6.6.123 Pixel 10 采集)
+          echo "[INFO] 下载官方 AutoFDO profile..." | tee -a "$LOG_FILE"
+          if curl -sL --max-time 120 -o /tmp/kernel.afdo.b64 "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" && base64 -d /tmp/kernel.afdo.b64 > /tmp/kernel.afdo 2>/dev/null && [ -s /tmp/kernel.afdo ]; then
+            PGO_PROFILE="/tmp/kernel.afdo"
+            echo "[INFO] AutoFDO profile 就绪: $(stat -c %s /tmp/kernel.afdo) 字节" | tee -a "$LOG_FILE"
+          else
+            PGO_PROFILE=""
+            echo "[WARN] AutoFDO profile 下载失败, 本次构建不使用 PGO" | tee -a "$LOG_FILE"
+          fi
+          if [ -n "$PGO_PROFILE" ]; then
+            make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE=$PGO_PROFILE Image
+          else
+            make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
+          fi
             # Save unstripped vmlinux for PGO profile generation
             cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
