@@ -680,11 +680,10 @@ jobs:
           CONFIG_LRU_GEN_ENABLED=y
           CONFIG_DAMON_PADDR=y
           CONFIG_DAMON_RECLAIM=y
-          CONFIG_DAMON_LRU_SORT=y
-          CONFIG_NET_SCH_CAKE=y
-          CONFIG_SECURITY_LANDLOCK=y
-          CONFIG_AUTOFDO_CLANG=y
-          TUNECFG
+           CONFIG_DAMON_LRU_SORT=y
+           CONFIG_NET_SCH_CAKE=y
+           CONFIG_SECURITY_LANDLOCK=y
+           TUNECFG
 
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "[INFO] 开启 RCU_NOCB_CPU..."
@@ -1221,37 +1220,11 @@ jobs:
           # Apply MGLRU aggressive aging (last source mod to avoid being overwritten by prior patches)
           if grep -q 'if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)' mm/vmscan.c; then
             sed -i '/if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)/,+1d' mm/vmscan.c
-            echo "[INFO] MGLRU aging threshold relaxed" | tee -a "$LOG_FILE"
-          else
-            echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
-            fi
-            # --------------------------
-            # AutoFDO PGO 恢复: 下载官方 profile 并与本地自采集 profile 合并 (骁龙 8 Elite 热点加权)
-            # bootloop 真凶已确认为 CONFIG_CFS_BANDWIDTH (2026-08-08 已移除), PGO 本身安全
-            # 注意: profile 由 clang 19 生成, 与当前工具链匹配; 若换工具链需重新采集
-            echo "[INFO] 下载官方 AutoFDO profile..." | tee -a "$LOG_FILE"
-            PGO_PROFILE=""
-            if curl -sL --max-time 120 -o /tmp/kernel.afdo.b64 "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" && base64 -d /tmp/kernel.afdo.b64 > /tmp/kernel.afdo 2>/dev/null && [ -s /tmp/kernel.afdo ]; then
-              PGO_PROFILE="/tmp/kernel.afdo"
-              echo "[INFO] 官方 AutoFDO profile 就绪: $(stat -c %s /tmp/kernel.afdo) 字节" | tee -a "$LOG_FILE"
-              if [ -f /home/dev/.pgo/kernel.profdata ]; then
-                if [ -x "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" ] && "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" merge --sample -output=/tmp/kernel_merged.afdo /tmp/kernel.afdo /home/dev/.pgo/kernel.profdata 2>/dev/null; then
-                  PGO_PROFILE="/tmp/kernel_merged.afdo"
-                  echo "[INFO] 已合并本地自采集 profile (骁龙热点加权): $(stat -c %s /tmp/kernel_merged.afdo) 字节" | tee -a "$LOG_FILE"
-                else
-                  echo "[ERROR] 本地自采集 profile 合并失败, 停摆编译" | tee -a "$LOG_FILE"
-                  exit 1
-                fi
-              fi
-            else
-              echo "[ERROR] 官方 AutoFDO profile 下载/解码失败, 停摆编译" | tee -a "$LOG_FILE"
-              exit 1
-            fi
-            if [ -n "$PGO_PROFILE" ]; then
-              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE=$PGO_PROFILE Image
-            else
-              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
-            fi
+             echo "[INFO] MGLRU aging threshold relaxed" | tee -a "$LOG_FILE"
+           else
+             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
+             fi
+             make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
           # Save unstripped vmlinux for PGO profile generation
           cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
