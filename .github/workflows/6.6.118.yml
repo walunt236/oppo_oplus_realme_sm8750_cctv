@@ -1223,12 +1223,34 @@ jobs:
             echo "[INFO] MGLRU aging threshold relaxed" | tee -a "$LOG_FILE"
           else
             echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
-           fi
-           # --------------------------
-           # AutoFDO PGO 已彻底废弃: 任何真实 profile (官方 6.6.123 / 本地伪数据) 均导致 bootloop
-           # 根因: profile 符号偏移与本内核不匹配 + ccache 复用带 PGO 的旧对象文件
-           # 注意: 若重新启用 PGO, 必须先清空 ~/.ccache 并确保 profile 由本内核真机采集
-           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
+            fi
+            # --------------------------
+            # AutoFDO PGO 恢复: 下载官方 profile 并与本地自采集 profile 合并 (骁龙 8 Elite 热点加权)
+            # bootloop 真凶已确认为 CONFIG_CFS_BANDWIDTH (2026-08-08 已移除), PGO 本身安全
+            # 注意: profile 由 clang 19 生成, 与当前工具链匹配; 若换工具链需重新采集
+            echo "[INFO] 下载官方 AutoFDO profile..." | tee -a "$LOG_FILE"
+            PGO_PROFILE=""
+            if curl -sL --max-time 120 -o /tmp/kernel.afdo.b64 "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" && base64 -d /tmp/kernel.afdo.b64 > /tmp/kernel.afdo 2>/dev/null && [ -s /tmp/kernel.afdo ]; then
+              PGO_PROFILE="/tmp/kernel.afdo"
+              echo "[INFO] 官方 AutoFDO profile 就绪: $(stat -c %s /tmp/kernel.afdo) 字节" | tee -a "$LOG_FILE"
+              if [ -f /home/dev/.pgo/kernel.profdata ]; then
+                if [ -x "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" ] && "$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata" merge --sample -output=/tmp/kernel_merged.afdo /tmp/kernel.afdo /home/dev/.pgo/kernel.profdata 2>/dev/null; then
+                  PGO_PROFILE="/tmp/kernel_merged.afdo"
+                  echo "[INFO] 已合并本地自采集 profile (骁龙热点加权): $(stat -c %s /tmp/kernel_merged.afdo) 字节" | tee -a "$LOG_FILE"
+                else
+                  echo "[ERROR] 本地自采集 profile 合并失败, 停摆编译" | tee -a "$LOG_FILE"
+                  exit 1
+                fi
+              fi
+            else
+              echo "[ERROR] 官方 AutoFDO profile 下载/解码失败, 停摆编译" | tee -a "$LOG_FILE"
+              exit 1
+            fi
+            if [ -n "$PGO_PROFILE" ]; then
+              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE=$PGO_PROFILE Image
+            else
+              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS="-O2 -Wno-error $KCFLAGS_EXTRA" Image
+            fi
           # Save unstripped vmlinux for PGO profile generation
           cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
