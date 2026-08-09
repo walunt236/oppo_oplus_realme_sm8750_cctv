@@ -659,8 +659,6 @@ jobs:
           
           cat >> $DCFG << 'TUNECFG'
           CONFIG_LTO_CLANG_THIN=y
-          CONFIG_SCHED_SMT=y
-          CONFIG_SCHED_CORE=y
           CONFIG_ZRAM_DEF_COMP_ZSTD=y
           CONFIG_ZRAM_DEF_COMP="zstd"
           CONFIG_CRYPTO_LZ4=y
