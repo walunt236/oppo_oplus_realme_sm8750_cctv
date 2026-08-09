@@ -659,8 +659,8 @@ jobs:
           
           cat >> $DCFG << 'TUNECFG'
           CONFIG_LTO_CLANG_THIN=y
-          CONFIG_ZRAM_DEF_COMP_LZ4=y
-          CONFIG_ZRAM_DEF_COMP="lz4"
+          CONFIG_ZRAM_DEF_COMP_ZSTD=y
+          CONFIG_ZRAM_DEF_COMP="zstd"
           CONFIG_CRYPTO_LZ4=y
           CONFIG_CRYPTO_LZ4HC=y
           CONFIG_LZ4_COMPRESS=y
@@ -673,6 +673,7 @@ jobs:
           CONFIG_CRYPTO_SM4_ARM64_CE_BLK=y
           CONFIG_ZSTD_COMPRESS=y
           CONFIG_ZSTD_DECOMPRESS=y
+          CONFIG_SLAB_MERGE_DEFAULT=y
           CONFIG_F2FS_FS_LZ4=y
           CONFIG_F2FS_FS_LZ4HC=y
           CONFIG_F2FS_FS_ZSTD=y
