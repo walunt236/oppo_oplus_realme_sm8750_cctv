@@ -1344,7 +1344,19 @@ jobs:
         run: |
           cd kernel_workspace
           rm -rf AnyKernel3
-          git clone https://github.com/cctv18/AnyKernel3 --depth=1
+          CLONE_OK=0
+          for i in 1 2 3 4 5; do
+            if git clone https://github.com/cctv18/AnyKernel3 --depth=1; then
+              CLONE_OK=1
+              break
+            fi
+            echo "[WARN] AnyKernel3 克隆失败(第${i}次)，5 秒后重试..."
+            sleep 5
+          done
+          if [[ $CLONE_OK -ne 1 ]]; then
+            echo "[ERROR] AnyKernel3 克隆失败，终止打包"
+            exit 1
+          fi
           rm -rf ./AnyKernel3/.git
           cd AnyKernel3
           cp ../common/out/arch/arm64/boot/Image ./Image
