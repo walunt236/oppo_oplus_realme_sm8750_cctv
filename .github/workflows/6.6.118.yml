@@ -205,7 +205,6 @@ jobs:
               https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
               -b oneplus/sm8750_b_16.0.0_oneplus_13 \
               common
-            SKIP_UPSTREAM_MERGE=false
           fi
 
           if [ -d "vendor_modules/.git" ]; then
@@ -415,7 +414,9 @@ jobs:
           mkdir -p "${{ env.CCACHE_DIR }}"
           ccache -M "${{ env.CCACHE_MAXSIZE }}"
           ccache -o compression=true
-          echo "sloppiness = file_macro,time_macros,include_file_mtime,include_file_ctime,pch_defines,system_headers,locale" >> "${{ env.CCACHE_DIR }}/ccache.conf"
+          if ! grep -q '^sloppiness' "${{ env.CCACHE_DIR }}/ccache.conf" 2>/dev/null; then
+            echo "sloppiness = file_macro,time_macros,include_file_mtime,include_file_ctime,pch_defines,system_headers,locale" >> "${{ env.CCACHE_DIR }}/ccache.conf"
+          fi
 
           echo "[INFO] ccache 状态:"
           ccache -s
@@ -795,7 +796,7 @@ jobs:
           CONFIG_IP_NF_NAT=y
           CONFIG_IP_NF_TARGET_MASQUERADE=y
           CONFIG_IP_NF_TARGET_REDIRECT=y
-          CONFIG_NF_TABLES=n
+          CONFIG_NF_TABLES=y
           CONFIG_BPF_STREAM_PARSER=y
           CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
           CONFIG_NETFILTER_XT_SET=y
@@ -852,6 +853,7 @@ jobs:
           DSCFG
             if [[ "${{ inputs.droidspaces_enable }}" == "extend" ]]; then
               echo "CONFIG_BT_HCIVHCI=y" >> ./arch/arm64/configs/gki_defconfig
+              # EVDI/蓝牙等 extend 模块依赖动态 usermodehelper(modprobe),必须覆盖 OnePlus 默认 STATIC_USERMODEHELPER=y
               echo "CONFIG_STATIC_USERMODEHELPER=n" >> ./arch/arm64/configs/gki_defconfig
               curl -fSL -o evdi_drm.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/evdi_drm.patch"
               patch -p1 -F 3 < evdi_drm.patch || true
@@ -1148,7 +1150,7 @@ jobs:
           
           cd kernel_workspace/common
           
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O3 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ inputs.lz4kd_enable }}" == "true" ]] && [ -f out/.config ]; then
             if grep -q '^CONFIG_ZRAM_DEF_COMP_LZ4KD=y' out/.config && grep -q '^CONFIG_ZRAM_DEF_COMP="lz4kd"' out/.config; then
