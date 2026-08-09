@@ -733,7 +733,7 @@ jobs:
           echo "[INFO] 注入 Vendor 驱动符号 (UBSAN / KUNIT)..."
           cat >> $DCFG << 'OEMDEPENDS'
           CONFIG_UBSAN=y
-          CONFIG_UBSAN_TRAP=n
+          CONFIG_UBSAN_TRAP=y
           CONFIG_CC_HAS_UBSAN_ARRAY_BOUNDS=y
           CONFIG_UBSAN_BOUNDS=y
           CONFIG_UBSAN_ARRAY_BOUNDS=y
