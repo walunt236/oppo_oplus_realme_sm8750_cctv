@@ -53,7 +53,7 @@ on:
         description: '是否安装 LZ4KD 补丁'
         required: true
         type: boolean
-        default: false
+        default: true
       bbrv3_enable:
         description: 'BBRv3 TCP拥塞控制'
         required: true
@@ -645,6 +645,8 @@ jobs:
           CONFIG_CRYPTO_LZ4K=y
           CONFIG_CRYPTO_LZ4KD=y
           CONFIG_CRYPTO_842=y
+          CONFIG_ZRAM_DEF_COMP_LZ4KD=y
+          CONFIG_ZRAM_DEF_COMP="lz4kd"
           LZ4KDCFG
           fi
           
@@ -659,8 +661,6 @@ jobs:
           
           cat >> $DCFG << 'TUNECFG'
           CONFIG_LTO_CLANG_THIN=y
-          CONFIG_ZRAM_DEF_COMP_ZSTD=y
-          CONFIG_ZRAM_DEF_COMP="zstd"
           CONFIG_CRYPTO_LZ4=y
           CONFIG_CRYPTO_LZ4HC=y
           CONFIG_LZ4_COMPRESS=y
