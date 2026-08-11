@@ -233,6 +233,9 @@ jobs:
             VENDOR_PID=$!
           fi
 
+          # 记录 OEM 源 SHA，用于增量编译状态判定
+          OEM_SHA=$(git -C common rev-parse HEAD)
+
           cd common
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
@@ -266,6 +269,10 @@ jobs:
             echo "[INFO] 跳过上游合并，使用 OEM 源码" | tee -a "$LOG_FILE"
             echo "UPSTREAM_TAG=none" >> $GITHUB_ENV
           fi
+
+          # 增量编译状态键：工作流改动/输入变化/上游源变化任一发生 → 自动回退全量重建（安全优先）
+          INCREMENTAL_STATE=$(printf '%s|%s|%s|%s' "${{ toJSON(inputs) }}" "$GITHUB_SHA" "$OEM_SHA" "${LATEST_AOSP_TAG:-none}" | md5sum | cut -d' ' -f1)
+          echo "INCREMENTAL_STATE=$INCREMENTAL_STATE" >> $GITHUB_ENV
 
           OEM_VERSION=$(sed -n 's/^VERSION\s*=\s*\(.*\)/\1/p' Makefile)
           OEM_PATCHLEVEL=$(sed -n 's/^PATCHLEVEL\s*=\s*\(.*\)/\1/p' Makefile)
@@ -1191,6 +1198,31 @@ jobs:
           
           echo "[INFO] 风驰引擎补丁注入完成" | tee -a "$LOG_FILE"
 
+      - name: 增量编译 mtime 钳制（状态一致时跳过未变更对象）
+        run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          cd kernel_workspace/common
+          PATCH_HASH=$(git status --porcelain 2>/dev/null | md5sum | cut -d' ' -f1)
+          echo "PATCH_HASH=$PATCH_HASH" >> $GITHUB_ENV
+          STATE_FILE="$HOME/.cache_patches/build_state"
+          STORED=$(cat "$STATE_FILE" 2>/dev/null || true)
+          if [[ -n "${INCREMENTAL_STATE:-}" ]] && [[ "$STORED" == "${INCREMENTAL_STATE}|${PATCH_HASH}" ]]; then
+            echo "[INFO] 增量编译：源码状态与上次成功构建一致，钳制未变更源文件 mtime..." | tee -a "$LOG_FILE"
+            git ls-files -m > /tmp/incr_modified.txt
+            find out -type f -name '*.o' 2>/dev/null | while read -r o; do
+              s="${o#out/}"; s="${s%.o}"
+              for ext in c S s; do
+                f="$s.$ext"
+                if [ -f "$f" ] && ! grep -qxF "$f" /tmp/incr_modified.txt; then
+                  touch -d @1500000000 "$f"
+                fi
+              done
+            done
+            echo "[INFO] mtime 钳制完成，make 将只重编被补丁改动的文件" | tee -a "$LOG_FILE"
+          else
+            echo "[INFO] 全量模式：状态变化/首次构建/上次构建未成功" | tee -a "$LOG_FILE"
+          fi
+
       - name: 构建内核配置
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
@@ -1505,6 +1537,12 @@ jobs:
           for repo in "$HOME/.cache_patches/"*; do
             [ -d "$repo/.git" ] && git -C "$repo" gc --auto 2>/dev/null || true
           done
+          # 记录本次成功构建的增量状态（仅成功且自托管时执行；失败则不写，下次自动全量）
+          if [[ -n "${INCREMENTAL_STATE:-}" ]] && [[ -n "${PATCH_HASH:-}" ]]; then
+            mkdir -p "$HOME/.cache_patches"
+            printf '%s|%s' "$INCREMENTAL_STATE" "$PATCH_HASH" > "$HOME/.cache_patches/build_state"
+            echo "[INFO] 增量状态已记录，下次相同配置将增量编译" | tee -a "$LOG_FILE"
+          fi
           echo "[INFO] 磁盘清理完成"
     
       - name: 上传 Ccache 调试日志
