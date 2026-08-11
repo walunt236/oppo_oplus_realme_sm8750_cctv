@@ -1,12 +1,9 @@
 name: "oneplus13 内核编译"
 
 env:
+  # 注意：ANDROID_VERSION / KERNEL_VERSION / SUB_VERSION / KERNEL_NAME / CCACHE_KEY
+  # 均为占位符，实际值在 init_env 步骤中从源码 Makefile 与 OEM 分支名动态推导
   TZ: Asia/Shanghai
-  ANDROID_VERSION: 'android16'
-  KERNEL_VERSION: '6.6'
-  SUB_VERSION: 'latest'
-  KERNEL_NAME: 'android16-6.6-latest-4k'
-  CCACHE_KEY: ccache-ecsv3-6.6-latest
 
 on:
   workflow_dispatch:
@@ -192,10 +189,13 @@ jobs:
             echo "[INFO] ccache 已存在: $(ccache --version | head -1)"
           fi
 
+          # OEM 分支唯一来源：后续 Android 大版本由它动态推导
+          OEM_BRANCH="oneplus/sm8750_b_16.0.0_oneplus_13"
+
             if [ -d "common/.git" ]; then
             echo "[INFO] common 源码已存在，reset到OEM"
             cd common
-            git fetch --depth=1 origin oneplus/sm8750_b_16.0.0_oneplus_13
+            git fetch --depth=1 origin "$OEM_BRANCH"
             git reset --hard FETCH_HEAD
             git clean -fd
             cd ..
@@ -203,14 +203,14 @@ jobs:
             echo "[INFO] 首次克隆 OEM 内核源码仓库..."
             git clone --depth=1 \
               https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
-              -b oneplus/sm8750_b_16.0.0_oneplus_13 \
+              -b "$OEM_BRANCH" \
               common
           fi
 
           if [ -d "vendor_modules/.git" ]; then
             echo "[INFO] vendor_modules 已存在，仅更新..."
             cd vendor_modules
-            git fetch --depth=1 origin oneplus/sm8750_b_16.0.0_oneplus_13
+            git fetch --depth=1 origin "$OEM_BRANCH"
             git reset --hard FETCH_HEAD
             git clean -fd
             cd ..
@@ -218,7 +218,7 @@ jobs:
             echo "[INFO] 首次克隆设备树与私有驱动仓库..."
             git clone --depth=1 \
               https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git \
-              -b oneplus/sm8750_b_16.0.0_oneplus_13 \
+              -b "$OEM_BRANCH" \
               vendor_modules &
             wait
           fi
@@ -261,9 +261,16 @@ jobs:
           OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
           OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
 
+          # 版本号全部由实际源码 Makefile 动态推导（替代顶层静态占位符）
+          echo "KERNEL_VERSION=${OEM_VERSION}.${OEM_PATCHLEVEL}" >> $GITHUB_ENV
+          echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> $GITHUB_ENV
+          echo "CCACHE_KEY=ccache-ecsv3-${OEM_VERSION}.${OEM_PATCHLEVEL}" >> $GITHUB_ENV
+          # Android 大版本从 OEM 分支名推导（b_16.0.0 -> android16）
+          OEM_ANDROID_MAJOR=$(echo "$OEM_BRANCH" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | cut -d. -f1)
+          echo "ANDROID_VERSION=android${OEM_ANDROID_MAJOR:-16}" >> $GITHUB_ENV
+
           KERNEL_VERSION_FULL="${OEM_VERSION}.${OEM_PATCHLEVEL}.${OEM_SUBLEVEL}${OEM_EXTRAVERSION}"
           echo "KERNEL_VERSION_FULL=$KERNEL_VERSION_FULL" >> $GITHUB_ENV
-          echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> $GITHUB_ENV
 
           if [[ -n "${{ inputs.kernel_suffix }}" ]]; then
             KERNEL_SUFFIX="${{ inputs.kernel_suffix }}"
@@ -838,9 +845,14 @@ jobs:
             curl -fSL -o fix_oplus_bsp_midas.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_oplus_bsp_midas.patch"
             patch -p1 -F 3 < fix_oplus_bsp_midas.patch || true
             curl -fSL -o ntsync_base.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_base.patch"
-            curl -fSL -o ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch"
+            # compat 补丁优先按当前 android 版本匹配；缺失时回退 android15 基线（AOSP android15-6.6 合并后的内核基线）
+            NTSYNC_COMPAT_FILE="ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch"
+            if ! curl -fSL -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/$NTSYNC_COMPAT_FILE"; then
+              echo "[WARN] $NTSYNC_COMPAT_FILE 不存在，回退到 android15 基线 compat 补丁..." | tee -a "$LOG_FILE"
+              curl -fSL -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_compat_android15-${{ env.KERNEL_VERSION }}.patch" || true
+            fi
             patch -p1 -F 3 < ntsync_base.patch || true
-            patch -p1 -F 3 < ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+            patch -p1 -F 3 < ntsync_compat.patch || true
             cat >> ./arch/arm64/configs/gki_defconfig << 'DSCFG'
           CONFIG_PID_NS=y
           CONFIG_IPC_NS=y
@@ -905,10 +917,14 @@ jobs:
             LOCALVER="${LOCALVER}_${UPSTREAM_SUBLEVEL}"
           fi
 
+          # 不假设 OEM 默认 LOCALVERSION 内容：清除所有旧值后写入实际后缀（替代硬编码 -4k 的 sed）
+          sed -i '/^CONFIG_LOCALVERSION=/d' ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_LOCALVERSION=\"${LOCALVER}\"" >> ./common/arch/arm64/configs/gki_defconfig
+
+          # setlocalversion: 替换任意位置的 echo "$res" 语句，不再假设它是文件最后一行
           for f in ./common/scripts/setlocalversion; do
-            sed -i "\$s|echo \"\\\$res\"|echo \"${LOCALVER}\"|" "$f"
+            sed -i 's|^echo "\$res"$|echo "'"${LOCALVER}"'"|' "$f"
           done
-          sed -i "s/CONFIG_LOCALVERSION=\"-4k\"/CONFIG_LOCALVERSION=\"${LOCALVER}\"/" ./common/arch/arm64/configs/gki_defconfig
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
       - name: 启用 HZ=300调度
         if: inputs.hz_300
@@ -1002,7 +1018,12 @@ jobs:
             git clone --depth=1 https://github.com/WildKernels/kernel_patches.git "$WILD_DIR"
           fi
 
-          PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" | head -n 1)
+          # 上游目录结构可能变动：优先 oneplus/hmbird，未命中则全仓搜索兜底
+          PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" 2>/dev/null | head -n 1)
+          if [ -z "$PATCH_FILE" ]; then
+            echo "[WARN] oneplus/hmbird 目录未找到风驰补丁，开始全仓搜索..." | tee -a "$LOG_FILE"
+            PATCH_FILE=$(find "$WILD_DIR" -type f -name "fengchi_OP13_*.patch" 2>/dev/null | head -n 1)
+          fi
           if [ -z "$PATCH_FILE" ]; then
             echo "[ERROR] 未匹配到一加13风驰补丁" | tee -a "$LOG_FILE"
             exit 1
@@ -1031,8 +1052,17 @@ jobs:
           fi
           
           echo "[INFO] 注入 Overwriter 补丁..."
-          sed -i 's/\r$//' "$WILD_DIR/oneplus/hmbird/overwriter.patch"
-          patch -p1 -F 3 -f < "$WILD_DIR/oneplus/hmbird/overwriter.patch" || {
+          OVERWRITER_PATCH=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "overwriter.patch" 2>/dev/null | head -n 1)
+          if [ -z "$OVERWRITER_PATCH" ]; then
+            echo "[WARN] oneplus/hmbird 未找到 overwriter.patch，开始全仓搜索..." | tee -a "$LOG_FILE"
+            OVERWRITER_PATCH=$(find "$WILD_DIR" -type f -name "overwriter.patch" 2>/dev/null | head -n 1)
+          fi
+          if [ -z "$OVERWRITER_PATCH" ]; then
+            echo "[ERROR] Overwriter 补丁未找到" | tee -a "$LOG_FILE"
+            exit 1
+          fi
+          sed -i 's/\r$//' "$OVERWRITER_PATCH"
+          patch -p1 -F 3 -f < "$OVERWRITER_PATCH" || {
             echo "[ERROR] Overwriter 补丁应用失败" | tee -a "$LOG_FILE"
             exit 1
           }
@@ -1042,8 +1072,17 @@ jobs:
           fi
           
           echo "[INFO] 固化 Hmbird Defconfig..."
-          sed -i 's/\r$//' "$WILD_DIR/oneplus/hmbird/hmbird_config.patch"
-          patch -p1 -F 3 -f < "$WILD_DIR/oneplus/hmbird/hmbird_config.patch" || {
+          HMBIRD_CFG=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "hmbird_config.patch" 2>/dev/null | head -n 1)
+          if [ -z "$HMBIRD_CFG" ]; then
+            echo "[WARN] oneplus/hmbird 未找到 hmbird_config.patch，开始全仓搜索..." | tee -a "$LOG_FILE"
+            HMBIRD_CFG=$(find "$WILD_DIR" -type f -name "hmbird_config.patch" 2>/dev/null | head -n 1)
+          fi
+          if [ -z "$HMBIRD_CFG" ]; then
+            echo "[ERROR] Hmbird Defconfig 补丁未找到" | tee -a "$LOG_FILE"
+            exit 1
+          fi
+          sed -i 's/\r$//' "$HMBIRD_CFG"
+          patch -p1 -F 3 -f < "$HMBIRD_CFG" || {
             echo "[ERROR] Hmbird Defconfig 补丁应用失败" | tee -a "$LOG_FILE"
             exit 1
           }

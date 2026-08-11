@@ -47,9 +47,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           repo_full_name=$GITHUB_REPOSITORY
-          # 获取所有工作流（按创建时间倒序）
-          all_workflows=$(gh api -X GET "repos/$repo_full_name/actions/runs?per_page=100" | 
-            jq --arg current_run "$GITHUB_RUN_ID" '.workflow_runs | map(select(.id != ($current_run | tonumber)))')
+          # 获取所有工作流（--paginate 自动翻页，避免历史 run 超过 100 条时清理不到）
+          all_workflows=$(gh api --paginate -X GET "repos/$repo_full_name/actions/runs?per_page=100" | 
+            jq -s --arg current_run "$GITHUB_RUN_ID" '[.[].workflow_runs[] | select(.id != ($current_run | tonumber))]')
           # 计算实际需要保留的工作流数量
           total_workflows=$(echo "$all_workflows" | jq length)
           keep_count=$(( ${{ github.event.inputs.clean_to_keep }} < total_workflows ? ${{ github.event.inputs.clean_to_keep }} : total_workflows ))
@@ -75,10 +75,10 @@ jobs:
           cutoff_date=$(date -d "${{ github.event.inputs.clean_to_keep }} days ago" -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "删除 $cutoff_date 之前的所有工作流..."
           
-          # 获取需要删除的工作流ID
-          to_delete_ids=$(gh api -X GET "repos/$repo_full_name/actions/runs?created=<$cutoff_date&per_page=100" | 
-            jq -r --arg current_run "$GITHUB_RUN_ID" '.workflow_runs[] | 
-            select(.id != ($current_run | tonumber) and .status != "in_progress" and .status != "queued") | .id')
+          # 获取需要删除的工作流ID（--paginate 自动翻页）
+          to_delete_ids=$(gh api --paginate -X GET "repos/$repo_full_name/actions/runs?created=<$cutoff_date&per_page=100" | 
+            jq -r --arg current_run "$GITHUB_RUN_ID" '[.[].workflow_runs[] | 
+            select(.id != ($current_run | tonumber) and .status != "in_progress" and .status != "queued") | .id] | .[]')
           
           for id in $to_delete_ids; do
             echo "删除工作流 $id (创建于 $cutoff_date 之前)"
