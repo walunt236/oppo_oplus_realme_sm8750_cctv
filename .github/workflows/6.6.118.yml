@@ -1541,7 +1541,7 @@ jobs:
           if [[ -n "${INCREMENTAL_STATE:-}" ]] && [[ -n "${PATCH_HASH:-}" ]]; then
             mkdir -p "$HOME/.cache_patches"
             printf '%s|%s' "$INCREMENTAL_STATE" "$PATCH_HASH" > "$HOME/.cache_patches/build_state"
-            echo "[INFO] 增量状态已记录，下次相同配置将增量编译" | tee -a "$LOG_FILE"
+            echo "[INFO] 增量状态已记录，下次相同配置将增量编译"
           fi
           echo "[INFO] 磁盘清理完成"
     
