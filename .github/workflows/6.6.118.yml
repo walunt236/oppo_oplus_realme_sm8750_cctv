@@ -125,6 +125,11 @@ on:
         required: true
         type: boolean
         default: true
+      clean_build:
+        description: '强制全量重建（默认关闭，增量编译保留 out/ 目录）'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -205,7 +210,7 @@ jobs:
             cd common
             git fetch --depth=1 origin "$OEM_BRANCH"
             git reset --hard FETCH_HEAD
-            git clean -fd
+            git clean -fd -e /out/
             cd ..
           else
             echo "[INFO] 首次克隆 OEM 内核源码仓库..."
@@ -217,7 +222,7 @@ jobs:
 
           if [ -d "vendor_modules/.git" ]; then
             echo "[INFO] vendor_modules 已存在，仅更新（后台并行）..."
-            ( cd vendor_modules && git fetch --depth=1 origin "$OEM_BRANCH" && git reset --hard FETCH_HEAD && git clean -fd ) &
+            ( cd vendor_modules && git fetch --depth=1 origin "$OEM_BRANCH" && git reset --hard FETCH_HEAD && git clean -fd -e /out/ ) &
             VENDOR_PID=$!
           else
             echo "[INFO] 首次克隆设备树与私有驱动仓库（后台并行）..."
@@ -318,12 +323,14 @@ jobs:
             echo "[INFO] [秒过] Clang 19 工具链已存在本地缓存，直接复用！"
           fi
           
-          if [ ! -d "$BT_DIR/bin" ]; then
-            echo "[INFO] 检测到 build-tools 未缓存，开始下载..."
+          if [ ! -d "$BT_DIR/build-tools/bin" ]; then
+            echo "[INFO] 检测到 build-tools 未缓存或布局不符，重新下载..."
+            rm -rf "$BT_DIR"
+            mkdir -p "$BT_DIR"
             aria2c -s16 -x16 -k1M \
               https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip \
               -o build-tools.zip
-            unzip -q build-tools.zip -d "$BT_DIR" && rm -f build-tools.zip
+            unzip -oq build-tools.zip -d "$BT_DIR" && rm -f build-tools.zip
           else
             echo "[INFO] [秒过] build-tools 工具链已存在本地缓存，直接复用！"
           fi
@@ -1191,14 +1198,20 @@ jobs:
           CLANG_DIR_NAME="Clang-19.0.0git-20240723"
           
           # 第一步：垫底加载旧版 build-tools
-          export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
+          export PATH="$HOME/.toolchains/build-tools-r510928/build-tools/bin:$PATH"
           # 第二步：加载 Clang 19 核心编译器
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
           # 第三步：加载 ccache
           export PATH="/usr/lib/ccache:$PATH"
           
           cd kernel_workspace/common
-          
+
+          # 默认增量编译（保留 out/ 复用已编译对象）；clean_build=true 时强制全量
+          if [[ "${{ inputs.clean_build }}" == "true" ]]; then
+            echo "[INFO] clean_build 开启，删除 out/ 执行全量重建..." | tee -a "$LOG_FILE"
+            rm -rf out
+          fi
+
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O3 KCFLAGS+=-Wno-error gki_defconfig
 
           if [[ "${{ inputs.lz4kd_enable }}" == "true" ]] && [ -f out/.config ]; then
@@ -1288,7 +1301,7 @@ jobs:
           WORKDIR="$(pwd)"
           CLANG_DIR_NAME="Clang-19.0.0git-20240723"
           
-          export PATH="$HOME/.toolchains/build-tools-r510928/bin:$PATH"
+          export PATH="$HOME/.toolchains/build-tools-r510928/build-tools/bin:$PATH"
           export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
           export PATH="/usr/lib/ccache:$PATH"
           
@@ -1484,7 +1497,7 @@ jobs:
         if: success() && inputs.runner_type == 'self-hosted'
         run: |
           echo "[INFO] 清理编译产出和临时文件..."
-          rm -rf kernel_workspace/common/out
+          # 保留 common/out 供增量编译复用（make 依赖追踪自动处理源码/配置变化），仅清理 vendor 输出
           rm -rf kernel_workspace/vendor_modules/out
           rm -f /tmp/*.patch
           ccache -c
