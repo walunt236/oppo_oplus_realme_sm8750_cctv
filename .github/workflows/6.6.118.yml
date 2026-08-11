@@ -1279,7 +1279,7 @@ jobs:
           EOF
           chmod +x ld-wrapper
 
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -falign-functions=32 -mllvm -enable-gvn-hoist -mllvm -enable-load-pre -mllvm -polly-opt-outer-coincidence=true -mllvm -inline-threshold=300 -mllvm -inlinehint-threshold=500 -mllvm -enable-loopinterchange=true"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -falign-functions=32 -mllvm -enable-gvn-hoist -mllvm -enable-load-pre -mllvm -polly-opt-outer-coincidence=true -mllvm -inline-threshold=300 -mllvm -inlinehint-threshold=500 -mllvm -enable-loopinterchange=true -mllvm -enable-ipra -mllvm -enable-gvn-sink -mllvm -enable-constraint-elimination -mllvm -enable-phi-of-ops -mllvm -enable-dse-partial-store-merging -mllvm -enable-aarch64-lsr-cost-opt -mllvm -enable-aarch64-or-like-select -mllvm -enable-split-backedge-in-load-pre"
 
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
