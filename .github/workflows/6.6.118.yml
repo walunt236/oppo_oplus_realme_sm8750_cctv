@@ -148,13 +148,13 @@ jobs:
         id: init_env
         run: |
           export GIT_TERMINAL_PROMPT=0
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           # 网络代理自动探测：本地代理存在时启用（规避 github.com TLS 抖动；不影响 runner 本体连接）
           if curl -s -o /dev/null --connect-timeout 2 --max-time 3 --proxy http://127.0.0.1:7897 https://api.github.com 2>/dev/null; then
             echo "http_proxy=http://127.0.0.1:7897" >> $GITHUB_ENV
             echo "https_proxy=http://127.0.0.1:7897" >> $GITHUB_ENV
             echo "[INFO] 检测到本地代理 127.0.0.1:7897，网络操作走代理" | tee -a "$LOG_FILE"
           fi
-          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "=== 内核构建关键状态日志汇总 ===" > "$LOG_FILE"
           echo "[INFO] 清理可能残留的后台进程"
           pkill -9 -f "kernel_workspace" || true
