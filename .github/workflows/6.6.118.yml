@@ -712,6 +712,8 @@ jobs:
           echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
+          # ZRAM_MEMORY_TRACKING: idle/huge_idle 页重压缩检测的前置（select TRACK_ENTRY_ACTIME），Android mmd 标准配置
+          echo 'CONFIG_ZRAM_MEMORY_TRACKING=y' >> $DCFG
           echo 'CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y' >> $DCFG
           echo 'CONFIG_IOMMU_DEFAULT_DMA_STRICT=n' >> $DCFG
           echo 'CONFIG_IOMMU_DEFAULT_DMA_LAZY=y' >> $DCFG
@@ -1255,6 +1257,15 @@ jobs:
               echo "[INFO] LZ4KD 配置生效 (ZRAM_DEF_COMP=lz4kd)" | tee -a "$LOG_FILE"
             else
               echo "[ERROR] LZ4KD 配置未生效，中止构建" | tee -a "$LOG_FILE"
+              exit 1
+            fi
+          fi
+
+          if [ -f out/.config ]; then
+            if grep -q '^CONFIG_ZRAM_MEMORY_TRACKING=y' out/.config && grep -q '^CONFIG_ZRAM_TRACK_ENTRY_ACTIME=y' out/.config; then
+              echo "[INFO] ZRAM_MEMORY_TRACKING 配置生效 (idle 页重压缩可用)" | tee -a "$LOG_FILE"
+            else
+              echo "[ERROR] ZRAM_MEMORY_TRACKING 配置未生效，中止构建" | tee -a "$LOG_FILE"
               exit 1
             fi
           fi
