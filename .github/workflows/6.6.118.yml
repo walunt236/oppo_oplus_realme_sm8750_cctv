@@ -811,10 +811,14 @@ jobs:
           NSCFG
 
           echo "[INFO] 注入 Vendor 驱动符号 (UBSAN / KUNIT)..."
-          # configs.o 每次构建强制重编：ccache 无法感知 .incbin 的 config_data.gz 变化，
-          # 不处理则 IKCONFIG 数据（Image 内嵌配置）永远命中旧缓存（实测 ZRAM_MEMORY_TRACKING 陈旧）
+          # configs.o 修复（IKCONFIG 数据陈旧问题，实机验证 ZRAM_MEMORY_TRACKING 丢失）：
+          # 1) -D 时间戳 flag 强制每次重编（ccache 无法感知 .incbin 的 config_data.gz 变化）
+          # 2) 排除 LTO：.incbin 数据在 thin-LTO codegen（链接时）读取，thinlto 缓存键不含该文件，
+          #    命中旧缓存导致配置数据永远陈旧——排除 LTO 后数据在编译时固化（本地已验证）
           grep -q "CFLAGS_configs.o := -D__IKCFG_BUILD" ./common/kernel/Makefile || \
             echo 'CFLAGS_configs.o := -D__IKCFG_BUILD_$(shell date +%s)' >> ./common/kernel/Makefile
+          grep -q "CFLAGS_REMOVE_configs.o" ./common/kernel/Makefile || \
+            echo 'CFLAGS_REMOVE_configs.o := -flto=thin -fsplit-lto-unit' >> ./common/kernel/Makefile
           cat >> $DCFG << 'OEMDEPENDS'
           CONFIG_UBSAN=y
           CONFIG_UBSAN_TRAP=y
