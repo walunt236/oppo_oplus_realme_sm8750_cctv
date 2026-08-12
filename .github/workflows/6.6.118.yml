@@ -787,9 +787,9 @@ jobs:
           CONFIG_LRU_GEN_ENABLED=y
           CONFIG_DAMON_PADDR=y
           CONFIG_DAMON_RECLAIM=y
-           CONFIG_DAMON_LRU_SORT=y
-           CONFIG_NET_SCH_CAKE=y
-           CONFIG_SECURITY_LANDLOCK=y
+          CONFIG_DAMON_LRU_SORT=y
+          CONFIG_NET_SCH_CAKE=y
+          CONFIG_SECURITY_LANDLOCK=y
           TUNECFG
 
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
