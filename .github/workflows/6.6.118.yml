@@ -208,7 +208,11 @@ jobs:
             if [ -d "common/.git" ]; then
             echo "[INFO] common 源码已存在，reset到OEM"
             cd common
-            git fetch --depth=1 origin "$OEM_BRANCH"
+            for i in 1 2 3; do
+              git fetch --depth=1 origin "$OEM_BRANCH" && break
+              echo "[WARN] OEM fetch 失败(第${i}次)，5 秒后重试..."
+              sleep 5
+            done
             git reset --hard FETCH_HEAD
             git clean -fd -e /out/
             cd ..
@@ -226,7 +230,16 @@ jobs:
 
           if [ -d "vendor_modules/.git" ]; then
             echo "[INFO] vendor_modules 已存在，仅更新（后台并行）..."
-            ( cd vendor_modules && git fetch --depth=1 origin "$OEM_BRANCH" && git reset --hard FETCH_HEAD && git clean -fd -e /out/ ) &
+            ( cd vendor_modules && {
+                for i in 1 2 3; do
+                  git fetch --depth=1 origin "$OEM_BRANCH" && break
+                  echo "[WARN] vendor_modules fetch 失败(第${i}次)，5 秒后重试..."
+                  sleep 5
+                done
+                git reset --hard FETCH_HEAD
+                git clean -fd -e /out/
+              }
+            ) &
             VENDOR_PID=$!
           else
             echo "[INFO] 首次克隆设备树与私有驱动仓库（后台并行）..."
