@@ -16,22 +16,33 @@
 - ADIOS：[firelzrd/adios](https://github.com/firelzrd/adios)
 - wild kernels [https://github.com/WildKernels/OnePlus_KernelSU_SUSFS]
 
-## zram 双重压缩（lz4kd 主算法 + zstd 重压缩）
+## zram 双重压缩（lz4 主算法 + zstd 冷数据重压缩）
 
 内核已启用 `ZRAM_MULTI_COMP` + `ZRAM_MEMORY_TRACKING`：
-- **主算法 lz4kd**：新写入的页（常用/活跃数据）用 lz4kd 压缩（快）
-- **重压缩 zstd**：idle 页（不常用数据）可经 recompression 转 zstd（压缩率高，省内存）
+- **主算法 lz4 1.10 全特性**：新写入的页（常用/活跃数据）用 lz4 压缩——NEON 解压（lz4armv8.S）+ `LZ4_FAST_DEC_LOOP` 快循环，解压最快
+- **重压缩 zstd**：idle 页（冷数据）经 recompression 转 zstd（压缩率高，省内存）
 
-设备端启用（需要 root；Android 15+ 的 mmd 会自动调度，也可手动）：
+### 开机自动启用（追加到开机脚本）
+
+**方式一：KernelSU 模块**（`/data/adb/modules/<模块名>/service.sh`）或 **Magisk**（`/data/adb/service.d/99zram.sh`，记得 `chmod +x`）：
 
 ```sh
-# 1. 配置重压缩目标算法（zstd 优先，可加 lz4hc 备用）
+#!/system/bin/sh
+# zram 双重压缩：主算法 lz4（内核默认）+ 冷数据 zstd 重压缩
+# 追加指令行（复制以下 3 行）
+sleep 3
 echo "algo=zstd priority=1" > /sys/block/zram0/recomp_algorithm
-# 2. 触发全部页重压缩（mmd 会自动做，这里用于手动立即执行）
 echo all > /sys/block/zram0/recompress
-# 3. 查看状态
-cat /sys/block/zram0/recomp_algorithm
-cat /sys/block/zram0/mm_stat
 ```
 
-说明：写入新页始终用主算法 lz4kd；recompression 只处理已 idle 的页（不常用的转 zstd 后解压略慢但省内存，常用页保持 lz4kd 快速解压）。
+**方式二：临时手动启用**（每次开机后执行一次，或配合 Tasker/Scene）：
+
+```sh
+echo "algo=zstd priority=1" > /sys/block/zram0/recomp_algorithm
+echo all > /sys/block/zram0/recompress
+```
+
+说明：
+- 写入新页始终用主算法 lz4（常用数据快速解压）；`recompress` 只处理已 idle 的页（冷数据转 zstd 省内存）
+- `mm_stat` 可查看压缩效果（`cat /sys/block/zram0/mm_stat`）
+- Android 15+ 的 mmd 会自动调度 recompression，脚本为兜底/手动触发
