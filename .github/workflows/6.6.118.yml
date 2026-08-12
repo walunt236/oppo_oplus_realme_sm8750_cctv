@@ -832,9 +832,9 @@ jobs:
           # Android 用户态无法在 swapon 前介入，必须设备创建时在内核固化）
           curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/zram_recomp.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/zram_recomp_default.patch"
           if ( cd ./common && patch -p1 -F 3 < /tmp/zram_recomp.patch ); then
-            echo "[INFO] zram 默认 zstd 重压缩算法补丁应用成功" | tee -a "$LOG_FILE"
+            echo "[INFO] zram 默认 zstd 重压缩算法补丁应用成功"
           else
-            echo "[ERROR] zram 默认重压缩算法补丁应用失败" | tee -a "$LOG_FILE"
+            echo "[ERROR] zram 默认重压缩算法补丁应用失败"
             exit 1
           fi
           cat >> $DCFG << 'OEMDEPENDS'
