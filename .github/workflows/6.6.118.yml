@@ -1477,15 +1477,16 @@ jobs:
         if: ${{ !inputs.diagnosis }}
         id: create_zip
         run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace
           CLONE_OK=0
           # 动态增量：本地已有 AnyKernel3 仓库则增量拉取，失败时直接用本地版本（模板用旧版无碍）
           if [ -d AnyKernel3/.git ]; then
-            echo "[INFO] AnyKernel3 仓库已存在，增量同步..." | tee -a "$LOG_FILE"
+            echo "[INFO] AnyKernel3 仓库已存在，增量同步..."
             if git -C AnyKernel3 fetch --depth=1 origin && git -C AnyKernel3 reset --hard FETCH_HEAD; then
               CLONE_OK=1
             else
-              echo "[WARN] AnyKernel3 增量拉取失败，使用本地已有版本" | tee -a "$LOG_FILE"
+              echo "[WARN] AnyKernel3 增量拉取失败，使用本地已有版本"
               CLONE_OK=1
             fi
           fi
