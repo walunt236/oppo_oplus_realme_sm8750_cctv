@@ -777,7 +777,7 @@ jobs:
            CONFIG_DAMON_LRU_SORT=y
            CONFIG_NET_SCH_CAKE=y
            CONFIG_SECURITY_LANDLOCK=y
-           TUNECFG
+          TUNECFG
 
           if [[ "${{ inputs.rcu_nocb_enable }}" == "true" ]]; then
             echo "[INFO] 开启 RCU_NOCB_CPU..."
@@ -1488,7 +1488,7 @@ jobs:
           fi
           if [[ $CLONE_OK -ne 1 ]]; then
             rm -rf AnyKernel3
-            for i in 1 2 3 4 5; do
+            for i in 1 2 3 4 5 6 7 8; do
               if git clone https://github.com/cctv18/AnyKernel3 --depth=1 AnyKernel3; then
                 CLONE_OK=1
                 break
