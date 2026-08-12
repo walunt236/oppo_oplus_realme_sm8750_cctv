@@ -1238,7 +1238,7 @@ jobs:
           # 源码树指纹 = git status porcelain 哈希：工作流改动/输入变化/上游源变化都会体现在其中
           PATCH_HASH=$(git status --porcelain 2>/dev/null | md5sum | cut -d' ' -f1)
           echo "PATCH_HASH=$PATCH_HASH" >> $GITHUB_ENV
-          STORED=$(cat "$HOME/.cache_patches/build_state" 2>/dev/null || true)
+          STORED=$(cut -d'|' -f1 "$HOME/.cache_patches/build_state" 2>/dev/null || true)
           if [[ "$STORED" == "$PATCH_HASH" ]]; then
             echo "[INFO] 增量编译：源码指纹与上次成功构建一致，钳制全部跟踪源文件 mtime..." | tee -a "$LOG_FILE"
             # 指纹一致 ⇒ 整棵树逐字节相同 ⇒ 全部 .o 有效；钳制 Makefile/Kconfig 阻断 GEN 级联重编
@@ -1271,6 +1271,19 @@ jobs:
           fi
 
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O3 KCFLAGS+=-Wno-error gki_defconfig
+
+          # .config 哈希纳入增量判定：与上次成功构建不一致时强制全量重建
+          # （.config 新增符号时 kbuild 不会重编依赖它的文件，增量会产出配置陈旧的镜像）
+          CFG_HASH=$(md5sum out/.config | cut -d' ' -f1)
+          echo "CFG_HASH=$CFG_HASH" >> $GITHUB_ENV
+          STORED_CFG=$(cut -d'|' -f2 "$HOME/.cache_patches/build_state" 2>/dev/null || true)
+          if [[ "$STORED_CFG" != "$CFG_HASH" ]]; then
+            echo "[INFO] .config 与上次成功构建不一致，强制全量重建（避免增量配置陈旧）..." | tee -a "$LOG_FILE"
+            rm -rf out
+            make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O3 KCFLAGS+=-Wno-error gki_defconfig
+            CFG_HASH=$(md5sum out/.config | cut -d' ' -f1)
+            echo "CFG_HASH=$CFG_HASH" >> $GITHUB_ENV
+          fi
 
           if [[ "${{ inputs.lz4kd_enable }}" == "true" ]] && [ -f out/.config ]; then
             if grep -q '^CONFIG_ZRAM_DEF_COMP_LZ4KD=y' out/.config && grep -q '^CONFIG_ZRAM_DEF_COMP="lz4kd"' out/.config; then
@@ -1413,6 +1426,19 @@ jobs:
           # Save unstripped vmlinux for PGO profile generation
           cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
           
+          # 校验 Image 内嵌配置（IKCFG）与构建配置一致，防止增量产物配置陈旧
+          if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | grep -qa "IKCFG_ST"; then
+            IKCFG_TEXT=$(perl -e 'open(F,"<",$ARGV[0]); local $/; $d=<F>; close F; $d =~ /IKCFG_ST(.*?)IKCFG_ED/s; open(G,"|-","gzip -dc 2>/dev/null"); print G $1; close G;' out/arch/arm64/boot/Image 2>/dev/null)
+            if [[ "${{ inputs.lz4kd_enable }}" == "true" ]]; then
+              if echo "$IKCFG_TEXT" | grep -q '^CONFIG_ZRAM_MEMORY_TRACKING=y'; then
+                echo "[INFO] Image 内嵌配置校验通过 (ZRAM_MEMORY_TRACKING=y)" | tee -a "$LOG_FILE"
+              else
+                echo "[ERROR] Image 内嵌配置缺少 ZRAM_MEMORY_TRACKING，产物配置陈旧，中止" | tee -a "$LOG_FILE"
+                exit 1
+              fi
+            fi
+          fi
+
           echo "[INFO] 内核镜像编译完成" | tee -a "$LOG_FILE"
           if nm out/vmlinux 2>/dev/null | grep -q "_lz4_decompress_asm"; then
             echo "[INFO] _lz4_decompress_asm 符号校验通过" | tee -a "$LOG_FILE"
@@ -1585,11 +1611,11 @@ jobs:
           for repo in "$HOME/.cache_patches/"*; do
             [ -d "$repo/.git" ] && git -C "$repo" gc --auto 2>/dev/null || true
           done
-          # 记录本次成功构建的源码指纹（仅成功且自托管时执行；失败则不写，下次自动全量）
-          if [[ -n "${PATCH_HASH:-}" ]]; then
+          # 记录本次成功构建的源码指纹+配置哈希（v2 格式 PATCH_HASH|CFG_HASH；失败则不写，下次自动全量）
+          if [[ -n "${PATCH_HASH:-}" ]] && [[ -n "${CFG_HASH:-}" ]]; then
             mkdir -p "$HOME/.cache_patches"
-            printf '%s' "$PATCH_HASH" > "$HOME/.cache_patches/build_state"
-            echo "[INFO] 增量源码指纹已记录，下次相同源码将增量编译"
+            printf '%s|%s' "$PATCH_HASH" "$CFG_HASH" > "$HOME/.cache_patches/build_state"
+            echo "[INFO] 增量指纹+配置哈希已记录，下次相同状态将增量编译"
           fi
           echo "[INFO] 磁盘清理完成"
     
