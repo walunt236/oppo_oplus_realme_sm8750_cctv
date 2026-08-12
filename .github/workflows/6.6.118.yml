@@ -461,8 +461,12 @@ jobs:
             # 动态增量：本地仓库存在则增量拉取（上游无更新秒过），否则全量克隆
             if [ -d KernelSU/.git ]; then
               echo "[INFO] [秒过] ReSukiSU 仓库已存在，增量同步..." | tee -a "$LOG_FILE"
-              git -C KernelSU fetch origin main 2>/dev/null || true
-              git -C KernelSU reset --hard FETCH_HEAD
+              # 增量拉取失败时保留本地已有版本继续构建（网络抖动不致命）
+              if git -C KernelSU fetch origin main 2>/dev/null; then
+                git -C KernelSU reset --hard FETCH_HEAD
+              else
+                echo "[WARN] KernelSU 增量拉取失败，使用本地已有版本" | tee -a "$LOG_FILE"
+              fi
             else
               git clone -b main https://github.com/ReSukiSU/ReSukiSU.git KernelSU
             fi
@@ -478,8 +482,11 @@ jobs:
             echo "[INFO] 配置 KernelSU Next..." | tee -a "$LOG_FILE"
             if [ -d KernelSU-Next/.git ]; then
               echo "[INFO] [秒过] KernelSU-Next 仓库已存在，增量同步..." | tee -a "$LOG_FILE"
-              git -C KernelSU-Next fetch origin dev-susfs 2>/dev/null || true
-              git -C KernelSU-Next reset --hard FETCH_HEAD
+              if git -C KernelSU-Next fetch origin dev-susfs 2>/dev/null; then
+                git -C KernelSU-Next reset --hard FETCH_HEAD
+              else
+                echo "[WARN] KernelSU-Next 增量拉取失败，使用本地已有版本" | tee -a "$LOG_FILE"
+              fi
             else
               git clone -b dev-susfs https://github.com/pershoot/KernelSU-Next.git KernelSU-Next
             fi
@@ -502,8 +509,12 @@ jobs:
             echo "[INFO] 配置原版 KernelSU..." | tee -a "$LOG_FILE"
             if [ -d KernelSU/.git ]; then
               echo "[INFO] [秒过] KernelSU 仓库已存在，增量同步..." | tee -a "$LOG_FILE"
-              git -C KernelSU fetch origin main 2>/dev/null || true
-              git -C KernelSU reset --hard FETCH_HEAD
+              # 增量拉取失败时保留本地已有版本继续构建（网络抖动不致命）
+              if git -C KernelSU fetch origin main 2>/dev/null; then
+                git -C KernelSU reset --hard FETCH_HEAD
+              else
+                echo "[WARN] KernelSU 增量拉取失败，使用本地已有版本" | tee -a "$LOG_FILE"
+              fi
             else
               git clone -b main https://github.com/tiann/KernelSU.git KernelSU
             fi
