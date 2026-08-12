@@ -1,0 +1,12 @@
+--- a/drivers/block/zram/zram_drv.c
++++ b/drivers/block/zram/zram_drv.c
+@@ -46,5 +46,9 @@ static int zram_add(void)
+ 
+ 	comp_algorithm_set(zram, ZRAM_PRIMARY_COMP, default_compressor);
+ 
++	/* 默认注册 zstd 为冷数据重压缩算法（recomp_algorithm 只能在设备 init 前配置，
++	 * Android 用户态无法在 swapon 前介入，故在设备创建时固化） */
++	comp_algorithm_set(zram, ZRAM_SECONDARY_COMP, kstrdup("zstd", GFP_KERNEL));
++
+ 	/* Actual capacity set using sysfs (/sys/block/zram<id>/disksize */
+ 	set_capacity(zram->disk, 0);
