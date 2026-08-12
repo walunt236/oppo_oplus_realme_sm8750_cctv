@@ -30,18 +30,20 @@
 
 ```sh
 #!/system/bin/sh
-# zram 冷数据重压缩触发（内核默认算法 zstd）
+# zram 冷数据重压缩触发（内核默认算法 zstd，type=idle 只压冷数据）
 sleep 10
-echo all > /sys/block/zram0/recompress 2>/dev/null || true
+echo "type=idle" > /sys/block/zram0/recompress 2>/dev/null || true
 ```
 
 **方式二：临时手动触发**：
 
 ```sh
-echo all > /sys/block/zram0/recompress
+echo "type=idle" > /sys/block/zram0/recompress
 ```
 
-验证：`cat /sys/block/zram0/recomp_algorithm`（应显示 `algo=zstd priority=1`，无需自己写）。
+验证：`cat /sys/block/zram0/recomp_algorithm`（应显示 `#1: algo=zstd`，无需自己写）。
+
+说明：`type=idle` 只重压缩冷数据页（避免 `echo all` 把活跃页也压到 zstd 导致解压变慢）；内核已每 30 分钟自动执行相同操作，脚本仅为手动立即触发。
 
 说明：
 - 写入新页始终用主算法 lz4（常用数据快速解压）；`recompress` 只处理已 idle 的页（冷数据转 zstd 省内存）
