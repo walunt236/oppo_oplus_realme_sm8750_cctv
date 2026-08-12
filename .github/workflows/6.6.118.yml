@@ -214,10 +214,14 @@ jobs:
             cd ..
           else
             echo "[INFO] 首次克隆 OEM 内核源码仓库..."
-            git clone --depth=1 \
-              https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
-              -b "$OEM_BRANCH" \
-              common
+            for i in 1 2 3; do
+              git clone --depth=1 \
+                https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8750.git \
+                -b "$OEM_BRANCH" \
+                common && break
+              echo "[WARN] OEM 内核仓库克隆失败(第${i}次)，5 秒后重试..."
+              sleep 5
+            done
           fi
 
           if [ -d "vendor_modules/.git" ]; then
@@ -226,10 +230,15 @@ jobs:
             VENDOR_PID=$!
           else
             echo "[INFO] 首次克隆设备树与私有驱动仓库（后台并行）..."
-            git clone --depth=1 \
-              https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git \
-              -b "$OEM_BRANCH" \
-              vendor_modules &
+            ( for i in 1 2 3; do
+                git clone --depth=1 \
+                  https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git \
+                  -b "$OEM_BRANCH" \
+                  vendor_modules && break
+                echo "[WARN] vendor_modules 克隆失败(第${i}次)，5 秒后重试..."
+                sleep 5
+              done
+            ) &
             VENDOR_PID=$!
           fi
 
@@ -500,10 +509,10 @@ jobs:
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
             sed -i "s/KSU_VERSION_FALLBACK := 1/KSU_VERSION_FALLBACK := $KSU_VERSION/g" kernel/Kbuild
-            KSU_GIT_TAG=$(curl -sL "https://api.github.com/repos/KernelSU-Next/KernelSU-Next/tags" | grep -o '"name": *"[^"]*"' | head -n 1 | sed 's/"name": "//;s/"//')
+            KSU_GIT_TAG=$(curl -sL --retry 3 --retry-delay 5 --retry-all-errors "https://api.github.com/repos/KernelSU-Next/KernelSU-Next/tags" | grep -o '"name": *"[^"]*"' | head -n 1 | sed 's/"name": "//;s/"//')
             sed -i "s/KSU_VERSION_TAG_FALLBACK := v0.0.1/KSU_VERSION_TAG_FALLBACK := $KSU_GIT_TAG/g" kernel/Kbuild
             cd ../common/drivers/kernelsu
-            curl -fSL -o apk_sign.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/apk_sign.patch"
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o apk_sign.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/apk_sign.patch"
             patch -p2 -N -F 3 < apk_sign.patch || true
           elif [[ '${{ inputs.ksu_type }}' == "ksu" ]]; then
             echo "[INFO] 配置原版 KernelSU..." | tee -a "$LOG_FILE"
@@ -563,7 +572,7 @@ jobs:
             # --- 3. 缓存 69_hide_stuff.patch 避免重复网络下载 ---
             HIDE_PATCH="$HOME/.cache_patches/69_hide_stuff.patch"
             if [ ! -f "$HIDE_PATCH" ]; then
-              curl -fSL -o "$HIDE_PATCH" "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch"
+              curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o "$HIDE_PATCH" "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch"
             fi
             cp "$HIDE_PATCH" ./common/69_hide_stuff.patch
 
@@ -889,16 +898,16 @@ jobs:
           if [[ "${{ inputs.droidspaces_enable }}" != "false" ]]; then
             echo "[INFO] 启用 Droidspaces 容器支持..." | tee -a "$LOG_FILE"
             cd kernel_workspace/common
-            curl -fSL -o fix_sysvipc_kabi_6_7_8.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch"
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o fix_sysvipc_kabi_6_7_8.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch"
             patch -p1 -F 3 < fix_sysvipc_kabi_6_7_8.patch || true
-            curl -fSL -o fix_oplus_bsp_midas.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_oplus_bsp_midas.patch"
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o fix_oplus_bsp_midas.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_oplus_bsp_midas.patch"
             patch -p1 -F 3 < fix_oplus_bsp_midas.patch || true
-            curl -fSL -o ntsync_base.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_base.patch"
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o ntsync_base.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_base.patch"
             # compat 补丁优先按当前 android 版本匹配；缺失时回退 android15 基线（AOSP android15-6.6 合并后的内核基线）
             NTSYNC_COMPAT_FILE="ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch"
-            if ! curl -fSL -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/$NTSYNC_COMPAT_FILE"; then
+            if ! curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/$NTSYNC_COMPAT_FILE"; then
               echo "[WARN] $NTSYNC_COMPAT_FILE 不存在，回退到 android15 基线 compat 补丁..." | tee -a "$LOG_FILE"
-              curl -fSL -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_compat_android15-${{ env.KERNEL_VERSION }}.patch" || true
+              curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_compat_android15-${{ env.KERNEL_VERSION }}.patch" || true
             fi
             patch -p1 -F 3 < ntsync_base.patch || true
             patch -p1 -F 3 < ntsync_compat.patch || true
@@ -917,7 +926,7 @@ jobs:
               echo "CONFIG_BT_HCIVHCI=y" >> ./arch/arm64/configs/gki_defconfig
               # EVDI/蓝牙等 extend 模块依赖动态 usermodehelper(modprobe),必须覆盖 OnePlus 默认 STATIC_USERMODEHELPER=y
               echo "CONFIG_STATIC_USERMODEHELPER=n" >> ./arch/arm64/configs/gki_defconfig
-              curl -fSL -o evdi_drm.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/evdi_drm.patch"
+              curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o evdi_drm.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/evdi_drm.patch"
               patch -p1 -F 3 < evdi_drm.patch || true
               echo "CONFIG_DRM_LINDROID_EVDI=y" >> ./arch/arm64/configs/gki_defconfig
             fi
@@ -950,7 +959,7 @@ jobs:
           cd kernel_workspace
           echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
           cd ./common
-          curl -fSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash || {
+          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash || {
             echo "[ERROR] Baseband-guard 安装失败" | tee -a "$LOG_FILE"
             exit 1
           }
@@ -993,7 +1002,7 @@ jobs:
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "[INFO] 应用 BBRv3 补丁..."
           cd kernel_workspace/common
-          curl -fSL -o bbrv3.patch "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
+          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o bbrv3.patch "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
           
           if git apply -p1 < bbrv3.patch 2>/dev/null; then
             echo "[INFO] BBRv3 git apply 成功" | tee -a "$LOG_FILE"
@@ -1146,16 +1155,16 @@ jobs:
           if [ -f "$HOME/.cache_patches/zram_patches/common/EnablePOLLY.patch" ]; then
             patch -p1 --forward -f < "$HOME/.cache_patches/zram_patches/common/EnablePOLLY.patch" || echo "[WARN] EnablePOLLY.patch 应用失败，继续..."
           else
-            curl -fSL -o /tmp/EnablePOLLY.patch "https://raw.githubusercontent.com/mrcxlinux/kernel_patches/main/common/EnablePOLLY.patch"
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/EnablePOLLY.patch "https://raw.githubusercontent.com/mrcxlinux/kernel_patches/main/common/EnablePOLLY.patch"
             patch -p1 --forward -f < /tmp/EnablePOLLY.patch || echo "[WARN] EnablePOLLY.patch 应用失败，继续..."
           fi
-          curl -fSL -o /tmp/mm_zsmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/d831954.patch"
+          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mm_zsmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/d831954.patch"
           patch -p1 --forward -f < /tmp/mm_zsmalloc.patch || echo "[WARN] mm_zsmalloc 应用失败，继续..."
-          curl -fSL -o /tmp/mm_kvmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/a8093f3.patch"
+          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mm_kvmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/a8093f3.patch"
           patch -p1 --forward -f < /tmp/mm_kvmalloc.patch || echo "[WARN] mm_kvmalloc 应用失败，继续..."
-          curl -fSL -o /tmp/mm_slab.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/936de3f.patch"
+          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mm_slab.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/936de3f.patch"
           patch -p1 --forward -f < /tmp/mm_slab.patch || echo "[WARN] mm_slab 应用失败，继续..."
-          curl -fSL -o /tmp/mm_vmpressure.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/99b920c.patch"
+          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mm_vmpressure.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/99b920c.patch"
           patch -p1 --forward -f < /tmp/mm_vmpressure.patch || echo "[WARN] mm_vmpressure 应用失败，继续..."
           TOTAL_REJ=0
           BATCH_REJ=$(find . -name "*.rej" 2>/dev/null | wc -l)
@@ -1165,7 +1174,7 @@ jobs:
           mkdir -p "$HOME/.cache_patches/aosp"
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 9eecad532ad3 c7a8aea27b87; do
             if [ ! -s "$HOME/.cache_patches/aosp/$hash.patch" ]; then
-              curl -fsSL --connect-timeout 10 --max-time 30 "https://android.googlesource.com/kernel/common/+/$hash^!/?format=TEXT" 2>/dev/null | base64 -d > "$HOME/.cache_patches/aosp/$hash.patch" 2>/dev/null || rm -f "$HOME/.cache_patches/aosp/$hash.patch"
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 10 --max-time 30 "https://android.googlesource.com/kernel/common/+/$hash^!/?format=TEXT" 2>/dev/null | base64 -d > "$HOME/.cache_patches/aosp/$hash.patch" 2>/dev/null || rm -f "$HOME/.cache_patches/aosp/$hash.patch"
             fi
           done
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 9eecad532ad3 c7a8aea27b87; do
@@ -1178,7 +1187,7 @@ jobs:
           mkdir -p "$HOME/.cache_patches/palazik"
           for hash in e8400a0 a09e19e; do
             if [ ! -s "$HOME/.cache_patches/palazik/$hash.patch" ]; then
-              curl -fSL --connect-timeout 10 --max-time 30 -o "$HOME/.cache_patches/palazik/$hash.patch" "https://github.com/palazik/android_kernel_common_oneplus_sm8750/commit/$hash.patch" 2>/dev/null || rm -f "$HOME/.cache_patches/palazik/$hash.patch"
+              curl -fSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 10 --max-time 30 -o "$HOME/.cache_patches/palazik/$hash.patch" "https://github.com/palazik/android_kernel_common_oneplus_sm8750/commit/$hash.patch" 2>/dev/null || rm -f "$HOME/.cache_patches/palazik/$hash.patch"
             fi
           done
           for hash in e8400a0 a09e19e; do
@@ -1438,7 +1447,7 @@ jobs:
           if [[ '${{ inputs.kpm_enable }}' == 'builtin' ]] && ( [[ "${{ inputs.ksu_type }}" == "sukisu" ]] || [[ "${{ inputs.ksu_type }}" == "resukisu" ]] ); then
             echo "[INFO] 应用 KPM 并修补内核..."
             cd kernel_workspace/common/out/arch/arm64/boot
-            curl -fSL -o patch_linux "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest/download/patch_linux" || {
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o patch_linux "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest/download/patch_linux" || {
               echo "[ERROR] KPM patch_linux 下载失败"
               exit 1
             }
@@ -1450,11 +1459,11 @@ jobs:
           if [[ '${{ inputs.kpm_enable }}' == 'kpn' ]]; then
             echo "[INFO] 应用 KP-N 并修补内核..."
             cd kernel_workspace/common/out/arch/arm64/boot
-            curl -fSL --connect-timeout 10 --max-time 30 -o kptools-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux" || {
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 10 --max-time 30 -o kptools-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux" || {
               echo "[WARN] KPN kptools download timed out, skipping"
               exit 0
             }
-            curl -fSL --connect-timeout 10 --max-time 30 -o kpimg-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux" || {
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 10 --max-time 30 -o kpimg-linux "https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux" || {
               echo "[WARN] KPN kpimg download timed out, skipping"
               exit 0
             }
@@ -1509,7 +1518,7 @@ jobs:
           esac
 
           if [[ '${{ inputs.kpm_enable }}' == 'kpn' ]]; then
-            curl -fSL --connect-timeout 10 --max-time 30 -o kpn.zip "https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip" || echo "[WARN] kpn.zip 下载失败，跳过 KPN 模块" | tee -a "$LOG_FILE"
+            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 10 --max-time 30 -o kpn.zip "https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip" || echo "[WARN] kpn.zip 下载失败，跳过 KPN 模块" | tee -a "$LOG_FILE"
           fi
 
           BUILD_DATE="$(TZ=Asia/Shanghai date +%Y%m%d)"
