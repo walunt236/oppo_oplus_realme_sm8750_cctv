@@ -735,8 +735,9 @@ jobs:
           CONFIG_CRYPTO_LZ4K=y
           CONFIG_CRYPTO_LZ4KD=y
           CONFIG_CRYPTO_842=y
-          CONFIG_ZRAM_DEF_COMP_LZ4KD=y
-          CONFIG_ZRAM_DEF_COMP="lz4kd"
+          # zram 默认算法：lz4（NEON 解压加速已接入 crypto/lz4.c；lz4kd 无 NEON 实现）
+          CONFIG_ZRAM_DEF_COMP_LZ4=y
+          CONFIG_ZRAM_DEF_COMP="lz4"
           LZ4KDCFG
           fi
           
@@ -1307,8 +1308,8 @@ jobs:
           fi
 
           if [[ "${{ inputs.lz4kd_enable }}" == "true" ]] && [ -f out/.config ]; then
-            if grep -q '^CONFIG_ZRAM_DEF_COMP_LZ4KD=y' out/.config && grep -q '^CONFIG_ZRAM_DEF_COMP="lz4kd"' out/.config; then
-              echo "[INFO] LZ4KD 配置生效 (ZRAM_DEF_COMP=lz4kd)" | tee -a "$LOG_FILE"
+            if grep -q '^CONFIG_ZRAM_DEF_COMP_LZ4=y' out/.config && grep -q '^CONFIG_ZRAM_DEF_COMP="lz4"' out/.config; then
+              echo "[INFO] ZRAM 默认算法配置生效 (ZRAM_DEF_COMP=lz4, NEON 解压)" | tee -a "$LOG_FILE"
             else
               echo "[ERROR] LZ4KD 配置未生效，中止构建" | tee -a "$LOG_FILE"
               exit 1
