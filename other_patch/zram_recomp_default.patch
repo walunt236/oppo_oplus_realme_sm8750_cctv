@@ -10,3 +10,10 @@
 +
  	/* Actual capacity set using sysfs (/sys/block/zram<id>/disksize */
  	set_capacity(zram->disk, 0);
+@@ -2042,4 +2046,6 @@ static void zram_reset_device(struct zram *zram)
+ 
+ 	comp_algorithm_set(zram, ZRAM_PRIMARY_COMP, default_compressor);
++	/* reset 会经 zram_destroy_comps 清空 SECONDARY，此处恢复默认 zstd */
++	comp_algorithm_set(zram, ZRAM_SECONDARY_COMP, kstrdup("zstd", GFP_KERNEL));
+ 	up_write(&zram->init_lock);
+ }
