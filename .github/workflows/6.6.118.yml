@@ -751,8 +751,8 @@ jobs:
           echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> $DCFG
           sed -i 's/check_defconfig//' ./common/build.config.gki || true
           echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
-          # NR_CPUS=8：SM8750 仅 8 核，GKI 默认 32 浪费每 CPU 数据结构内存
-          echo "CONFIG_NR_CPUS=8" >> $DCFG
+          # 注意：勿注入 CONFIG_NR_CPUS——GKI per-cpu 布局与 vendor 模块编译期 NR_CPUS 绑定，
+          # 32->8 曾导致 bootloop（be907ba，2026-08-13 实机验证）
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
           # ZRAM_MEMORY_TRACKING: idle/huge_idle 页重压缩检测的前置（select TRACK_ENTRY_ACTIME），Android mmd 标准配置
