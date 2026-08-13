@@ -751,6 +751,8 @@ jobs:
           echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> $DCFG
           sed -i 's/check_defconfig//' ./common/build.config.gki || true
           echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
+          # NR_CPUS=8：SM8750 仅 8 核，GKI 默认 32 浪费每 CPU 数据结构内存
+          echo "CONFIG_NR_CPUS=8" >> $DCFG
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
           # ZRAM_MEMORY_TRACKING: idle/huge_idle 页重压缩检测的前置（select TRACK_ENTRY_ACTIME），Android mmd 标准配置
@@ -773,7 +775,6 @@ jobs:
           CONFIG_CRYPTO_SM4_ARM64_CE=y
           CONFIG_CRYPTO_SM4_ARM64_CE_BLK=y
           CONFIG_CRYPTO_SHA256_ARM64_CE=y
-          CONFIG_CRYPTO_CRC32_ARM64_CE=y
           CONFIG_CRYPTO_AES_ARM64_CE=y
           CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
           CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
@@ -862,7 +863,7 @@ jobs:
             exit 1
           fi
 
-          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable panic=30 page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 skew_tick=0 random.trust_cpu=on kfence.sample_interval=0", sizeof(boot_command_line));' "$TARGET_MAIN"
+          sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable panic=30 page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 skew_tick=0 random.trust_cpu=on kfence.sample_interval=0 loglevel=3 transparent_hugepage=madvise", sizeof(boot_command_line));' "$TARGET_MAIN"
           
           if grep -q "strlcat.*boot_command_line" "$TARGET_MAIN"; then
             echo "[INFO] cmdline 注入成功" | tee -a "$LOG_FILE"
@@ -1447,7 +1448,7 @@ jobs:
           EOF
           chmod +x ld-wrapper
 
-          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -falign-functions=32 -mllvm -enable-gvn-hoist -mllvm -enable-load-pre -mllvm -polly-opt-outer-coincidence=true -mllvm -inline-threshold=300 -mllvm -inlinehint-threshold=500 -mllvm -enable-loopinterchange=true -mllvm -enable-ipra -mllvm -enable-phi-of-ops -mllvm -enable-dse-partial-store-merging -mllvm -enable-aarch64-lsr-cost-opt -mllvm -enable-aarch64-or-like-select"
+          KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -fno-plt -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -falign-functions=32 -falign-loops=32 -falign-jumps=32 -mllvm -enable-gvn-hoist -mllvm -enable-load-pre -mllvm -polly-opt-outer-coincidence=true -mllvm -inline-threshold=300 -mllvm -inlinehint-threshold=500 -mllvm -enable-loopinterchange=true -mllvm -enable-ipra -mllvm -enable-phi-of-ops -mllvm -enable-dse-partial-store-merging -mllvm -enable-aarch64-lsr-cost-opt -mllvm -enable-aarch64-or-like-select"
 
           echo "[INFO] 核心编译器版本检查："
           clang --version | head -n 1
