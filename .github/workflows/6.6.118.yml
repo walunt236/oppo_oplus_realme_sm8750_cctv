@@ -1176,7 +1176,7 @@ jobs:
           patch -p1 --forward -f < "$WILD_DIR/common/mem_opt_prefetch.patch" || echo "[WARN] mem_opt_prefetch.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/optimise_memcmp.patch" || echo "[WARN] optimise_memcmp.patch 应用失败，继续..."
           
-          cat "$WILD_DIR/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward -f || echo "[WARN] clear_page_16bytes_align.patch 应用失败，继续..."
+          # clear_page 16B 对齐：6.6.118 上游已合并（.p2align 4 存在），补丁过时，移除
 
           patch -p1 --forward -f < "$WILD_DIR/common/f2fs_reduce_congestion.patch" || echo "[WARN] f2fs_reduce_congestion.patch 应用失败，继续..."
           patch -p1 --forward -f < "$WILD_DIR/common/f2fs_enlarge_min_fsync_blocks.patch" || echo "[WARN] f2fs_enlarge_min_fsync_blocks.patch 应用失败，继续..."
