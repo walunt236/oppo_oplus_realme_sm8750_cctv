@@ -23,10 +23,14 @@
 +	comp_algorithm_set(zram, ZRAM_SECONDARY_COMP, kstrdup("zstd", GFP_KERNEL));
  	up_write(&zram->init_lock);
  }
-@@ -2037,1 +2046,49 @@ static int zram_add(void)
+@@ -2037,1 +2046,60 @@ static int zram_add(void)
 +/* 自动冷数据重压缩：周期标记 idle 页并用次级算法（zstd）重压缩 */
 +#define ZRAM_AUTO_RECOMP_INTERVAL	(30 * HZ)
 +#define ZRAM_AUTO_RECOMP_IDLE_MS	60000
++/* 压缩后小于该阈值的页重压收益低（小页），跳过以省 CPU（官方 threshold= 语义） */
++#define ZRAM_AUTO_RECOMP_THRESHOLD	(2 * 1024)
++/* 每周期最多重压页数：防一次遍历全部页的 CPU 突增（官方 max_pages= 语义） */
++#define ZRAM_AUTO_RECOMP_MAX_PAGES	50000
 +
 +static void zram_auto_recompress_work(struct work_struct *work)
 +{
@@ -34,6 +38,7 @@
 +	unsigned long index, nr_pages;
 +	struct page *page;
 +	u32 prio = ZRAM_SECONDARY_COMP, prio_max = ZRAM_MAX_COMPS;
++	unsigned int recomped = 0;
 +
 +	down_read(&zram->init_lock);
 +	if (!init_done(zram) || !zram->comp_algs[ZRAM_SECONDARY_COMP])
@@ -58,11 +63,17 @@
 +		    zram_test_flag(zram, index, ZRAM_SAME) ||
 +		    zram_test_flag(zram, index, ZRAM_INCOMPRESSIBLE))
 +			goto next;
++		/* 跳过压缩后过小的页（重压收益低于 CPU 成本） */
++		if (zram_get_obj_size(zram, index) < ZRAM_AUTO_RECOMP_THRESHOLD)
++			goto next;
 +
 +		err = zram_recompress(zram, index, page, 0, prio, prio_max);
 +next:
 +		zram_slot_unlock(zram, index);
 +		if (err)
++			break;
++		/* 每周期限页：防一次遍历全部页的 CPU 突增 */
++		if (++recomped >= ZRAM_AUTO_RECOMP_MAX_PAGES)
 +			break;
 +		cond_resched();
 +	}
