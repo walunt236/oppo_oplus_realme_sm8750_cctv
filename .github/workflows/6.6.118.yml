@@ -753,6 +753,8 @@ jobs:
           echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
           # 注意：勿注入 CONFIG_NR_CPUS——GKI per-cpu 布局与 vendor 模块编译期 NR_CPUS 绑定，
           # 32->8 曾导致 bootloop（be907ba，2026-08-13 实机验证）
+          # kswapd 更早启动异步回收（默认 10 太保守，direct reclaim 频发）
+          echo "CONFIG_WATERMARK_SCALE_FACTOR=150" >> $DCFG
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
           # ZRAM_MEMORY_TRACKING: idle/huge_idle 页重压缩检测的前置（select TRACK_ENTRY_ACTIME），Android mmd 标准配置
@@ -836,6 +838,14 @@ jobs:
             echo "[INFO] zram 默认 zstd 重压缩算法补丁应用成功"
           else
             echo "[ERROR] zram 默认重压缩算法补丁应用失败"
+            exit 1
+          fi
+          # DAMON_RECLAIM min_age 默认 120s -> 30s（编译期固化，主动回收前置，防"爆满才回收"）
+          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/damon_reclaim.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/damon_reclaim_defaults.patch"
+          if ( cd ./common && patch -p1 -F 3 < /tmp/damon_reclaim.patch ); then
+            echo "[INFO] DAMON_RECLAIM 默认参数补丁应用成功"
+          else
+            echo "[ERROR] DAMON_RECLAIM 默认参数补丁应用失败"
             exit 1
           fi
           cat >> $DCFG << 'OEMDEPENDS'
