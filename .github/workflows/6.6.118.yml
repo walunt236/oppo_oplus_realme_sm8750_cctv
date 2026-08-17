@@ -649,16 +649,11 @@ jobs:
 
           ACCEL_DIR="$HOME/.cache_patches/lz4accel"
           mkdir -p "$ACCEL_DIR"
-          PALAZIK_BRANCH=$(git ls-remote --heads https://github.com/palazik/android_kernel_common_oneplus_sm8750 'refs/heads/6.6*' 2>/dev/null | awk -F/ '{print $NF}' | sort -V | tail -1)
-          PALAZIK_BRANCH=${PALAZIK_BRANCH:-6.6.142_oneplus13_coloros16}
+          # 固定 6.6.142 分支：与 AOSP merge 基线一致，避免上游新分支 API 漂移导致编译失败
+          PALAZIK_BRANCH="6.6.142_oneplus13_coloros16"
           echo "[INFO] lz4accel 上游分支: $PALAZIK_BRANCH"
-          wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.c" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/$PALAZIK_BRANCH/fs/f2fs/lz4armv8/lz4accel.c" || echo "[WARN] lz4accel.c 动态拉取失败，保留缓存/继续..."
-          wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.h" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/$PALAZIK_BRANCH/fs/f2fs/lz4armv8/lz4accel.h" || echo "[WARN] lz4accel.h 动态拉取失败，保留缓存/继续..."
-          if [ ! -s "$ACCEL_DIR/lz4accel.c" ] || [ ! -s "$ACCEL_DIR/lz4accel.h" ]; then
-            echo "[WARN] lz4accel 下载不完整，回退到固定版本 6.6.142..."
-            wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.c" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.c" || true
-            wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.h" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/6.6.142_oneplus13_coloros16/fs/f2fs/lz4armv8/lz4accel.h" || true
-          fi
+          wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.c" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/$PALAZIK_BRANCH/fs/f2fs/lz4armv8/lz4accel.c" || echo "[WARN] lz4accel.c 拉取失败，保留缓存/继续..."
+          wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.h" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/$PALAZIK_BRANCH/fs/f2fs/lz4armv8/lz4accel.h" || echo "[WARN] lz4accel.h 拉取失败，保留缓存/继续..."
           mkdir -p fs/f2fs/lz4armv8
           cp "$ACCEL_DIR/lz4accel.c" fs/f2fs/lz4armv8/
           cp "$ACCEL_DIR/lz4accel.h" fs/f2fs/lz4armv8/
@@ -737,7 +732,6 @@ jobs:
           if [[ "${{ inputs.lz4kd_enable }}" == "true" ]]; then
             cat >> $DCFG << 'LZ4KDCFG'
           CONFIG_ZSMALLOC=y
-          CONFIG_CRYPTO_LZ4HC=y
           CONFIG_CRYPTO_LZ4K=y
           CONFIG_CRYPTO_LZ4KD=y
           CONFIG_CRYPTO_842=y
@@ -1267,8 +1261,8 @@ jobs:
           fi
           
           if [ -f "lib/Makefile" ]; then
-            echo 'CFLAGS_lz4.o += -O3' >> lib/Makefile
-            echo 'CFLAGS_lz4hc.o += -O3' >> lib/Makefile
+            grep -q '^CFLAGS_lz4.o += -O3' lib/Makefile || echo 'CFLAGS_lz4.o += -O3' >> lib/Makefile
+            grep -q '^CFLAGS_lz4hc.o += -O3' lib/Makefile || echo 'CFLAGS_lz4hc.o += -O3' >> lib/Makefile
           fi
           
           git -C "$GITHUB_WORKSPACE/kernel_workspace/common" checkout -- drivers/dma-buf/dma-buf.c 2>/dev/null || true
@@ -1361,6 +1355,15 @@ jobs:
             fi
           fi
 
+          if [ -f out/.config ]; then
+            if grep -q '^CONFIG_WATERMARK_SCALE_FACTOR=150' out/.config; then
+              echo "[INFO] WATERMARK_SCALE_FACTOR=150 配置生效 (kswapd 提前回收)" | tee -a "$LOG_FILE"
+            else
+              echo "[ERROR] WATERMARK_SCALE_FACTOR 配置未生效，中止构建" | tee -a "$LOG_FILE"
+              exit 1
+            fi
+          fi
+
           if grep -q '^CONFIG_LLVM_POLLY=y' out/.config; then
             echo "[INFO] LLVM POLLY 配置生效" | tee -a "$LOG_FILE"
           else
@@ -1387,35 +1390,14 @@ jobs:
           cd kernel_workspace/common
 
           for TARGET_DIR in lib crypto; do
-            if [ -d "$TARGET_DIR" ]; then
+            if [ -d "$TARGET_DIR" ] && ! grep -q 'polly-vectorizer=stripmine' "$TARGET_DIR/Makefile"; then
               echo 'subdir-ccflags-y += -O3 -mllvm -polly -mllvm -polly-vectorizer=stripmine' >> $TARGET_DIR/Makefile
             fi
           done
           
           echo "[INFO] 选择性O3与Polly配置完成" | tee -a "$LOG_FILE"
 
-      - name: 注入GPU优化
-        if: inputs.o3_selective
-        run: |
-          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
-          cd $GITHUB_WORKSPACE/kernel_workspace
-
-          KGSL_DIR=$(find vendor_modules -name "kgsl_pwrctrl.c" | sed 's/\/kgsl_pwrctrl.c//' | head -n 1)
-          if [ -n "$KGSL_DIR" ] && [ -d "$KGSL_DIR" ]; then
-            if [ -f "$KGSL_DIR/kgsl_pool.c" ]; then
-              sed -i 's/static u32 kgsl_pool_max_pages = .*/static u32 kgsl_pool_max_pages = 65536;/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
-              sed -i 's/#define KGSL_POOL_MAX_PAGES .*/#define KGSL_POOL_MAX_PAGES 65536/g' "$KGSL_DIR/kgsl_pool.c" 2>/dev/null || true
-            fi
-            echo "[INFO] KGSL 页池扩容配置完成" | tee -a "$LOG_FILE"
-          fi
-          
-          KGSL_MEM=$(find vendor_modules -name "kgsl_sharedmem.c" 2>/dev/null | head -n 1)
-          if [ -n "$KGSL_MEM" ] && [ -f "$KGSL_MEM" ]; then
-            sed -i '/vma->vm_flags |=/a \    vma->vm_flags |= (VM_DONTEXPAND | VM_DONTDUMP);' "$KGSL_MEM" 2>/dev/null || true
-            echo "[INFO] MGLRU GPU 显存保护机制注入完成" | tee -a "$LOG_FILE"
-          fi
-
-      - name: 移植内容
+      - name: 移植内容 (DMA-BUF 页池扩容)
         if: inputs.o3_selective
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
@@ -1424,12 +1406,6 @@ jobs:
           if [ -n "$SYS_HEAP" ] && [ -f "$SYS_HEAP" ]; then
               sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
               echo "[INFO] DMA-BUF 页池扩容完成" | tee -a "$LOG_FILE"
-          fi
-
-
-          KGSL_PWR=$(find vendor_modules -name "kgsl_pwrctrl.c" 2>/dev/null | head -n 1)
-          if [ -n "$KGSL_PWR" ] && [ -f "$KGSL_PWR" ]; then
-            echo "[INFO] LLCC 死锁完成" | tee -a "$LOG_FILE"
           fi
 
       - name: 编译完整内核镜像
@@ -1481,19 +1457,14 @@ jobs:
              echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
              fi
               make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
-          # Save unstripped vmlinux for PGO profile generation
-          cp out/vmlinux "$GITHUB_WORKSPACE/vmlinux"
-          
           # 校验 Image 内嵌配置（IKCFG）与构建配置一致，防止增量产物配置陈旧
           if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | grep -qa "IKCFG_ST"; then
             IKCFG_TEXT=$(perl -e 'open(F,"<",$ARGV[0]); local $/; $d=<F>; close F; $d =~ /IKCFG_ST(.*?)IKCFG_ED/s; open(G,"|-","gzip -dc 2>/dev/null"); print G $1; close G;' out/arch/arm64/boot/Image 2>/dev/null)
-            if [[ "${{ inputs.lz4kd_enable }}" == "true" ]]; then
-              if echo "$IKCFG_TEXT" | grep -q '^CONFIG_ZRAM_MEMORY_TRACKING=y'; then
-                echo "[INFO] Image 内嵌配置校验通过 (ZRAM_MEMORY_TRACKING=y)" | tee -a "$LOG_FILE"
-              else
-                echo "[ERROR] Image 内嵌配置缺少 ZRAM_MEMORY_TRACKING，产物配置陈旧，中止" | tee -a "$LOG_FILE"
-                exit 1
-              fi
+            if echo "$IKCFG_TEXT" | grep -q '^CONFIG_ZRAM_MEMORY_TRACKING=y'; then
+              echo "[INFO] Image 内嵌配置校验通过 (ZRAM_MEMORY_TRACKING=y)" | tee -a "$LOG_FILE"
+            else
+              echo "[ERROR] Image 内嵌配置缺少 ZRAM_MEMORY_TRACKING，产物配置陈旧，中止" | tee -a "$LOG_FILE"
+              exit 1
             fi
           fi
 
