@@ -1,7 +1,33 @@
 # 优化待办池（Optimization Backlog）
 
 > 已调研确认、暂缓实施的优化项。实施前先本地验证，攒批再构建（构建频率偏好）。
-> 归档时间：2026-08-13（全方位审计后）
+> 归档时间：2026-08-13（全方位审计后）；2026-08-17 增补方向二规划
+
+## 方向二：Anti-Fuse 防熔断（⚠ 已验证不可行于当前构建链，2026-08-17）
+
+### ⚠ 验证结论（2026-08-17 实测，规划修正）
+| 环节 | 验证结果 |
+|---|---|
+| module-intercept patch（WildKernels android15-6.6 版，brokestar233 出品） | ✅ 机制完整：`.ko`→字节数组内嵌，`load_module()` 签名检查前 1:1 替换同名模块 |
+| 预编译 `qcom-scm_sm8750_A16_android15-6.6.89.ko`（148KB，aarch64） | ❌ **vermagic 不匹配**：`6.6.89-android15-8-o-g730abe20ed39-4k` vs 我们内核 `6.6.118-oneplus13-4k-aosp16_142`——Android `check_vermagic` 严格字符串比较（vermagic.c 无放宽），intercept 替换后仍会在 check_modinfo 失败（-ENOEXEC） |
+| 重新编译 .ko 适配我们内核 | ❌ qcom-scm 源码不在 vendor_modules 仓库（该仓只有 KGSL 等部分驱动）；SCM 在设备上是 vendor 模块（我们内核 CONFIG_QCOM_SCM 无、vmlinux 0 符号） |
+| 内核侧 vendor hook 拦截（`android_vh_fuse_request_end`） | ❌ **该 hook 是 FUSE 文件系统（storage）hook**（签名 `struct task_struct *self`，与 `queue_request_and_unlock` 同族），与 Qualcomm 硬件 eFuse/ARB 烧写**无关**——无现成内核侧拦截点 |
+| 可行前提 | **仅官方 android15-6.6 基线内核**（vermagic 形如 `6.6.x-android15-8-o-...`，uparrows 的 fastbuild_6.6.x workflow 即此路线）——与我们的 OEM 内核路线不兼容 |
+
+### 结论
+**Anti-fuse 在我们构建链上不可行**（除非：① 搞到 qcom-scm 源码用我们的环境重编；② wrap `__arm_smccc_smc` 逆向 SCM 功能号——都属高成本高风险）。**维持关闭状态，不再投入**。若未来想走此方向，正确路线是"官方基线内核 + anti-fuse"（那是另一个内核路线，非本仓库 OEM 路线）。
+
+### 原规划背景（存档）
+- ARB（Anti-RollBack）：Qualcomm 熔断机制，OOS 16.0.7/16.0.8 引入 `update_arb` sysfs 继续烧 fuse
+- 参考实现：`github.com/uparrows/oppo_oplus_realme_sm8750`（cctv18 fork）；WildKernels `oneplus/module_overlay/`
+- 刷写流程：更新后刷另一槽 + `abl_a`/`xbl_a`/`xbl_config_a`/`xbl_ramdump_a` + vbmeta disabled
+- 风险：SCM 拦截影响 TZ/QHEE；fuse 单向不可逆；abl/xbl 刷错硬砖
+
+### 关联
+- [[kernel-vendor-lockdown]]（KMI 冻结/闭源驱动约束背景）
+- 设备身份与 ARB：见 kernel-build-verify skill 的设备信息章节
+
+---
 
 ## 待实施
 
