@@ -159,7 +159,11 @@ jobs:
             echo "http_proxy=http://127.0.0.1:7897" >> $GITHUB_ENV
             echo "https_proxy=http://127.0.0.1:7897" >> $GITHUB_ENV
             echo "[INFO] 检测到本地代理 127.0.0.1:7897，网络操作走代理" | tee -a "$LOG_FILE"
+          else
+            echo "[INFO] 未检测到代理，纯直连模式（api/codeload/SSH443 直连可用，AOSP 走 glr 回退）" | tee -a "$LOG_FILE"
           fi
+          # 直连优先、失败立即走代理的 git 包装（AOSP googlesource 直连被墙，Clash 混合端口回退）
+          glr() { git -c http.version=HTTP/1.1 "$@" 2>/dev/null || git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 -c http.version=HTTP/1.1 "$@" 2>/dev/null; }
           echo "=== 内核构建关键状态日志汇总 ===" > "$LOG_FILE"
           echo "[INFO] 清理可能残留的后台进程"
           pkill -9 -f "kernel_workspace" || true
@@ -212,7 +216,7 @@ jobs:
           if [[ "${{ inputs.upstream_merge }}" == "true" ]]; then
             mkdir -p "$HOME/.cache_patches"
             echo "[INFO] 后台预查询 AOSP 最新标签..."
-            ( git ls-remote --tags --sort=-v:refname https://android.googlesource.com/kernel/common 'refs/tags/android15-6.6.*_r00' 2>/dev/null | head -1 | awk '{print $2}' | sed 's|refs/tags/||' > "$HOME/.cache_patches/latest_aosp_tag" ) &
+            ( glr ls-remote --tags --sort=-v:refname https://android.googlesource.com/kernel/common 'refs/tags/android15-6.6.*_r00' | head -1 | awk '{print $2}' | sed 's|refs/tags/||' > "$HOME/.cache_patches/latest_aosp_tag" ) &
             AOSP_TAG_PID=$!
           fi
 
@@ -278,9 +282,8 @@ jobs:
             LATEST_AOSP_TAG=$(cat "$HOME/.cache_patches/latest_aosp_tag" 2>/dev/null)
             LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
             echo "[INFO] AOSP 最新发布标签: $LATEST_AOSP_TAG" | tee -a "$LOG_FILE"
-            # 纯直连下 googlesource 不可达（2026-08-17 实测）——fetch 失败自动跳过 merge，
-          # 构建不受阻；AOSP 更新在机场/镜像可用时恢复（aosp-mirror 镜像滞后至 111_r00 不可用）
-          if git fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG" 2>/dev/null; then
+            # 纯直连不可达时 glr 自动走代理（Clash 混合端口）；两者都失败才跳过 merge
+          if glr fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG"; then
               UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
               UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
               echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> $GITHUB_ENV
