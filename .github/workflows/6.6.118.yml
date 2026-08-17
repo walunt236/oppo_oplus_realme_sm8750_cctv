@@ -278,7 +278,9 @@ jobs:
             LATEST_AOSP_TAG=$(cat "$HOME/.cache_patches/latest_aosp_tag" 2>/dev/null)
             LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
             echo "[INFO] AOSP 最新发布标签: $LATEST_AOSP_TAG" | tee -a "$LOG_FILE"
-            if git fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG" 2>/dev/null; then
+            # 纯直连下 googlesource 不可达（2026-08-17 实测）——fetch 失败自动跳过 merge，
+          # 构建不受阻；AOSP 更新在机场/镜像可用时恢复（aosp-mirror 镜像滞后至 111_r00 不可用）
+          if git fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG" 2>/dev/null; then
               UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
               UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
               echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> $GITHUB_ENV
@@ -569,6 +571,8 @@ jobs:
 
       - name: 应用 KernelSU & SUSFS 补丁
         if: inputs.susfs_enable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           cd kernel_workspace
@@ -593,10 +597,12 @@ jobs:
             rm -rf susfs4ksu
             cp -r "$SUSFS_CACHE_DIR" susfs4ksu
 
-            # --- 3. 缓存 69_hide_stuff.patch 避免重复网络下载 ---
+            # --- 3. 缓存 69_hide_stuff.patch 避免重复网络下载（api contents 纯直连） ---
             HIDE_PATCH="$HOME/.cache_patches/69_hide_stuff.patch"
             if [ ! -f "$HIDE_PATCH" ]; then
-              curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o "$HIDE_PATCH" "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch"
+              curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/other_patch/69_hide_stuff.patch?ref=$GITHUB_REF_NAME" | \
+                python3 -c "import sys,json,base64;open('$HOME/.cache_patches/69_hide_stuff.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
             fi
             cp "$HIDE_PATCH" ./common/69_hide_stuff.patch
 
@@ -632,6 +638,8 @@ jobs:
     
       - name: 应用lz4/zstd
         if: inputs.lz4_enable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd kernel_workspace/common
           CACHE_DIR="$HOME/.cache_patches/zram_patches"
@@ -657,8 +665,12 @@ jobs:
           # 固定 6.6.142 分支：与 AOSP merge 基线一致，避免上游新分支 API 漂移导致编译失败
           PALAZIK_BRANCH="6.6.142_oneplus13_coloros16"
           echo "[INFO] lz4accel 上游分支: $PALAZIK_BRANCH"
-          wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.c" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/$PALAZIK_BRANCH/fs/f2fs/lz4armv8/lz4accel.c" || echo "[WARN] lz4accel.c 拉取失败，保留缓存/继续..."
-          wget -q --timeout=30 -O "$ACCEL_DIR/lz4accel.h" "https://raw.githubusercontent.com/palazik/android_kernel_common_oneplus_sm8750/$PALAZIK_BRANCH/fs/f2fs/lz4armv8/lz4accel.h" || echo "[WARN] lz4accel.h 拉取失败，保留缓存/继续..."
+          curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/palazik/android_kernel_common_oneplus_sm8750/contents/fs/f2fs/lz4armv8/lz4accel.c?ref=$PALAZIK_BRANCH" | \
+            python3 -c "import sys,json,base64;open('$ACCEL_DIR/lz4accel.c','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || echo "[WARN] lz4accel.c 拉取失败，保留缓存/继续..."
+          curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/palazik/android_kernel_common_oneplus_sm8750/contents/fs/f2fs/lz4armv8/lz4accel.h?ref=$PALAZIK_BRANCH" | \
+            python3 -c "import sys,json,base64;open('$ACCEL_DIR/lz4accel.h','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || echo "[WARN] lz4accel.h 拉取失败，保留缓存/继续..."
           mkdir -p fs/f2fs/lz4armv8
           cp "$ACCEL_DIR/lz4accel.c" fs/f2fs/lz4armv8/
           cp "$ACCEL_DIR/lz4accel.h" fs/f2fs/lz4armv8/
@@ -696,6 +708,8 @@ jobs:
 
 
       - name: 配置核心扩展与通用优化
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd kernel_workspace
           DCFG="./common/arch/arm64/configs/gki_defconfig"
@@ -836,7 +850,10 @@ jobs:
 
           # zram 冷数据重压缩默认算法：zstd（recomp_algorithm 只能在设备 init 前配置，
           # Android 用户态无法在 swapon 前介入，必须设备创建时在内核固化）
-          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/zram_recomp.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/zram_recomp_default.patch"
+          # 纯直连通道：api.github.com contents（raw.githubusercontent 被墙，2026-08-17 实测）
+          curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/other_patch/zram_recomp_default.patch?ref=$GITHUB_REF_NAME" | \
+            python3 -c "import sys,json,base64;open('/tmp/zram_recomp.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
           if ( cd ./common && patch -p1 -F 3 < /tmp/zram_recomp.patch ); then
             echo "[INFO] zram 默认 zstd 重压缩算法补丁应用成功"
           else
@@ -844,7 +861,9 @@ jobs:
             exit 1
           fi
           # DAMON_RECLAIM min_age 默认 120s -> 30s（编译期固化，主动回收前置，防"爆满才回收"）
-          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/damon_reclaim.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/damon_reclaim_defaults.patch"
+          curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/other_patch/damon_reclaim_defaults.patch?ref=$GITHUB_REF_NAME" | \
+            python3 -c "import sys,json,base64;open('/tmp/damon_reclaim.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
           if ( cd ./common && patch -p1 -F 3 < /tmp/damon_reclaim.patch ); then
             echo "[INFO] DAMON_RECLAIM 默认参数补丁应用成功"
           else
@@ -946,21 +965,33 @@ jobs:
 
 
       - name: 启用 Droidspaces 容器支持
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           if [[ "${{ inputs.droidspaces_enable }}" != "false" ]]; then
             echo "[INFO] 启用 Droidspaces 容器支持..." | tee -a "$LOG_FILE"
             cd kernel_workspace/common
-            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o fix_sysvipc_kabi_6_7_8.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch"
+            curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch?ref=$GITHUB_REF_NAME" | \
+              python3 -c "import sys,json,base64;open('fix_sysvipc_kabi_6_7_8.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
             patch -p1 -F 3 < fix_sysvipc_kabi_6_7_8.patch || true
-            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o fix_oplus_bsp_midas.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_oplus_bsp_midas.patch"
+            curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/droidspaces_patch/fix_oplus_bsp_midas.patch?ref=$GITHUB_REF_NAME" | \
+              python3 -c "import sys,json,base64;open('fix_oplus_bsp_midas.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
             patch -p1 -F 3 < fix_oplus_bsp_midas.patch || true
-            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o ntsync_base.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_base.patch"
+            curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/droidspaces_patch/ntsync_base.patch?ref=$GITHUB_REF_NAME" | \
+              python3 -c "import sys,json,base64;open('ntsync_base.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
             # compat 补丁优先按当前 android 版本匹配；缺失时回退 android15 基线（AOSP android15-6.6 合并后的内核基线）
             NTSYNC_COMPAT_FILE="ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch"
-            if ! curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/$NTSYNC_COMPAT_FILE"; then
+            if ! curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/droidspaces_patch/$NTSYNC_COMPAT_FILE?ref=$GITHUB_REF_NAME" | \
+              python3 -c "import sys,json,base64;open('ntsync_compat.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"; then
               echo "[WARN] $NTSYNC_COMPAT_FILE 不存在，回退到 android15 基线 compat 补丁..." | tee -a "$LOG_FILE"
-              curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o ntsync_compat.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_compat_android15-${{ env.KERNEL_VERSION }}.patch" || true
+              curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/droidspaces_patch/ntsync_compat_android15-${{ env.KERNEL_VERSION }}.patch?ref=$GITHUB_REF_NAME" | \
+                python3 -c "import sys,json,base64;open('ntsync_compat.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || true
             fi
             patch -p1 -F 3 < ntsync_base.patch || true
             patch -p1 -F 3 < ntsync_compat.patch || true
@@ -979,7 +1010,9 @@ jobs:
               echo "CONFIG_BT_HCIVHCI=y" >> ./arch/arm64/configs/gki_defconfig
               # EVDI/蓝牙等 extend 模块依赖动态 usermodehelper(modprobe),必须覆盖 OnePlus 默认 STATIC_USERMODEHELPER=y
               echo "CONFIG_STATIC_USERMODEHELPER=n" >> ./arch/arm64/configs/gki_defconfig
-              curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o evdi_drm.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/evdi_drm.patch"
+              curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/droidspaces_patch/evdi_drm.patch?ref=$GITHUB_REF_NAME" | \
+                python3 -c "import sys,json,base64;open('evdi_drm.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
               patch -p1 -F 3 < evdi_drm.patch || true
               echo "CONFIG_DRM_LINDROID_EVDI=y" >> ./arch/arm64/configs/gki_defconfig
             fi
@@ -987,12 +1020,16 @@ jobs:
 
       - name: 启用ADIOS IO调度器
         if: inputs.adios_enable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "[INFO] 启用 ADIOS I/O 调度器..." | tee -a "$LOG_FILE"
           cd kernel_workspace
           # 应用 ADIOS 补丁（block 4 文件：Kconfig.iosched/Makefile/adios.c/elevator.c，6.6 兼容已验证）
-          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/adios.patch "https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/adios/adios_block_only.patch"
+          curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/other_patch/adios/adios_block_only.patch?ref=$GITHUB_REF_NAME" | \
+            python3 -c "import sys,json,base64;open('/tmp/adios.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
           if ( cd ./common && patch -p1 -F 3 < /tmp/adios.patch ); then
             echo "[INFO] ADIOS 补丁应用成功" | tee -a "$LOG_FILE"
           else
@@ -1059,11 +1096,15 @@ jobs:
 
       - name: 启用 BBRv3 TCP 拥塞控制
         if: inputs.bbrv3_enable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           echo "[INFO] 应用 BBRv3 补丁..."
           cd kernel_workspace/common
-          curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o bbrv3.patch "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch"
+          curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/WildKernels/kernel_patches/contents/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch?ref=main" | \
+            python3 -c "import sys,json,base64;open('bbrv3.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
           
           if git apply -p1 < bbrv3.patch 2>/dev/null; then
             echo "[INFO] BBRv3 git apply 成功" | tee -a "$LOG_FILE"
@@ -1105,6 +1146,8 @@ jobs:
 
 
       - name: 应用风驰引擎及优化补丁
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
           
@@ -1216,7 +1259,9 @@ jobs:
           if [ -f "$HOME/.cache_patches/zram_patches/common/EnablePOLLY.patch" ]; then
             patch -p1 --forward -f < "$HOME/.cache_patches/zram_patches/common/EnablePOLLY.patch" || echo "[WARN] EnablePOLLY.patch 应用失败，继续..."
           else
-            curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/EnablePOLLY.patch "https://raw.githubusercontent.com/mrcxlinux/kernel_patches/main/common/EnablePOLLY.patch"
+            curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/mrcxlinux/kernel_patches/contents/common/EnablePOLLY.patch?ref=main" | \
+              python3 -c "import sys,json,base64;open('/tmp/EnablePOLLY.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || echo "[WARN] EnablePOLLY.patch 下载失败，继续..."
             patch -p1 --forward -f < /tmp/EnablePOLLY.patch || echo "[WARN] EnablePOLLY.patch 应用失败，继续..."
           fi
           curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mm_zsmalloc.patch "https://github.com/brokestar233/android_kernel_common_oneplus_sm8750/commit/d831954.patch"
@@ -1235,7 +1280,9 @@ jobs:
           mkdir -p "$HOME/.cache_patches/aosp"
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 9eecad532ad3 c7a8aea27b87; do
             if [ ! -s "$HOME/.cache_patches/aosp/$hash.patch" ]; then
-              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 10 --max-time 30 "https://android.googlesource.com/kernel/common/+/$hash^!/?format=TEXT" 2>/dev/null | base64 -d > "$HOME/.cache_patches/aosp/$hash.patch" 2>/dev/null || rm -f "$HOME/.cache_patches/aosp/$hash.patch"
+              # 纯直连通道：aosp-mirror（GitHub）commit.patch（googlesource 被墙，2026-08-17）
+              curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 \
+                -o "$HOME/.cache_patches/aosp/$hash.patch" "https://github.com/aosp-mirror/kernel_common/commit/$hash.patch" 2>/dev/null || rm -f "$HOME/.cache_patches/aosp/$hash.patch"
             fi
           done
           for hash in 47f80469849a 5fddd8e6a0a7 0a9eef42768c 71bd6942e33f ef0123e95425 7abe312b37cf 6a42fccfc2bc d43ee181a478 5c8ecdcfbfb0 c5d6863c9aba 9eecad532ad3 c7a8aea27b87; do
