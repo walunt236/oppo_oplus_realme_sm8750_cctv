@@ -131,7 +131,7 @@ on:
         type: boolean
         default: false
       autofdo_enable:
-        description: 'AutoFDO 实验：CONFIG_AUTOFDO_CLANG + Google 官方 profile（独立可回退，勿与其他改动混批）'
+        description: '⚠ 已验证 bootloop（2026-08-17 实机，勿开启）：Google 官方 AutoFDO profile 与 OEM 内核不兼容'
         required: true
         type: boolean
         default: false
