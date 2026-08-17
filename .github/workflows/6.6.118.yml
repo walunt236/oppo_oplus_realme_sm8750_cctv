@@ -130,6 +130,11 @@ on:
         required: true
         type: boolean
         default: false
+      autofdo_enable:
+        description: 'AutoFDO 实验：CONFIG_AUTOFDO_CLANG + Google 官方 profile（独立可回退，勿与其他改动混批）'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -750,6 +755,9 @@ jobs:
           # 注意：WATERMARK_SCALE_FACTOR 无 Kconfig 符号（OEM Kconfig 已删，defconfig 注入被
           # kconfig merge 静默丢弃，.config/Image 中从未出现——2026-08-17 校验实证）。
           # 运行时生效路径：设备端 service.sh 写 /proc/sys/vm/watermark_scale_factor=150
+          if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
+            echo "CONFIG_AUTOFDO_CLANG=y" >> $DCFG
+          fi
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
           # ZRAM_MEMORY_TRACKING: idle/huge_idle 页重压缩检测的前置（select TRACK_ENTRY_ACTIME），Android mmd 标准配置
@@ -1356,6 +1364,15 @@ jobs:
             fi
           fi
 
+          if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
+            if grep -q '^CONFIG_AUTOFDO_CLANG=y' out/.config; then
+              echo "[INFO] AUTOFDO_CLANG 配置生效 (AutoFDO 实验开启)" | tee -a "$LOG_FILE"
+            else
+              echo "[ERROR] AUTOFDO_CLANG 配置未生效，中止构建" | tee -a "$LOG_FILE"
+              exit 1
+            fi
+          fi
+
           if grep -q '^CONFIG_LLVM_POLLY=y' out/.config; then
             echo "[INFO] LLVM POLLY 配置生效" | tee -a "$LOG_FILE"
           else
@@ -1399,6 +1416,32 @@ jobs:
               sed -i 's/static u32 max_pool_size = .*/static u32 max_pool_size = 65536;/g' "$SYS_HEAP" 2>/dev/null || true
               echo "[INFO] DMA-BUF 页池扩容完成" | tee -a "$LOG_FILE"
           fi
+
+      - name: 准备 AutoFDO profile
+        if: inputs.autofdo_enable
+        run: |
+          LOG_FILE="$GITHUB_WORKSPACE/build_summary.log"
+          AFDO_DIR="$HOME/.cache_patches/afdo"
+          mkdir -p "$AFDO_DIR"
+          if [ ! -s "$AFDO_DIR/kernel.afdo" ]; then
+            echo "[INFO] 下载 AutoFDO profile (android15-6.6 HEAD)..." | tee -a "$LOG_FILE"
+            curl -fSL --retry 3 --connect-timeout 10 -o "$AFDO_DIR/kernel.afdo.b64" \
+              "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" || {
+              echo "[ERROR] AutoFDO profile 下载失败" | tee -a "$LOG_FILE"
+              exit 1
+            }
+            base64 -d "$AFDO_DIR/kernel.afdo.b64" > "$AFDO_DIR/kernel.afdo" || {
+              echo "[ERROR] AutoFDO profile 解码失败" | tee -a "$LOG_FILE"
+              exit 1
+            }
+            rm -f "$AFDO_DIR/kernel.afdo.b64"
+          fi
+          if [ ! -s "$AFDO_DIR/kernel.afdo" ]; then
+            echo "[ERROR] AutoFDO profile 缺失或为空" | tee -a "$LOG_FILE"
+            exit 1
+          fi
+          echo "AFDO_PROFILE=$AFDO_DIR/kernel.afdo" >> $GITHUB_ENV
+          echo "[INFO] AutoFDO profile 就绪: $AFDO_DIR/kernel.afdo" | tee -a "$LOG_FILE"
 
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
@@ -1448,7 +1491,12 @@ jobs:
            else
              echo "[WARN] MGLRU aging line already modified, skipped" | tee -a "$LOG_FILE"
              fi
+              if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
+              # AutoFDO：Makefile.autofdo 经 CLANG_AUTOFDO_PROFILE 注入 -fprofile-sample-use + --lto-sample-profile
+              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
+              else
               make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
+              fi
           # 校验 Image 内嵌配置（IKCFG）与构建配置一致，防止增量产物配置陈旧
           if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | grep -qa "IKCFG_ST"; then
             IKCFG_TEXT=$(perl -e 'open(F,"<",$ARGV[0]); local $/; $d=<F>; close F; $d =~ /IKCFG_ST(.*?)IKCFG_ED/s; open(G,"|-","gzip -dc 2>/dev/null"); print G $1; close G;' out/arch/arm64/boot/Image 2>/dev/null)
