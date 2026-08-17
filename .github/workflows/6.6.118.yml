@@ -747,8 +747,9 @@ jobs:
           echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
           # 注意：勿注入 CONFIG_NR_CPUS——GKI per-cpu 布局与 vendor 模块编译期 NR_CPUS 绑定，
           # 32->8 曾导致 bootloop（be907ba，2026-08-13 实机验证）
-          # kswapd 更早启动异步回收（默认 10 太保守，direct reclaim 频发）
-          echo "CONFIG_WATERMARK_SCALE_FACTOR=150" >> $DCFG
+          # 注意：WATERMARK_SCALE_FACTOR 无 Kconfig 符号（OEM Kconfig 已删，defconfig 注入被
+          # kconfig merge 静默丢弃，.config/Image 中从未出现——2026-08-17 校验实证）。
+          # 运行时生效路径：设备端 service.sh 写 /proc/sys/vm/watermark_scale_factor=150
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
           # ZRAM_MEMORY_TRACKING: idle/huge_idle 页重压缩检测的前置（select TRACK_ENTRY_ACTIME），Android mmd 标准配置
@@ -1351,15 +1352,6 @@ jobs:
               echo "[INFO] ZRAM_MEMORY_TRACKING 配置生效 (idle 页重压缩可用)" | tee -a "$LOG_FILE"
             else
               echo "[ERROR] ZRAM_MEMORY_TRACKING 配置未生效，中止构建" | tee -a "$LOG_FILE"
-              exit 1
-            fi
-          fi
-
-          if [ -f out/.config ]; then
-            if grep -q '^CONFIG_WATERMARK_SCALE_FACTOR=150' out/.config; then
-              echo "[INFO] WATERMARK_SCALE_FACTOR=150 配置生效 (kswapd 提前回收)" | tee -a "$LOG_FILE"
-            else
-              echo "[ERROR] WATERMARK_SCALE_FACTOR 配置未生效，中止构建" | tee -a "$LOG_FILE"
               exit 1
             fi
           fi
