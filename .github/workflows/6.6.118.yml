@@ -1575,6 +1575,25 @@ jobs:
           else
             echo "  ✓ Polly（-mllvm -polly -polly-vectorizer=stripmine）" | tee -a "$LOG_FILE"
           fi
+          # 6. 工具链预设日志（-Rpass optimization remarks：pass 实际执行验证——非存在性检查）
+          echo "[INFO] 优化 pass 实际生效验证（工具链 -Rpass 官方日志）:" | tee -a "$LOG_FILE"
+          if echo 'static int g(int x){return x*3;} int f(int x){return g(x)+1;}' | clang -x c - -S -o /dev/null -O3 -mllvm -inline-threshold=300 -Rpass=inline 2>&1 | grep -q "inlined into"; then
+            echo "  ✓ inline 实际生效（-Rpass=inline: 函数已内联，threshold 参数生效）" | tee -a "$LOG_FILE"
+          else
+            echo "  ✗ inline 未生效！" | tee -a "$LOG_FILE"
+          fi
+          if echo 'int f(int *a, int n){int s=0; for(int i=0;i<n;i++) s+=a[i]; return s;}' | clang -x c - -S -o /dev/null -O3 -Rpass=loop-vectorize 2>&1 | grep -q "vectorized loop"; then
+            echo "  ✓ 循环向量化实际生效（-Rpass=loop-vectorize: 已向量化）" | tee -a "$LOG_FILE"
+          else
+            echo "  ✗ 循环向量化未生效！" | tee -a "$LOG_FILE"
+          fi
+          if [[ "${{ inputs.autofdo_enable }}" == "true" ]] && [ -n "$AFDO_PROFILE" ]; then
+            if echo 'static int g(int x){return x*3;} int f(int x){return g(x)+1;}' | clang -x c - -S -o /dev/null -O3 -fprofile-sample-use="$AFDO_PROFILE" -Rpass=inline 2>&1 | grep -q "inlined into"; then
+              echo "  ✓ AutoFDO profile 驱动 inline 生效（-Rpass=inline + 自采 profile）" | tee -a "$LOG_FILE"
+            else
+              echo "  ✗ AutoFDO profile 驱动未生效！" | tee -a "$LOG_FILE"
+            fi
+          fi
           # --------------------------
           # Apply MGLRU aggressive aging (last source mod to avoid being overwritten by prior patches)
           if grep -q 'if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)' mm/vmscan.c; then
