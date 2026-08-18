@@ -1525,9 +1525,22 @@ jobs:
           export KBUILD_BUILD_HOST="ubuntu-build"
 
           mkdir -p "$HOME/.thinlto-cache"
-          cat << 'EOF' > ld-wrapper
+          # BOLT 下位替代：profile 驱动的函数级布局（ld.lld --symbol-ordering-file，官方链接器参数）
+          ORDER_ARGS=""
+          if [[ "${{ inputs.autofdo_enable }}" == "true" ]] && [ -n "$AFDO_PROFILE" ] && [ -s "$AFDO_PROFILE" ]; then
+            if ld.lld --help 2>/dev/null | grep -q "symbol-ordering-file"; then
+              echo "[INFO] ld.lld 官方支持 --symbol-ordering-file（布局优化可用）" | tee -a "$LOG_FILE"
+              llvm-profdata show --sample "$AFDO_PROFILE" 2>/dev/null | grep '^Function:' | sed -E 's/^Function: ([^:]+): [0-9]+, ([0-9]+),.*/\2 \1/' | sort -rn | awk '{print $2}' > "$HOME/.cache_patches/afdo/order.txt"
+              ORDER_COUNT=$(wc -l < "$HOME/.cache_patches/afdo/order.txt" 2>/dev/null || echo 0)
+              echo "[INFO] 布局排序文件生成: $ORDER_COUNT 个函数（llvm-profdata 官方解析，热函数优先）" | tee -a "$LOG_FILE"
+              ORDER_ARGS="--symbol-ordering-file=$HOME/.cache_patches/afdo/order.txt"
+            else
+              echo "[WARN] ld.lld 不支持 --symbol-ordering-file，跳过布局优化" | tee -a "$LOG_FILE"
+            fi
+          fi
+          cat << EOF > ld-wrapper
           #!/bin/sh
-          exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" "$@"
+          exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" $ORDER_ARGS "\$@"
           EOF
           chmod +x ld-wrapper
 
@@ -1551,6 +1564,22 @@ jobs:
               else
               make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
               fi
+          # 布局验证（官方 nm 工具）：热函数应在 .text 前部（BOLT 下位替代生效检查）
+          if [[ "${{ inputs.autofdo_enable }}" == "true" ]] && [ -n "$ORDER_ARGS" ] && [ -f out/vmlinux ]; then
+            TEXT_HEX=$(nm out/vmlinux 2>/dev/null | awk '$3=="_text" {print $1}')
+            ETEXT_HEX=$(nm out/vmlinux 2>/dev/null | awk '$3=="_etext" {print $1}')
+            echo "[INFO] 布局验证（热函数位置 / 代码段范围）:" | tee -a "$LOG_FILE"
+            for sym in __schedule arch_local_irq_enable _raw_spin_lock __preempt_count_dec_and_test psi_group_change; do
+              HEX=$(nm out/vmlinux 2>/dev/null | awk -v s="$sym" '$3==s {print $1}')
+              if [ -n "$HEX" ] && [ -n "$TEXT_HEX" ] && [ -n "$ETEXT_HEX" ]; then
+                ADDR=$((16#$HEX)); TSTART=$((16#$TEXT_HEX)); TEND=$((16#$ETEXT_HEX))
+                if [ "$TEND" -gt "$TSTART" ]; then
+                  PCT=$(( (ADDR - TSTART) * 100 / (TEND - TSTART) ))
+                  echo "  $sym @ 0x$HEX — 代码段位置 $PCT%" | tee -a "$LOG_FILE"
+                fi
+              fi
+            done
+          fi
           # 校验 Image 内嵌配置（IKCFG）与构建配置一致，防止增量产物配置陈旧
           if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | grep -qa "IKCFG_ST"; then
             IKCFG_TEXT=$(perl -e 'open(F,"<",$ARGV[0]); local $/; $d=<F>; close F; $d =~ /IKCFG_ST(.*?)IKCFG_ED/s; open(G,"|-","gzip -dc 2>/dev/null"); print G $1; close G;' out/arch/arm64/boot/Image 2>/dev/null)
