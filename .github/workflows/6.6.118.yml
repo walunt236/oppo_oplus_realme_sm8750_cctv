@@ -1490,8 +1490,12 @@ jobs:
             echo "[ERROR] AutoFDO profile 缺失或为空" | tee -a "$LOG_FILE"
             exit 1
           fi
-          echo "AFDO_PROFILE=$AFDO_DIR/kernel.afdo" >> $GITHUB_ENV
-          echo "[INFO] AutoFDO profile 就绪: $AFDO_DIR/kernel.afdo" | tee -a "$LOG_FILE"
+          # ccache 键含命令行路径——profile 文件名带内容哈希，内容变化时路径变 → 缓存键自动失效（防 stale 对象复用，6926951 教训）
+          AFDO_HASH=$(md5sum "$AFDO_DIR/kernel.afdo" | cut -c1-8)
+          AFDO_LINK="$AFDO_DIR/kernel-$AFDO_HASH.afdo"
+          ln -sf kernel.afdo "$AFDO_LINK"
+          echo "AFDO_PROFILE=$AFDO_LINK" >> $GITHUB_ENV
+          echo "[INFO] AutoFDO profile 就绪: $AFDO_LINK (hash=$AFDO_HASH)" | tee -a "$LOG_FILE"
 
       - name: 编译完整内核镜像
         if: ${{ !inputs.diagnosis }}
