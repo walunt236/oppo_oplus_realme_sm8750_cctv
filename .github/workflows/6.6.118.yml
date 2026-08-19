@@ -1417,6 +1417,10 @@ jobs:
             fi
           fi
 
+          # 清除上次 autofdo 构建的 .config 残留——否则校验假阳性且 kconfig 重生成后才失效，误导日志
+          if [[ "${{ inputs.autofdo_enable }}" != "true" ]]; then
+            sed -i '/^CONFIG_AUTOFDO_CLANG=y$/d; /^CONFIG_SECTION_MISMATCH_WARN_ONLY=y$/d' out/.config 2>/dev/null || true
+          fi
           if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
             if grep -q '^CONFIG_AUTOFDO_CLANG=y' out/.config; then
               echo "[INFO] AUTOFDO_CLANG 配置生效 (AutoFDO 优化开启)" | tee -a "$LOG_FILE"
@@ -1614,6 +1618,15 @@ jobs:
             else
               echo "[ERROR] Image 内嵌配置缺少 ZRAM_MEMORY_TRACKING，产物配置陈旧，中止" | tee -a "$LOG_FILE"
               exit 1
+            fi
+            # 产物级 FDO 校验：autofdo 构建的 Image 内嵌配置必须含 AUTOFDO_CLANG（防 .config 假阳性/编译期失效）
+            if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
+              if echo "$IKCFG_TEXT" | grep -q '^CONFIG_AUTOFDO_CLANG=y'; then
+                echo "[INFO] Image 内嵌配置校验通过 (AUTOFDO_CLANG=y——FDO 编译确认)" | tee -a "$LOG_FILE"
+              else
+                echo "[ERROR] Image 内嵌配置缺少 AUTOFDO_CLANG，FDO 未实际生效，中止" | tee -a "$LOG_FILE"
+                exit 1
+              fi
             fi
           fi
 
