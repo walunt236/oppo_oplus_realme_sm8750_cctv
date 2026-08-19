@@ -131,7 +131,7 @@ on:
         type: boolean
         default: false
       autofdo_enable:
-        description: '⚠ 已验证 bootloop（2026-08-17 实机，勿开启）：Google 官方 AutoFDO profile 与 OEM 内核不兼容'
+        description: 'AutoFDO 优化（需先部署自采集 profile 至 runner 缓存；缺失时构建中止。官方 Google profile 已验证 bootloop，勿用）'
         required: true
         type: boolean
         default: false
@@ -1419,7 +1419,7 @@ jobs:
 
           if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
             if grep -q '^CONFIG_AUTOFDO_CLANG=y' out/.config; then
-              echo "[INFO] AUTOFDO_CLANG 配置生效 (AutoFDO 实验开启)" | tee -a "$LOG_FILE"
+              echo "[INFO] AUTOFDO_CLANG 配置生效 (AutoFDO 优化开启)" | tee -a "$LOG_FILE"
             else
               echo "[ERROR] AUTOFDO_CLANG 配置未生效，中止构建" | tee -a "$LOG_FILE"
               exit 1
