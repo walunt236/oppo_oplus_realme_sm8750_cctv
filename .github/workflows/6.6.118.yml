@@ -1424,6 +1424,12 @@ jobs:
               echo "[ERROR] AUTOFDO_CLANG 配置未生效，中止构建" | tee -a "$LOG_FILE"
               exit 1
             fi
+            if grep -q '^CONFIG_SECTION_MISMATCH_WARN_ONLY=y' out/.config; then
+              echo "[INFO] SECTION_MISMATCH_WARN_ONLY 配置生效 (modpost mismatch 降级警告)" | tee -a "$LOG_FILE"
+            else
+              echo "[ERROR] SECTION_MISMATCH_WARN_ONLY 配置未生效，中止构建" | tee -a "$LOG_FILE"
+              exit 1
+            fi
           fi
 
           if grep -q '^CONFIG_LLVM_POLLY=y' out/.config; then
