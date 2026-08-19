@@ -774,6 +774,9 @@ jobs:
           # 运行时生效路径：设备端 service.sh 写 /proc/sys/vm/watermark_scale_factor=150
           if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
             echo "CONFIG_AUTOFDO_CLANG=y" >> $DCFG
+            # AutoFDO 内联决策变化会触发 modpost section mismatch（如 __list_add 内联进 init 路径引用 .init.data）——
+            # 官方开关：mismatch 降级为警告（生命周期同源，安全）；普通构建保持严格
+            echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DCFG
           fi
 
           echo 'CONFIG_ZRAM=y' >> $DCFG
