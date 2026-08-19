@@ -1474,20 +1474,8 @@ jobs:
           AFDO_DIR="$HOME/.cache_patches/afdo"
           mkdir -p "$AFDO_DIR"
           if [ ! -s "$AFDO_DIR/kernel.afdo" ]; then
-            echo "[INFO] 下载 AutoFDO profile (android15-6.6 HEAD)..." | tee -a "$LOG_FILE"
-            curl -fSL --retry 3 --connect-timeout 10 -o "$AFDO_DIR/kernel.afdo.b64" \
-              "https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo/kernel.afdo?format=TEXT" || {
-              echo "[ERROR] AutoFDO profile 下载失败" | tee -a "$LOG_FILE"
-              exit 1
-            }
-            base64 -d "$AFDO_DIR/kernel.afdo.b64" > "$AFDO_DIR/kernel.afdo" || {
-              echo "[ERROR] AutoFDO profile 解码失败" | tee -a "$LOG_FILE"
-              exit 1
-            }
-            rm -f "$AFDO_DIR/kernel.afdo.b64"
-          fi
-          if [ ! -s "$AFDO_DIR/kernel.afdo" ]; then
-            echo "[ERROR] AutoFDO profile 缺失或为空" | tee -a "$LOG_FILE"
+            echo "[ERROR] AutoFDO profile 缺失——不再自动下载官方 profile（android15-6.6 官方 profile 与 OEM 内核不兼容，已两次实机 bootloop，0245025 标记）" | tee -a "$LOG_FILE"
+            echo "[ERROR] 请先部署自采集 profile：设备采样 → build_afdo.py 解析 → llvm-profdata merge → cp 到 $AFDO_DIR/kernel.afdo" | tee -a "$LOG_FILE"
             exit 1
           fi
           # ccache 键含命令行路径——profile 文件名带内容哈希，内容变化时路径变 → 缓存键自动失效（防 stale 对象复用，6926951 教训）
@@ -1547,10 +1535,10 @@ jobs:
           fi
           # 2. AutoFDO 全套参数（autofdo 构建时）
           if [[ "${{ inputs.autofdo_enable }}" == "true" ]] && [ -n "$AFDO_PROFILE" ]; then
-            if clang -fprofile-sample-use="$AFDO_PROFILE" -fdebug-info-for-profiling -mllvm -enable-fs-discriminator=true -### -c /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
+            if clang -fprofile-sample-use="$AFDO_PROFILE" -fprofile-sample-accurate -fdebug-info-for-profiling -mllvm -enable-fs-discriminator=true -### -c /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
               echo "  ✗ AutoFDO 参数不被工具链支持！" | tee -a "$LOG_FILE"
             else
-              echo "  ✓ AutoFDO 全套（-fprofile-sample-use / -fdebug-info-for-profiling / fs-discriminator）" | tee -a "$LOG_FILE"
+              echo "  ✓ AutoFDO 全套（-fprofile-sample-use / -fprofile-sample-accurate / -fdebug-info-for-profiling / fs-discriminator）" | tee -a "$LOG_FILE"
             fi
           fi
           # 3. 核心优化参数（批量 -### 验证）
@@ -1604,7 +1592,8 @@ jobs:
              fi
               if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
               # AutoFDO：Makefile.autofdo 经 CLANG_AUTOFDO_PROFILE 注入 -fprofile-sample-use + --lto-sample-profile
-              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
+              # -fprofile-sample-accurate：自采集 profile 完全新鲜，告知 clang 样本准确，减少保守推断（仅 autofdo 分支）
+              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA -fprofile-sample-accurate" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
               else
               make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
               fi
