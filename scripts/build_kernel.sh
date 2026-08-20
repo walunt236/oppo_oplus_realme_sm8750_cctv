@@ -1,13 +1,11 @@
 #!/bin/bash
-# ============================================================
-# build_kernel.sh — 增量钳制 / 构建配置 / 工具链验证 / 编译 / IKCFG 校验
-# ============================================================
+# build_kernel.sh — 增量钳制/构建配置/编译/IKCFG 校验
 set -e
 source "$(dirname "$0")/common.sh"
 
-# ============ 增量编译 mtime 钳制 ============
+# ===== 增量编译 mtime 钳制 =====
 cd kernel_workspace/common
-# 源码树指纹 = git status porcelain 哈希：工作流改动/输入变化/上游源变化都会体现在其中
+# 源码树指纹 = git status porcelain 哈希
 PATCH_HASH=$(git status --porcelain 2>/dev/null | md5sum | cut -d' ' -f1)
 echo "PATCH_HASH=$PATCH_HASH" >> "$GITHUB_ENV"
 STORED=$(cut -d'|' -f1 "$HOME/.cache_patches/build_state" 2>/dev/null || true)
@@ -21,7 +19,7 @@ else
   info "全量模式：源码指纹变化/首次构建/上次构建未成功"
 fi
 
-# ============ 构建内核配置 ============
+# ===== 构建内核配置 =====
 WORKDIR="$(pwd)"
 CLANG_DIR_NAME="Clang-19.0.0git-20240723"
 
@@ -32,7 +30,7 @@ export PATH="/usr/lib/ccache:$PATH"
 
 cd kernel_workspace/common
 
-# 默认增量编译（保留 out/ 复用）；clean_build=true 时强制全量
+# 默认增量；clean_build=true 强制全量
 if [[ "$CLEAN_BUILD" == "true" ]]; then
   info "clean_build 开启，删除 out/ 执行全量重建..."
   rm -rf out
@@ -40,8 +38,7 @@ fi
 
 make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O3 KCFLAGS+=-Wno-error gki_defconfig
 
-# .config 哈希纳入增量判定：与上次成功构建不一致时强制全量重建
-# （.config 新增符号时 kbuild 不会重编依赖它的文件，增量会产出配置陈旧的镜像）
+# .config 哈希纳入增量判定（新增符号时 kbuild 不会重编依赖文件）
 CFG_HASH=$(md5sum out/.config | cut -d' ' -f1)
 echo "CFG_HASH=$CFG_HASH" >> "$GITHUB_ENV"
 STORED_CFG=$(cut -d'|' -f2 "$HOME/.cache_patches/build_state" 2>/dev/null || true)
@@ -130,7 +127,7 @@ if [[ "$DIAGNOSIS" == "true" ]]; then
   cp out/.config out/build_config.txt
 fi
 
-# ============ 选择性 -O3 ============
+# ===== 选择性 -O3 =====
 if [[ "$O3_SELECTIVE" == "true" ]]; then
   cd kernel_workspace/common
   for TARGET_DIR in lib crypto; do
@@ -141,7 +138,7 @@ if [[ "$O3_SELECTIVE" == "true" ]]; then
   info "选择性O3与Polly配置完成"
 fi
 
-# ============ DMA-BUF 页池扩容 ============
+# ===== DMA-BUF 页池扩容 =====
 if [[ "$O3_SELECTIVE" == "true" ]]; then
   cd "$GITHUB_WORKSPACE/kernel_workspace"
   SYS_HEAP=$(find common drivers -name "system_heap.c" 2>/dev/null | head -n 1)
@@ -151,7 +148,7 @@ if [[ "$O3_SELECTIVE" == "true" ]]; then
   fi
 fi
 
-# ============ 编译完整内核镜像 ============
+# ===== 编译完整内核镜像 =====
 if [[ "$DIAGNOSIS" == "true" ]]; then
   info "诊断模式：跳过内核编译"
   exit 0
@@ -262,19 +259,16 @@ if [ -n "$AFDO_PROFILE" ]; then
     exit 1
   fi
 fi
-# --------------------------
-# Apply MGLRU aggressive aging (last source mod to avoid being overwritten by prior patches)
+# MGLRU aging 放宽（最后修改，避免被先前补丁覆盖）
 if grep -q 'if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)' mm/vmscan.c; then
   sed -i '/if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)/,+1d' mm/vmscan.c
   info "MGLRU aging threshold relaxed"
 else
   warn "MGLRU aging line already modified, skipped"
 fi
-# AutoFDO 默认开启：Makefile.autofdo 经 CLANG_AUTOFDO_PROFILE 注入 -fprofile-sample-use + --lto-sample-profile
-# -fprofile-sample-accurate：自采集 profile 完全新鲜，告知 clang 样本准确，减少保守推断
-# -mllvm -sample-profile-max-propagate-iterations=300：样本热度传播迭代（默认 100→300，inline 决策更充分）
+# AutoFDO：-fprofile-sample-use + --lto-sample-profile；sample-accurate + 传播迭代 300
 make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA -fprofile-sample-accurate -mllvm -sample-profile-max-propagate-iterations=300" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
-# 校验 Image 内嵌配置（IKCFG）与构建配置一致，防止增量产物配置陈旧
+# 校验 Image 内嵌配置（IKCFG）与 .config 一致
 if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | grep -qa "IKCFG_ST"; then
   IKCFG_TEXT=$(perl -e 'open(F,"<",$ARGV[0]); local $/; $d=<F>; close F; $d =~ /IKCFG_ST(.*?)IKCFG_ED/s; open(G,"|-","gzip -dc 2>/dev/null"); print G $1; close G;' out/arch/arm64/boot/Image 2>/dev/null)
   if echo "$IKCFG_TEXT" | grep -q '^CONFIG_ZRAM_MEMORY_TRACKING=y'; then

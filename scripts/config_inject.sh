@@ -1,8 +1,5 @@
 #!/bin/bash
-# ============================================================
-# config_inject.sh — 配置注入域：defconfig 核心块 / cmdline /
-#                   F2FS / 网络配置 / 版本固化 / HZ
-# ============================================================
+# config_inject.sh — defconfig 注入/cmdline/版本固化
 set -e
 source "$(dirname "$0")/common.sh"
 
@@ -49,8 +46,8 @@ CONFIG_ZSMALLOC=y
 CONFIG_CRYPTO_LZ4K=y
 CONFIG_CRYPTO_LZ4KD=y
 CONFIG_CRYPTO_842=y
-# zram 双重压缩：主算法 lz4 1.10 全特性（NEON 解压 + FAST_DEC_LOOP，新写入=常用数据）
-# 冷数据：MULTI_COMP recompression 转 zstd（压缩率高）；依赖 ZRAM_MULTI_COMP/TRACKING/CRYPTO_ZSTD 已在其他块注入
+# zram 双重压缩：lz4 主算法（新写=常用）+ zstd 冷数据重压缩
+# 冷数据：MULTI_COMP recompression 转 zstd
 CONFIG_ZRAM_DEF_COMP_LZ4=y
 CONFIG_ZRAM_DEF_COMP="lz4"
 LZ4KDCFG
@@ -59,11 +56,8 @@ fi
 echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> $DCFG
 sed -i 's/check_defconfig//' ./common/build.config.gki || true
 echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
-# 注意：勿注入 CONFIG_NR_CPUS——GKI per-cpu 布局与 vendor 模块编译期 NR_CPUS 绑定，
-# 32->8 曾导致 bootloop（be907ba，2026-08-13 实机验证）
-# 注意：WATERMARK_SCALE_FACTOR 无 Kconfig 符号（OEM Kconfig 已删，defconfig 注入被
-# kconfig merge 静默丢弃，.config/Image 中从未出现——2026-08-17 校验实证）。
-# 运行时生效路径：设备端 service.sh 写 /proc/sys/vm/watermark_scale_factor=150
+# 勿注入 NR_CPUS（per-cpu 与 vendor 模块绑定，32->8 曾 bootloop be907ba）
+# WATERMARK_SCALE_FACTOR 无 Kconfig 符号；运行时走 service.sh
 # AutoFDO 配置注入
 echo "CONFIG_AUTOFDO_CLANG=y" >> $DCFG
 # AutoFDO 内联决策变化会触发 modpost section mismatch（如 __list_add 内联进 init 路径引用 .init.data）——
@@ -136,18 +130,13 @@ CONFIG_DEVTMPFS=y
 NSCFG
 
 info "注入 Vendor 驱动符号 (UBSAN / KUNIT)..."
-# configs.o 修复（IKCONFIG 数据陈旧问题，实机验证 ZRAM_MEMORY_TRACKING 丢失）：
-# 1) -D 时间戳 flag 强制每次重编（ccache 无法感知 .incbin 的 config_data.gz 变化）
-# 2) 排除 LTO：.incbin 数据在 thin-LTO codegen（链接时）读取，thinlto 缓存键不含该文件，
-#    命中旧缓存导致配置数据永远陈旧——排除 LTO 后数据在编译时固化（本地已验证）
+# configs.o 修复（IKCFG 陈旧）：-D 时间戳强制重编 + 排除 LTO（thinlto 缓存键不含 .incbin）
 grep -q "CFLAGS_configs.o := -D__IKCFG_BUILD" ./common/kernel/Makefile || \
   echo 'CFLAGS_configs.o := -D__IKCFG_BUILD_$(shell date +%s)' >> ./common/kernel/Makefile
 grep -q "CFLAGS_REMOVE_configs.o" ./common/kernel/Makefile || \
   echo 'CFLAGS_REMOVE_configs.o := -flto=thin -fsplit-lto-unit' >> ./common/kernel/Makefile
 
-# zram 冷数据重压缩默认算法：zstd（recomp_algorithm 只能在设备 init 前配置，
-# Android 用户态无法在 swapon 前介入，必须设备创建时在内核固化）
-# 纯直连通道：api.github.com contents（raw.githubusercontent 被墙，2026-08-17 实测）
+# zram recomp 算法只能设备创建时固化（用户态无法在 swapon 前介入）
 fetch_repo_file "other_patch/zram_recomp_default.patch" /tmp/zram_recomp.patch
 if ( cd ./common && patch -p1 -F 3 < /tmp/zram_recomp.patch ); then
   info "zram 默认 zstd 重压缩算法补丁应用成功"
@@ -155,7 +144,7 @@ else
   error "zram 默认重压缩算法补丁应用失败"
   exit 1
 fi
-# DAMON_RECLAIM min_age 默认 120s -> 30s（编译期固化，主动回收前置，防"爆满才回收"）
+# DAMON_RECLAIM min_age 120s -> 30s
 fetch_repo_file "other_patch/damon_reclaim_defaults.patch" /tmp/damon_reclaim.patch
 if ( cd ./common && patch -p1 -F 3 < /tmp/damon_reclaim.patch ); then
   info "DAMON_RECLAIM 默认参数补丁应用成功"
@@ -175,7 +164,7 @@ CONFIG_KUNIT=m
 CONFIG_KUNIT_DEBUGFS=y
 OEMDEPENDS
 
-# ============ cmdline 注入 ============
+# ===== cmdline 注入 =====
 info "对 init/main.c 注入 cmdline..."
 cd kernel_workspace/common
 TARGET_MAIN="init/main.c"
@@ -194,11 +183,11 @@ else
   exit 1
 fi
 
-# ============ F2FS 检查点优化 ============
+# ===== F2FS 检查点优化 =====
 sed -i 's/#define MAX_FLUSH_RETRIES 200/#define MAX_FLUSH_RETRIES 8/' fs/f2fs/checkpoint.c
 info "F2FS检查点优化完成"
 
-# ============ 网络功能增强（纯 defconfig 注入） ============
+# ===== 网络功能增强（纯 defconfig 注入） =====
 cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
 CONFIG_NETFILTER_XT_TARGET_HL=y
@@ -246,7 +235,7 @@ CONFIG_NET_SCH_FQ_CODEL=y
 CONFIG_TCP_CONG_CUBIC=y
 NETCFG
 
-# ============ Droidspaces 配置块 ============
+# ===== Droidspaces 配置块 =====
 if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
   cd kernel_workspace/common
   cat >> ./arch/arm64/configs/gki_defconfig << 'DSCFG'
@@ -268,14 +257,14 @@ DSCFG
   fi
 fi
 
-# ============ ADIOS 配置块 ============
+# ===== ADIOS 配置块 =====
 cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
 CONFIG_MQ_IOSCHED_ADIOS=y
 CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y
 ADIOSCFG
 
-# ============ 版本固化 ============
+# ===== 版本固化 =====
 cd kernel_workspace
 echo "CONFIG_LOCALVERSION_AUTO=y" >> ./common/arch/arm64/configs/gki_defconfig
 
@@ -294,7 +283,7 @@ for f in ./common/scripts/setlocalversion; do
 done
 sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
-# ============ HZ=300 ============
+# ===== HZ=300 =====
 info "启用 HZ=300..."
 cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ300CFG'

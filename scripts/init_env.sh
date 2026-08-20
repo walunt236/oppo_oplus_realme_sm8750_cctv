@@ -1,7 +1,5 @@
 #!/bin/bash
-# ============================================================
-# init_env.sh — 环境依赖 + 源码初始化 + 工具链（Clang19/build-tools 官方源）
-# ============================================================
+# init_env.sh — 环境依赖/源码初始化/工具链
 set -e
 source "$(dirname "$0")/common.sh"
 
@@ -53,7 +51,7 @@ else
   info "ccache 已存在: $(ccache --version | head -1)"
 fi
 
-# OEM 分支唯一来源：后续 Android 大版本由它动态推导
+# OEM 分支唯一来源（Android 大版本由它推导）
 OEM_BRANCH="oneplus/sm8750_b_16.0.0_oneplus_13"
 
 # AOSP 标签查询与 OEM/vendor 拉取并行
@@ -118,13 +116,12 @@ git config user.name "github-actions[bot]"
 
 wait $VENDOR_PID || warn "vendor_modules 拉取异常，后续步骤可能受影响"
 
-# ============ AOSP 上游合并（默认开启；fetch/merge 失败即停摆） ============
+# ===== AOSP 上游合并（必需；失败即停） =====
 info "拉取 Google AOSP android15-6.6 ..."
 wait $AOSP_TAG_PID 2>/dev/null || true
 LATEST_AOSP_TAG=$(cat "$HOME/.cache_patches/latest_aosp_tag" 2>/dev/null)
 LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
 info "AOSP 最新发布标签: $LATEST_AOSP_TAG"
-# 纯直连不可达时 glr 自动走代理（Clash 混合端口）；两者都失败则中止构建（上游合并为默认必需项）
 if glr fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG"; then
   UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
   UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
@@ -153,7 +150,7 @@ OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
 OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
 OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
 
-# 版本号全部由实际源码 Makefile 动态推导
+# 版本号由源码 Makefile 动态推导
 echo "KERNEL_VERSION=${OEM_VERSION}.${OEM_PATCHLEVEL}" >> "$GITHUB_ENV"
 echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> "$GITHUB_ENV"
 echo "CCACHE_KEY=ccache-ecsv3-${OEM_VERSION}.${OEM_PATCHLEVEL}" >> "$GITHUB_ENV"
@@ -200,8 +197,7 @@ else
   info "[秒过] Clang 19 工具链已存在本地缓存，直接复用！"
 fi
 
-# build-tools：Android 官方 gitiles 源（替代 cctv18/oneplus_sm8650_toolchain）
-# 官方归档顶层为 bin/asan/lib64，解压后归入 build-tools/ 子目录保持 PATH 语义
+# build-tools：Android 官方 gitiles 源；归档顶层 bin/asan/lib64 → build-tools/ 子目录
 if [ ! -d "$BT_DIR/build-tools/bin" ]; then
   info "检测到 build-tools 未缓存或布局不符，从 Android 官方源下载..."
   rm -rf "$BT_DIR"

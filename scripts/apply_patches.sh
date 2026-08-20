@@ -1,9 +1,5 @@
 #!/bin/bash
-# ============================================================
-# apply_patches.sh — 源码修改域：KernelSU / SUSFS / lz4/lz4kd /
-#                   风驰引擎批 / Droidspaces / ADIOS / ReKernel /
-#                   Baseband-guard / BBRv3 / 调度器优化
-# ============================================================
+# apply_patches.sh — 源码修改域：KSU/SUSFS/lz4/风驰/Droidspaces/ADIOS/BBG/BBRv3/调度
 set -e
 source "$(dirname "$0")/common.sh"
 
@@ -87,7 +83,7 @@ else
   echo "ksuver=none" >> "$GITHUB_OUTPUT"
 fi
 
-# ============ SUSFS（上游唯一源 cctv18/susfs4oki） ============
+# ===== SUSFS（上游唯一源 cctv18/susfs4oki） =====
 if [[ "$SUSFS_ENABLE" == "true" ]]; then
   if [[ "$KSU_TYPE" != "none" ]]; then
     info "添加 susfs 补丁..."
@@ -107,7 +103,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
     rm -rf susfs4ksu
     cp -r "$SUSFS_CACHE_DIR" susfs4ksu
 
-    # 69_hide_stuff.patch 本地缓存化（api contents 纯直连）
+    # 69_hide_stuff.patch 缓存化
     HIDE_PATCH="$HOME/.cache_patches/69_hide_stuff.patch"
     if [ ! -f "$HIDE_PATCH" ]; then
       fetch_repo_file "other_patch/69_hide_stuff.patch" "$HIDE_PATCH"
@@ -144,7 +140,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
   fi
 fi
 
-# ============ lz4/zstd ============
+# ===== lz4/zstd =====
 cd kernel_workspace/common
 CACHE_DIR="$HOME/.cache_patches/zram_patches"
 mkdir -p "$HOME/.cache_patches"
@@ -166,7 +162,7 @@ cp "$CACHE_DIR/zram/lz4armv8.S" lib/lz4/lz4armv8/lz4armv8.S || true
 
 ACCEL_DIR="$HOME/.cache_patches/lz4accel"
 mkdir -p "$ACCEL_DIR"
-# 固定 6.6.142 分支：与 AOSP merge 基线一致，避免上游新分支 API 漂移导致编译失败
+# 固定 6.6.142 分支（与 AOSP merge 基线一致，防 API 漂移）
 PALAZIK_BRANCH="6.6.142_oneplus13_coloros16"
 info "lz4accel 上游分支: $PALAZIK_BRANCH"
 curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
@@ -182,7 +178,7 @@ cp "$ACCEL_DIR/lz4accel.h" fs/f2fs/lz4armv8/
 git apply --reject --whitespace=nowarn 001-lz4.patch || true
 patch -p1 -t -F 3 < 002-zstd.patch || true
 
-# 严格校验：LZ4_FAST_DEC_LOOP（1.10 特征）+ lz4armv8.S 必须就位
+# 校验：LZ4_FAST_DEC_LOOP（1.10 特征）+ lz4armv8.S 必须就位
 if [ -f lib/lz4/lz4_compress.c ] && grep -q 'LZ4_FAST_DEC_LOOP' lib/lz4/lz4_compress.c && [ -f lib/lz4/lz4armv8/lz4armv8.S ]; then
   info "lz4 1.10 补丁生效 (FAST_DEC_LOOP + lz4armv8.S 已就位)"
 else
@@ -219,7 +215,7 @@ if [[ "$LZ4KD_ENABLE" == "true" ]]; then
   fi
 fi
 
-# ============ 风驰引擎及优化补丁批 ============
+# ===== 风驰引擎及优化补丁批 =====
 cd "$GITHUB_WORKSPACE/kernel_workspace"
 
 info "获取 Wild 补丁仓..."
@@ -235,7 +231,7 @@ else
   git clone --depth=1 https://github.com/WildKernels/kernel_patches.git "$WILD_DIR"
 fi
 
-# 优先 oneplus/hmbird，未命中则全仓搜索兜底（上游目录结构可能变动）
+# 优先 oneplus/hmbird，未命中全仓搜索（上游目录可能变动）
 PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" 2>/dev/null | head -n 1)
 if [ -z "$PATCH_FILE" ]; then
   warn "oneplus/hmbird 目录未找到风驰补丁，开始全仓搜索..."

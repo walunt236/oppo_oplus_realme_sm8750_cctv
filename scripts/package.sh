@@ -1,11 +1,9 @@
 #!/bin/bash
-# ============================================================
-# package.sh — KPM 修补 / AnyKernel3 打包 / 本地保存 / 工作区清理
-# ============================================================
+# package.sh — KPM 修补/AnyKernel3 打包/本地保存/清理
 set -e
 source "$(dirname "$0")/common.sh"
 
-# ============ KPM 修补 ============
+# ===== KPM 修补 =====
 if [[ "$KPM_ENABLE" == 'builtin' ]] && ( [[ "$KSU_TYPE" == "sukisu" ]] || [[ "$KSU_TYPE" == "resukisu" ]] ); then
   info "应用 KPM 并修补内核..."
   cd kernel_workspace/common/out/arch/arm64/boot
@@ -35,7 +33,7 @@ if [[ "$KPM_ENABLE" == 'kpn' ]]; then
   mv oImage Image
 fi
 
-# ============ AnyKernel3 打包 ============
+# ===== AnyKernel3 打包 =====
 cd kernel_workspace
 CLONE_OK=0
 if [ -d AnyKernel3/.git ]; then
@@ -131,7 +129,7 @@ if [[ "$RUNNER_TYPE" == "self-hosted" ]]; then
   fi
 fi
 
-# ============ 本地工作区清理 ============
+# ===== 本地工作区清理 =====
 info "清理编译产出和临时文件..."
 # 保留 common/out 供增量编译复用（make 依赖追踪自动处理源码/配置变化），仅清理 vendor 输出
 rm -rf kernel_workspace/vendor_modules/out
