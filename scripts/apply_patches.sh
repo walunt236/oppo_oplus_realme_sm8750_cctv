@@ -146,44 +146,50 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
   fi
 fi
 
-# ============ lz4/zstd ============
-if [[ "$LZ4_ENABLE" == "true" ]]; then
-  cd kernel_workspace/common
-  CACHE_DIR="$HOME/.cache_patches/zram_patches"
-  mkdir -p "$HOME/.cache_patches"
+# ============ lz4/zstd（默认开启；补丁未生效即停摆） ============
+cd kernel_workspace/common
+CACHE_DIR="$HOME/.cache_patches/zram_patches"
+mkdir -p "$HOME/.cache_patches"
 
-  if [ -d "$CACHE_DIR/.git" ]; then
-    info "[秒过] 本地 LZ4 补丁仓增量更新..."
-    git -C "$CACHE_DIR" fetch --depth=1 origin main || true
-    git -C "$CACHE_DIR" reset --hard FETCH_HEAD || true
-  else
-    info "克隆 LZ4 补丁仓..."
-    git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git "$CACHE_DIR"
-  fi
+if [ -d "$CACHE_DIR/.git" ]; then
+  info "[秒过] 本地 LZ4 补丁仓增量更新..."
+  git -C "$CACHE_DIR" fetch --depth=1 origin main || true
+  git -C "$CACHE_DIR" reset --hard FETCH_HEAD || true
+else
+  info "克隆 LZ4 补丁仓..."
+  git clone --depth=1 https://github.com/mrcxlinux/kernel_patches.git "$CACHE_DIR"
+fi
 
-  cp "$CACHE_DIR/zram/001-lz4.patch" . || exit 1
-  cp "$CACHE_DIR/zram/002-zstd.patch" . || exit 1
+cp "$CACHE_DIR/zram/001-lz4.patch" . || exit 1
+cp "$CACHE_DIR/zram/002-zstd.patch" . || exit 1
 
-  mkdir -p lib/lz4/lz4armv8
-  cp "$CACHE_DIR/zram/lz4armv8.S" lib/lz4/lz4armv8/lz4armv8.S || true
+mkdir -p lib/lz4/lz4armv8
+cp "$CACHE_DIR/zram/lz4armv8.S" lib/lz4/lz4armv8/lz4armv8.S || true
 
-  ACCEL_DIR="$HOME/.cache_patches/lz4accel"
-  mkdir -p "$ACCEL_DIR"
-  # 固定 6.6.142 分支：与 AOSP merge 基线一致，避免上游新分支 API 漂移导致编译失败
-  PALAZIK_BRANCH="6.6.142_oneplus13_coloros16"
-  info "lz4accel 上游分支: $PALAZIK_BRANCH"
-  curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
-    "https://api.github.com/repos/palazik/android_kernel_common_oneplus_sm8750/contents/fs/f2fs/lz4armv8/lz4accel.c?ref=$PALAZIK_BRANCH" | \
-    python3 -c "import sys,json,base64;open('$ACCEL_DIR/lz4accel.c','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || warn "lz4accel.c 拉取失败，保留缓存/继续..."
-  curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
-    "https://api.github.com/repos/palazik/android_kernel_common_oneplus_sm8750/contents/fs/f2fs/lz4armv8/lz4accel.h?ref=$PALAZIK_BRANCH" | \
-    python3 -c "import sys,json,base64;open('$ACCEL_DIR/lz4accel.h','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || warn "lz4accel.h 拉取失败，保留缓存/继续..."
-  mkdir -p fs/f2fs/lz4armv8
-  cp "$ACCEL_DIR/lz4accel.c" fs/f2fs/lz4armv8/
-  cp "$ACCEL_DIR/lz4accel.h" fs/f2fs/lz4armv8/
+ACCEL_DIR="$HOME/.cache_patches/lz4accel"
+mkdir -p "$ACCEL_DIR"
+# 固定 6.6.142 分支：与 AOSP merge 基线一致，避免上游新分支 API 漂移导致编译失败
+PALAZIK_BRANCH="6.6.142_oneplus13_coloros16"
+info "lz4accel 上游分支: $PALAZIK_BRANCH"
+curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+  "https://api.github.com/repos/palazik/android_kernel_common_oneplus_sm8750/contents/fs/f2fs/lz4armv8/lz4accel.c?ref=$PALAZIK_BRANCH" | \
+  python3 -c "import sys,json,base64;open('$ACCEL_DIR/lz4accel.c','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || warn "lz4accel.c 拉取失败，保留缓存/继续..."
+curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+  "https://api.github.com/repos/palazik/android_kernel_common_oneplus_sm8750/contents/fs/f2fs/lz4armv8/lz4accel.h?ref=$PALAZIK_BRANCH" | \
+  python3 -c "import sys,json,base64;open('$ACCEL_DIR/lz4accel.h','wb').write(base64.b64decode(json.load(sys.stdin)['content']))" || warn "lz4accel.h 拉取失败，保留缓存/继续..."
+mkdir -p fs/f2fs/lz4armv8
+cp "$ACCEL_DIR/lz4accel.c" fs/f2fs/lz4armv8/
+cp "$ACCEL_DIR/lz4accel.h" fs/f2fs/lz4armv8/
 
-  git apply --reject --whitespace=nowarn 001-lz4.patch || true
-  patch -p1 -t -F 3 < 002-zstd.patch || true
+git apply --reject --whitespace=nowarn 001-lz4.patch || true
+patch -p1 -t -F 3 < 002-zstd.patch || true
+
+# 严格校验：lz4 1.10 关键文件/内容必须就位（LZ4_FAST_DEC_LOOP = 1.10 特征），否则停摆
+if [ -f lib/lz4/lz4_compress.c ] && grep -q 'LZ4_FAST_DEC_LOOP' lib/lz4/lz4_compress.c && [ -f lib/lz4/lz4armv8/lz4armv8.S ]; then
+  info "lz4 1.10 补丁生效 (FAST_DEC_LOOP + lz4armv8.S 已就位)"
+else
+  error "lz4 1.10 补丁未生效（LZ4_FAST_DEC_LOOP/lz4armv8.S 缺失），中止构建"
+  exit 1
 fi
 
 # ============ lz4kd ============
@@ -430,18 +436,16 @@ if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
   fi
 fi
 
-# ============ ADIOS ============
-if [[ "$ADIOS_ENABLE" == "true" ]]; then
-  info "启用 ADIOS I/O 调度器..."
-  cd kernel_workspace
-  # 应用 ADIOS 补丁（block 4 文件：Kconfig.iosched/Makefile/adios.c/elevator.c，6.6 兼容已验证）
-  fetch_repo_file "other_patch/adios/adios_block_only.patch" /tmp/adios.patch
-  if ( cd ./common && patch -p1 -F 3 < /tmp/adios.patch ); then
-    info "ADIOS 补丁应用成功"
-  else
-    error "ADIOS 补丁应用失败"
-    exit 1
-  fi
+# ============ ADIOS（默认开启；补丁失败即停摆） ============
+info "启用 ADIOS I/O 调度器..."
+cd kernel_workspace
+# 应用 ADIOS 补丁（block 4 文件：Kconfig.iosched/Makefile/adios.c/elevator.c，6.6 兼容已验证）
+fetch_repo_file "other_patch/adios/adios_block_only.patch" /tmp/adios.patch
+if ( cd ./common && patch -p1 -F 3 < /tmp/adios.patch ); then
+  info "ADIOS 补丁应用成功"
+else
+  error "ADIOS 补丁应用失败，中止构建"
+  exit 1
 fi
 
 # ============ Re-Kernel ============
@@ -470,22 +474,20 @@ if [[ "$BASEBAND_GUARD" == "true" ]]; then
   sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 fi
 
-# ============ BBRv3 ============
-if [[ "$BBRV3_ENABLE" == "true" ]]; then
-  info "应用 BBRv3 补丁..."
-  cd kernel_workspace/common
-  curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
-    "https://api.github.com/repos/WildKernels/kernel_patches/contents/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch?ref=main" | \
-    python3 -c "import sys,json,base64;open('bbrv3.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
+# ============ BBRv3（默认开启；补丁失败即停摆） ============
+info "应用 BBRv3 补丁..."
+cd kernel_workspace/common
+curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
+  "https://api.github.com/repos/WildKernels/kernel_patches/contents/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch?ref=main" | \
+  python3 -c "import sys,json,base64;open('bbrv3.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
 
-  if git apply -p1 < bbrv3.patch 2>/dev/null; then
-    info "BBRv3 git apply 成功"
-  elif patch -p1 -F 3 < bbrv3.patch 2>/dev/null; then
-    info "BBRv3 patch 成功"
-  else
-    error "BBRv3 补丁失败"
-    exit 1
-  fi
+if git apply -p1 < bbrv3.patch 2>/dev/null; then
+  info "BBRv3 git apply 成功"
+elif patch -p1 -F 3 < bbrv3.patch 2>/dev/null; then
+  info "BBRv3 patch 成功"
+else
+  error "BBRv3 补丁失败，中止构建"
+  exit 1
 fi
 
 # ============ 调度器优化（16ms PELT / NEXT_BUDDY / HRTICK / SIS_PROP） ============

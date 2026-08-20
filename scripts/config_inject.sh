@@ -65,12 +65,11 @@ echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
 # 注意：WATERMARK_SCALE_FACTOR 无 Kconfig 符号（OEM Kconfig 已删，defconfig 注入被
 # kconfig merge 静默丢弃，.config/Image 中从未出现——2026-08-17 校验实证）。
 # 运行时生效路径：设备端 service.sh 写 /proc/sys/vm/watermark_scale_factor=150
-if [[ "$AUTOFDO_ENABLE" == "true" ]]; then
-  echo "CONFIG_AUTOFDO_CLANG=y" >> $DCFG
-  # AutoFDO 内联决策变化会触发 modpost section mismatch（如 __list_add 内联进 init 路径引用 .init.data）——
-  # 官方开关：mismatch 降级为警告（生命周期同源，安全）；普通构建保持严格
-  echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DCFG
-fi
+# AutoFDO 默认开启：配置注入
+echo "CONFIG_AUTOFDO_CLANG=y" >> $DCFG
+# AutoFDO 内联决策变化会触发 modpost section mismatch（如 __list_add 内联进 init 路径引用 .init.data）——
+# 官方开关：mismatch 降级为警告（生命周期同源，安全）
+echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DCFG
 
 echo 'CONFIG_ZRAM=y' >> $DCFG
 # ZRAM_MEMORY_TRACKING: idle/huge_idle 页重压缩检测的前置（select TRACK_ENTRY_ACTIME），Android mmd 标准配置
@@ -200,10 +199,9 @@ fi
 sed -i 's/#define MAX_FLUSH_RETRIES 200/#define MAX_FLUSH_RETRIES 8/' fs/f2fs/checkpoint.c
 info "F2FS检查点优化完成"
 
-# ============ 网络功能增强（纯 defconfig 注入） ============
-if [[ "$BETTER_NET" == "true" ]]; then
-  cd kernel_workspace
-  cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
+# ============ 网络功能增强（默认开启，纯 defconfig 注入） ============
+cd kernel_workspace
+cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
 CONFIG_NETFILTER_XT_TARGET_HL=y
 CONFIG_NETFILTER_XT_MATCH_HL=y
 CONFIG_NF_CONNTRACK=y
@@ -248,7 +246,6 @@ CONFIG_DEFAULT_FQ=y
 CONFIG_NET_SCH_FQ_CODEL=y
 CONFIG_TCP_CONG_CUBIC=y
 NETCFG
-fi
 
 # ============ Droidspaces 配置块 ============
 if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
@@ -272,14 +269,12 @@ DSCFG
   fi
 fi
 
-# ============ ADIOS 配置块 ============
-if [[ "$ADIOS_ENABLE" == "true" ]]; then
-  cd kernel_workspace
-  cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
+# ============ ADIOS 配置块（默认开启） ============
+cd kernel_workspace
+cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
 CONFIG_MQ_IOSCHED_ADIOS=y
 CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y
 ADIOSCFG
-fi
 
 # ============ 版本固化 ============
 cd kernel_workspace
@@ -300,15 +295,13 @@ for f in ./common/scripts/setlocalversion; do
 done
 sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
-# ============ HZ=300 ============
-if [[ "$HZ_300" == "true" ]]; then
-  info "启用 HZ=300..."
-  cd kernel_workspace
-  cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ300CFG'
+# ============ HZ=300（默认开启） ============
+info "启用 HZ=300..."
+cd kernel_workspace
+cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ300CFG'
 # CONFIG_HZ_250 is not set
 CONFIG_HZ_300=y
 CONFIG_HZ=300
 HZ300CFG
-fi
 
 info "配置注入完成"

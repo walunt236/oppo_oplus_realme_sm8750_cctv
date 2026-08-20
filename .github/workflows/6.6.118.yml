@@ -36,18 +36,8 @@ on:
           - 'false'
           - 'builtin'
           - 'kpn'
-      lz4_enable:
-        description: '是否安装 lz4 1.10.0+zstd 1.5.7 补丁'
-        required: true
-        type: boolean
-        default: true
       lz4kd_enable:
         description: '是否安装 LZ4KD 补丁'
-        required: true
-        type: boolean
-        default: true
-      bbrv3_enable:
-        description: 'BBRv3 TCP拥塞控制'
         required: true
         type: boolean
         default: true
@@ -60,16 +50,6 @@ on:
           - 'false'
           - 'standard'
           - 'extend'
-      better_net:
-        description: '是否开启网络功能拓展配置'
-        required: true
-        type: boolean
-        default: true
-      adios_enable:
-        description: '是否启用ADIOS IO调度器支持'
-        required: true
-        type: boolean
-        default: true
       rekernel_enable:
         description: '是否启用Re-Kernel支持'
         required: true
@@ -105,16 +85,6 @@ on:
         required: true
         type: boolean
         default: false
-      upstream_merge:
-        description: '是否合并上游最新6.6内核补丁'
-        required: true
-        type: boolean
-        default: true
-      hz_300:
-        description: 'HZ=300'
-        required: true
-        type: boolean
-        default: true
       o3_selective:
         description: '选择性-O3'
         required: true
@@ -122,11 +92,6 @@ on:
         default: true
       clean_build:
         description: '强制全量重建（默认关闭，增量编译保留 out/ 目录）'
-        required: true
-        type: boolean
-        default: false
-      autofdo_enable:
-        description: 'AutoFDO 优化（需先部署自采集 profile 至 runner 缓存；缺失时构建中止。官方 Google profile 已验证 bootloop，勿用）'
         required: true
         type: boolean
         default: false
@@ -149,12 +114,8 @@ jobs:
       KSU_TYPE: ${{ inputs.ksu_type }}
       SUSFS_ENABLE: ${{ inputs.susfs_enable }}
       KPM_ENABLE: ${{ inputs.kpm_enable }}
-      LZ4_ENABLE: ${{ inputs.lz4_enable }}
       LZ4KD_ENABLE: ${{ inputs.lz4kd_enable }}
-      BBRV3_ENABLE: ${{ inputs.bbrv3_enable }}
       DROIDSPACES_ENABLE: ${{ inputs.droidspaces_enable }}
-      BETTER_NET: ${{ inputs.better_net }}
-      ADIOS_ENABLE: ${{ inputs.adios_enable }}
       REKERNEL_ENABLE: ${{ inputs.rekernel_enable }}
       BASEBAND_GUARD: ${{ inputs.baseband_guard }}
       RCU_NOCB_ENABLE: ${{ inputs.rcu_nocb_enable }}
@@ -162,11 +123,8 @@ jobs:
       CCACHE_DEBUG: ${{ inputs.ccache_debug }}
       KERNEL_SUFFIX_INPUT: ${{ inputs.kernel_suffix }}
       DIAGNOSIS: ${{ inputs.diagnosis }}
-      UPSTREAM_MERGE: ${{ inputs.upstream_merge }}
-      HZ_300: ${{ inputs.hz_300 }}
       O3_SELECTIVE: ${{ inputs.o3_selective }}
       CLEAN_BUILD: ${{ inputs.clean_build }}
-      AUTOFDO_ENABLE: ${{ inputs.autofdo_enable }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: 环境初始化（依赖/源码/工具链）
@@ -203,7 +161,6 @@ jobs:
         run: bash "$GITHUB_WORKSPACE/scripts/config_inject.sh"
 
       - name: 准备 AutoFDO profile
-        if: inputs.autofdo_enable
         run: |
           AFDO_DIR="$HOME/.cache_patches/afdo"
           mkdir -p "$AFDO_DIR"

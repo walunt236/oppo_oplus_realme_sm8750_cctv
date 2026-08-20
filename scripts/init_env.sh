@@ -58,12 +58,10 @@ fi
 OEM_BRANCH="oneplus/sm8750_b_16.0.0_oneplus_13"
 
 # 网络密集操作并行化：AOSP 标签查询先后台启动，与 OEM/vendor 拉取重叠
-if [[ "$UPSTREAM_MERGE" == "true" ]]; then
-  mkdir -p "$HOME/.cache_patches"
-  info "后台预查询 AOSP 最新标签..."
-  ( glr ls-remote --tags --sort=-v:refname https://android.googlesource.com/kernel/common 'refs/tags/android15-6.6.*_r00' | head -1 | awk '{print $2}' | sed 's|refs/tags/||' > "$HOME/.cache_patches/latest_aosp_tag" ) &
-  AOSP_TAG_PID=$!
-fi
+mkdir -p "$HOME/.cache_patches"
+info "后台预查询 AOSP 最新标签..."
+( glr ls-remote --tags --sort=-v:refname https://android.googlesource.com/kernel/common 'refs/tags/android15-6.6.*_r00' | head -1 | awk '{print $2}' | sed 's|refs/tags/||' > "$HOME/.cache_patches/latest_aosp_tag" ) &
+AOSP_TAG_PID=$!
 
 if [ -d "common/.git" ]; then
   info "common 源码已存在，reset到OEM"
@@ -121,33 +119,32 @@ git config user.name "github-actions[bot]"
 
 wait $VENDOR_PID || warn "vendor_modules 拉取异常，后续步骤可能受影响"
 
-if [[ "$UPSTREAM_MERGE" == "true" ]]; then
-  info "拉取 Google AOSP android15-6.6 ..."
-  wait $AOSP_TAG_PID 2>/dev/null || true
-  LATEST_AOSP_TAG=$(cat "$HOME/.cache_patches/latest_aosp_tag" 2>/dev/null)
-  LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
-  info "AOSP 最新发布标签: $LATEST_AOSP_TAG"
-  # 纯直连不可达时 glr 自动走代理（Clash 混合端口）；两者都失败才跳过 merge
-  if glr fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG"; then
-    UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
-    UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
-    echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> "$GITHUB_ENV"
-    if git merge FETCH_HEAD --no-edit -X ours --allow-unrelated-histories; then
-      info "AOSP上游合并成功"
-    else
-      warn "存在冲突，自动保留 OEM 版本..."
-      git diff --name-only --diff-filter=U | xargs -r git checkout --ours --
-      git add -A
-      git commit -m "Merge AOSP android15-6.6, keep OEM" || true
-    fi
-    echo "UPSTREAM_TAG=aosp-16" >> "$GITHUB_ENV"
+# ============ AOSP 上游合并（默认开启；fetch/merge 失败即停摆） ============
+info "拉取 Google AOSP android15-6.6 ..."
+wait $AOSP_TAG_PID 2>/dev/null || true
+LATEST_AOSP_TAG=$(cat "$HOME/.cache_patches/latest_aosp_tag" 2>/dev/null)
+LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
+info "AOSP 最新发布标签: $LATEST_AOSP_TAG"
+# 纯直连不可达时 glr 自动走代理（Clash 混合端口）；两者都失败则中止构建（上游合并为默认必需项）
+if glr fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG"; then
+  UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
+  UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
+  echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> "$GITHUB_ENV"
+  if git merge FETCH_HEAD --no-edit -X ours --allow-unrelated-histories; then
+    info "AOSP上游合并成功"
   else
-    warn "AOSP fetch 失败，跳过上游合并"
-    echo "UPSTREAM_TAG=fetch-failed" >> "$GITHUB_ENV"
+    warn "存在冲突，自动保留 OEM 版本..."
+    git diff --name-only --diff-filter=U | xargs -r git checkout --ours --
+    git add -A
+    git commit -m "Merge AOSP android15-6.6, keep OEM" || {
+      error "AOSP 合并提交失败，中止构建"
+      exit 1
+    }
   fi
+  echo "UPSTREAM_TAG=aosp-16" >> "$GITHUB_ENV"
 else
-  info "跳过上游合并，使用 OEM 源码"
-  echo "UPSTREAM_TAG=none" >> "$GITHUB_ENV"
+  error "AOSP fetch 失败（直连+代理均不可达），上游合并为必需项，中止构建"
+  exit 1
 fi
 
 OEM_VERSION=$(sed -n 's/^VERSION\s*=\s*\(.*\)/\1/p' Makefile)
@@ -170,14 +167,13 @@ echo "KERNEL_VERSION_FULL=$KERNEL_VERSION_FULL" >> "$GITHUB_ENV"
 
 if [[ -n "$KERNEL_SUFFIX_INPUT" ]]; then
   KERNEL_SUFFIX="$KERNEL_SUFFIX_INPUT"
-elif [[ "$UPSTREAM_MERGE" == "true" ]]; then
+else
+  # 上游合并默认开启——suffix 固定 aosp16 基线
   KERNEL_SUFFIX="oneplus13-4k-aosp16"
   if [[ -n "$UPSTREAM_SUBLEVEL" ]] && [[ "$UPSTREAM_SUBLEVEL" != "0" ]]; then
     KERNEL_VERSION_FULL="${KERNEL_VERSION_FULL}_${UPSTREAM_SUBLEVEL}"
     echo "KERNEL_VERSION_FULL=$KERNEL_VERSION_FULL" >> "$GITHUB_ENV"
   fi
-else
-  KERNEL_SUFFIX="oneplus13-4k-oem"
 fi
 
 echo "KERNEL_SUFFIX=$KERNEL_SUFFIX" >> "$GITHUB_ENV"

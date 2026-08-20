@@ -72,29 +72,52 @@ if [ -f out/.config ]; then
   fi
 fi
 
-# 清除上次 autofdo 构建的 .config 残留——否则校验假阳性且 kconfig 重生成后才失效，误导日志
-if [[ "$AUTOFDO_ENABLE" != "true" ]]; then
-  sed -i '/^CONFIG_AUTOFDO_CLANG=y$/d; /^CONFIG_SECTION_MISMATCH_WARN_ONLY=y$/d' out/.config 2>/dev/null || true
+# AutoFDO 默认开启：.config 校验（缺失即停摆）
+if grep -q '^CONFIG_AUTOFDO_CLANG=y' out/.config; then
+  info "AUTOFDO_CLANG 配置生效 (AutoFDO 优化开启)"
+else
+  error "AUTOFDO_CLANG 配置未生效，中止构建"
+  exit 1
 fi
-if [[ "$AUTOFDO_ENABLE" == "true" ]]; then
-  if grep -q '^CONFIG_AUTOFDO_CLANG=y' out/.config; then
-    info "AUTOFDO_CLANG 配置生效 (AutoFDO 优化开启)"
-  else
-    error "AUTOFDO_CLANG 配置未生效，中止构建"
-    exit 1
-  fi
-  if grep -q '^CONFIG_SECTION_MISMATCH_WARN_ONLY=y' out/.config; then
-    info "SECTION_MISMATCH_WARN_ONLY 配置生效 (modpost mismatch 降级警告)"
-  else
-    error "SECTION_MISMATCH_WARN_ONLY 配置未生效，中止构建"
-    exit 1
-  fi
-  if grep -q '^CONFIG_LTO_CLANG_THIN=y' out/.config; then
-    info "LTO_CLANG_THIN 配置生效 (ThinLTO——--lto-sample-profile 链接期二次应用前提)"
-  else
-    error "LTO_CLANG_THIN 未生效，--lto-sample-profile 无法应用"
-    exit 1
-  fi
+if grep -q '^CONFIG_SECTION_MISMATCH_WARN_ONLY=y' out/.config; then
+  info "SECTION_MISMATCH_WARN_ONLY 配置生效 (modpost mismatch 降级警告)"
+else
+  error "SECTION_MISMATCH_WARN_ONLY 配置未生效，中止构建"
+  exit 1
+fi
+if grep -q '^CONFIG_LTO_CLANG_THIN=y' out/.config; then
+  info "LTO_CLANG_THIN 配置生效 (ThinLTO——--lto-sample-profile 链接期二次应用前提)"
+else
+  error "LTO_CLANG_THIN 未生效，--lto-sample-profile 无法应用"
+  exit 1
+fi
+# HZ=300 默认开启校验
+if grep -q '^CONFIG_HZ_300=y' out/.config; then
+  info "HZ_300 配置生效"
+else
+  error "HZ_300 配置未生效，中止构建"
+  exit 1
+fi
+# 网络功能默认开启校验（ipset 为网络扩展标志项）
+if grep -q '^CONFIG_IP_SET=y' out/.config; then
+  info "网络功能扩展配置生效 (IP_SET)"
+else
+  error "网络功能扩展配置未生效 (IP_SET 缺失)，中止构建"
+  exit 1
+fi
+# ADIOS 默认开启校验
+if grep -q '^CONFIG_MQ_IOSCHED_ADIOS=y' out/.config; then
+  info "ADIOS 配置生效"
+else
+  error "ADIOS 配置未生效，中止构建"
+  exit 1
+fi
+# BBRv3 默认开启校验
+if grep -q '^CONFIG_TCP_CONG_BBR3=y' out/.config; then
+  info "BBRv3 配置生效"
+else
+  error "BBRv3 配置未生效，中止构建"
+  exit 1
 fi
 
 if grep -q '^CONFIG_LLVM_POLLY=y' out/.config; then
@@ -179,19 +202,24 @@ if clang -mcpu=oryon-1 -### -c /dev/null 2>&1 | grep -qE "error|unknown|not supp
 else
   echo "  ✓ -mcpu=oryon-1（Oryon 目标）" | tee -a "$LOG_FILE"
 fi
-# 2. AutoFDO 全套参数（autofdo 构建时）
-if [[ "$AUTOFDO_ENABLE" == "true" ]] && [ -n "$AFDO_PROFILE" ]; then
+# 2. AutoFDO 全套参数（默认开启）
+if [ -n "$AFDO_PROFILE" ]; then
   if clang -fprofile-sample-use="$AFDO_PROFILE" -fprofile-sample-accurate -fdebug-info-for-profiling -mllvm -enable-fs-discriminator=true -mllvm -sample-profile-max-propagate-iterations=300 -### -c /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
     echo "  ✗ AutoFDO 参数不被工具链支持！" | tee -a "$LOG_FILE"
+    exit 1
   else
     echo "  ✓ AutoFDO 全套（-fprofile-sample-use / -fprofile-sample-accurate / -fdebug-info-for-profiling / fs-discriminator / propagate-iterations=300）" | tee -a "$LOG_FILE"
   fi
   # LTO 链接期二次应用：--lto-sample-profile 工具链接受性验证（空链接 dry-run）
   if ld.lld --lto-sample-profile="$AFDO_PROFILE" -mllvm=-enable-fs-discriminator=true -plugin-opt=thinlto -r -o /dev/null /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
     echo "  ✗ --lto-sample-profile 不被链接器支持！" | tee -a "$LOG_FILE"
+    exit 1
   else
     echo "  ✓ --lto-sample-profile（ThinLTO 链接期二次应用）" | tee -a "$LOG_FILE"
   fi
+else
+  error "AFDO_PROFILE 未就绪（profile 步骤异常），中止构建"
+  exit 1
 fi
 # 3. 核心优化参数（批量 -### 验证）
 for flag in "-O3" "-falign-functions=32" "-falign-loops=32" "-moutline-atomics" "-fno-semantic-interposition" "-fno-math-errno" "-mllvm -polly"; do
@@ -227,11 +255,12 @@ if echo 'int f(int *a, int n){int s=0; for(int i=0;i<n;i++) s+=a[i]; return s;}'
 else
   echo "  ✗ 循环向量化未生效！" | tee -a "$LOG_FILE"
 fi
-if [[ "$AUTOFDO_ENABLE" == "true" ]] && [ -n "$AFDO_PROFILE" ]; then
+if [ -n "$AFDO_PROFILE" ]; then
   if echo 'static int g(int x){return x*3;} int f(int x){return g(x)+1;}' | clang -x c - -S -o /dev/null -O3 -fprofile-sample-use="$AFDO_PROFILE" -Rpass=inline 2>&1 | grep -q "inlined into"; then
     echo "  ✓ AutoFDO profile 驱动 inline 生效（-Rpass=inline + 自采 profile）" | tee -a "$LOG_FILE"
   else
     echo "  ✗ AutoFDO profile 驱动未生效！" | tee -a "$LOG_FILE"
+    exit 1
   fi
 fi
 # --------------------------
@@ -242,14 +271,10 @@ if grep -q 'if (min_seq\[!can_swap\] + MIN_NR_GENS < max_seq)' mm/vmscan.c; then
 else
   warn "MGLRU aging line already modified, skipped"
 fi
-if [[ "$AUTOFDO_ENABLE" == "true" ]]; then
-  # AutoFDO：Makefile.autofdo 经 CLANG_AUTOFDO_PROFILE 注入 -fprofile-sample-use + --lto-sample-profile
-  # -fprofile-sample-accurate：自采集 profile 完全新鲜，告知 clang 样本准确，减少保守推断（仅 autofdo 分支）
-  # -mllvm -sample-profile-max-propagate-iterations=300：样本热度传播迭代（默认 100→300，inline 决策更充分）
-  make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA -fprofile-sample-accurate -mllvm -sample-profile-max-propagate-iterations=300" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
-else
-  make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
-fi
+# AutoFDO 默认开启：Makefile.autofdo 经 CLANG_AUTOFDO_PROFILE 注入 -fprofile-sample-use + --lto-sample-profile
+# -fprofile-sample-accurate：自采集 profile 完全新鲜，告知 clang 样本准确，减少保守推断
+# -mllvm -sample-profile-max-propagate-iterations=300：样本热度传播迭代（默认 100→300，inline 决策更充分）
+make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA -fprofile-sample-accurate -mllvm -sample-profile-max-propagate-iterations=300" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
 # 校验 Image 内嵌配置（IKCFG）与构建配置一致，防止增量产物配置陈旧
 if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | grep -qa "IKCFG_ST"; then
   IKCFG_TEXT=$(perl -e 'open(F,"<",$ARGV[0]); local $/; $d=<F>; close F; $d =~ /IKCFG_ST(.*?)IKCFG_ED/s; open(G,"|-","gzip -dc 2>/dev/null"); print G $1; close G;' out/arch/arm64/boot/Image 2>/dev/null)
@@ -259,14 +284,12 @@ if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | gr
     error "Image 内嵌配置缺少 ZRAM_MEMORY_TRACKING，产物配置陈旧，中止"
     exit 1
   fi
-  # 产物级 FDO 校验：autofdo 构建的 Image 内嵌配置必须含 AUTOFDO_CLANG（防 .config 假阳性/编译期失效）
-  if [[ "$AUTOFDO_ENABLE" == "true" ]]; then
-    if echo "$IKCFG_TEXT" | grep -q '^CONFIG_AUTOFDO_CLANG=y'; then
-      info "Image 内嵌配置校验通过 (AUTOFDO_CLANG=y——FDO 编译确认)"
-    else
-      error "Image 内嵌配置缺少 AUTOFDO_CLANG，FDO 未实际生效，中止"
-      exit 1
-    fi
+  # 产物级 FDO 校验：Image 内嵌配置必须含 AUTOFDO_CLANG（防 .config 假阳性/编译期失效）
+  if echo "$IKCFG_TEXT" | grep -q '^CONFIG_AUTOFDO_CLANG=y'; then
+    info "Image 内嵌配置校验通过 (AUTOFDO_CLANG=y——FDO 编译确认)"
+  else
+    error "Image 内嵌配置缺少 AUTOFDO_CLANG，FDO 未实际生效，中止"
+    exit 1
   fi
 fi
 
