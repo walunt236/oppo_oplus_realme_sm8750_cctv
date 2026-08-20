@@ -86,6 +86,7 @@ fi
 # ===== SUSFS（官方源 ShirkNeko/susfs4ksu，GKI android15-6.6 分支） =====
 if [[ "$SUSFS_ENABLE" == "true" ]]; then
   if [[ "$KSU_TYPE" != "none" ]]; then
+    cd "$GITHUB_WORKSPACE/kernel_workspace"
     info "添加 susfs 补丁..."
     SUSFS_CACHE_DIR="$HOME/.cache_patches/susfs4ksu"
     BRANCH_NAME="gki-android15-6.6"
@@ -141,7 +142,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
 fi
 
 # ===== lz4/zstd =====
-cd common
+cd "$GITHUB_WORKSPACE/kernel_workspace/common"
 CACHE_DIR="$HOME/.cache_patches/zram_patches"
 mkdir -p "$HOME/.cache_patches"
 
@@ -188,7 +189,7 @@ fi
 
 # ===== lz4kd =====
 if [[ "$LZ4KD_ENABLE" == "true" ]]; then
-  cd common
+  cd "$GITHUB_WORKSPACE/kernel_workspace/common"
   CACHE_DIR="$HOME/.cache_patches/sukisu_patches"
   mkdir -p "$HOME/.cache_patches"
 
@@ -410,7 +411,7 @@ info "风驰引擎补丁注入完成"
 # ============ Droidspaces ============
 if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
   info "启用 Droidspaces 容器支持..."
-  cd common
+  cd "$GITHUB_WORKSPACE/kernel_workspace/common"
   fetch_repo_file "droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch" fix_sysvipc_kabi_6_7_8.patch
   patch -p1 -F 3 < fix_sysvipc_kabi_6_7_8.patch || true
   fetch_repo_file "droidspaces_patch/fix_oplus_bsp_midas.patch" fix_oplus_bsp_midas.patch
@@ -450,6 +451,7 @@ fi
 # ===== Baseband-guard（官方源 vc-teahouse） =====
 if [[ "$BASEBAND_GUARD" == "true" ]]; then
   info "启用基带保护..."
+  cd "$GITHUB_WORKSPACE/kernel_workspace"
   echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
   cd common
   # 两步执行（下载到文件再执行，非管道）
@@ -467,7 +469,7 @@ fi
 
 # ===== BBRv3 =====
 info "应用 BBRv3 补丁..."
-cd common
+cd "$GITHUB_WORKSPACE/kernel_workspace/common"
 curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
   "https://api.github.com/repos/WildKernels/kernel_patches/contents/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch?ref=main" | \
   python3 -c "import sys,json,base64;open('bbrv3.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
@@ -482,7 +484,7 @@ else
 fi
 
 # ===== 调度器优化（16ms PELT / NEXT_BUDDY / HRTICK / SIS_PROP） =====
-cd common
+cd "$GITHUB_WORKSPACE/kernel_workspace/common"
 
 # PELT 半衰期 32ms -> 16ms
 cat > kernel/sched/sched-pelt.h << 'PELTEOF'
