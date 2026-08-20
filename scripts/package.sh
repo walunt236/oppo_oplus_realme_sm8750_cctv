@@ -62,6 +62,8 @@ if [[ $CLONE_OK -ne 1 ]]; then
 fi
 # zip 用 ./* 通配符，.git 不打包但保留供下次增量拉取
 cd AnyKernel3
+# 一加13 适配 overlay（官方模板 + 自控适配，官方更新直接合并）
+cp -r "$GITHUB_WORKSPACE/ak3_overlay/"* . 2>/dev/null || true
 cp ../common/out/arch/arm64/boot/Image ./Image
 if [[ ! -f ./Image ]]; then
   error "未找到内核镜像文件"
