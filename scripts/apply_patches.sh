@@ -83,12 +83,12 @@ else
   echo "ksuver=none" >> "$GITHUB_OUTPUT"
 fi
 
-# ===== SUSFS（上游唯一源 cctv18/susfs4oki） =====
+# ===== SUSFS（官方源 ShirkNeko/susfs4ksu，GKI android15-6.6 分支） =====
 if [[ "$SUSFS_ENABLE" == "true" ]]; then
   if [[ "$KSU_TYPE" != "none" ]]; then
     info "添加 susfs 补丁..."
     SUSFS_CACHE_DIR="$HOME/.cache_patches/susfs4ksu"
-    BRANCH_NAME="oki-$ANDROID_VERSION-$KERNEL_VERSION"
+    BRANCH_NAME="gki-android15-6.6"
     mkdir -p "$HOME/.cache_patches"
 
     if [ -d "$SUSFS_CACHE_DIR/.git" ]; then
@@ -97,7 +97,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
       git -C "$SUSFS_CACHE_DIR" reset --hard FETCH_HEAD || true
     else
       info "首次克隆 SUSFS 补丁仓..."
-      git clone --depth=1 https://github.com/cctv18/susfs4oki.git "$SUSFS_CACHE_DIR" -b "$BRANCH_NAME"
+      git clone --depth=1 https://github.com/ShirkNeko/susfs4ksu.git "$SUSFS_CACHE_DIR" -b "$BRANCH_NAME"
     fi
 
     rm -rf susfs4ksu
@@ -110,7 +110,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
     fi
     cp "$HIDE_PATCH" ./common/69_hide_stuff.patch
 
-    cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-$ANDROID_VERSION-$KERNEL_VERSION.patch ./common/
+    cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./common/
     cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
     cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
 
@@ -119,7 +119,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
     # 预处理 task_mmu.c 防止补丁偏移报错
     sed -i -e '/int ret = 0, copied = 0;/a \    unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;' -e '/int ret = 0, copied = 0;/a \    pagemap_entry_t *res = NULL;' ./fs/proc/task_mmu.c || true
 
-    patch -p1 < 50_add_susfs_in_gki-$ANDROID_VERSION-$KERNEL_VERSION.patch || {
+    patch -p1 < 50_add_susfs_in_gki-android15-6.6.patch || {
       error "SUSFS 核心补丁应用失败"
       exit 1
     }
@@ -447,14 +447,14 @@ if [[ "$REKERNEL_ENABLE" == "true" ]]; then
   echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 fi
 
-# ===== Baseband-guard =====
+# ===== Baseband-guard（官方源 vc-teahouse） =====
 if [[ "$BASEBAND_GUARD" == "true" ]]; then
   info "启用基带保护..."
   echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
   cd common
-  # 两步执行（下载到文件再执行，非管道）：来源 cctv18/Baseband-guard（用户决策保留）
+  # 两步执行（下载到文件再执行，非管道）
   curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/baseband_setup.sh \
-    https://github.com/cctv18/Baseband-guard/raw/master/setup.sh || {
+    https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh || {
     error "Baseband-guard 脚本下载失败"
     exit 1
   }
