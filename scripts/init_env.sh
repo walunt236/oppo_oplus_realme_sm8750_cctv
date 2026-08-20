@@ -122,7 +122,17 @@ wait $AOSP_TAG_PID 2>/dev/null || true
 LATEST_AOSP_TAG=$(cat "$HOME/.cache_patches/latest_aosp_tag" 2>/dev/null)
 LATEST_AOSP_TAG=${LATEST_AOSP_TAG:-android15-6.6}
 info "AOSP 最新发布标签: $LATEST_AOSP_TAG"
-if glr fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG"; then
+# 直连+代理双通道，三次全败才停（网络抖动容错）
+FETCH_OK=0
+for i in 1 2 3; do
+  if glr fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common "$LATEST_AOSP_TAG"; then
+    FETCH_OK=1
+    break
+  fi
+  warn "AOSP fetch 失败(第${i}次)，5 秒后重试..."
+  sleep 5
+done
+if [[ "$FETCH_OK" -eq 1 ]]; then
   UPSTREAM_SUBLEVEL=$(git show FETCH_HEAD:Makefile | sed -n 's/^SUBLEVEL\s*=\s*\([0-9]*\).*/\1/p')
   UPSTREAM_SUBLEVEL=${UPSTREAM_SUBLEVEL:-0}
   echo "UPSTREAM_SUBLEVEL=$UPSTREAM_SUBLEVEL" >> "$GITHUB_ENV"
@@ -139,7 +149,7 @@ if glr fetch --depth=1 --no-tags https://android.googlesource.com/kernel/common 
   fi
   echo "UPSTREAM_TAG=aosp-16" >> "$GITHUB_ENV"
 else
-  error "AOSP fetch 失败（直连+代理均不可达），上游合并为必需项，中止构建"
+  error "AOSP fetch 失败（直连+代理 3 次均不可达），上游合并为必需项，中止构建"
   exit 1
 fi
 

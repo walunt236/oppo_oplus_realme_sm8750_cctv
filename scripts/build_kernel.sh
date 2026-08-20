@@ -190,6 +190,23 @@ info "核心编译器版本检查："
 clang --version | head -n 1
 info "链接器版本检查："
 ld.lld --version
+
+# ===== AutoFDO profile 新鲜度检测（内核演进后符号漂移会静默降级，此处暴露） =====
+if [ -n "$AFDO_PROFILE" ] && [ -f /home/dev/pgo/vmlinux ]; then
+  PROFDATA="$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata"
+  NM="$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-nm"
+  "$PROFDATA" show -sample "$AFDO_PROFILE" 2>/dev/null | grep '^Function: ' | awk '{print $2}' | sed 's/:.*//' | sort -u > /tmp/afdo_funcs.txt
+  "$NM" --defined-only /home/dev/pgo/vmlinux 2>/dev/null | awk '$3 ~ /^[tT]$/ {print $4}' | sort -u > /tmp/vmlinux_funcs.txt
+  MATCH=$(comm -12 /tmp/afdo_funcs.txt /tmp/vmlinux_funcs.txt | wc -l)
+  TOTAL=$(wc -l < /tmp/afdo_funcs.txt)
+  if [ "$TOTAL" -gt 0 ]; then
+    RATE=$(awk -v m="$MATCH" -v t="$TOTAL" 'BEGIN{printf "%.1f", m*100/t}')
+    info "AutoFDO profile 符号匹配率: $RATE% ($MATCH/$TOTAL)"
+    if awk -v r="$RATE" 'BEGIN{exit !(r < 70)}'; then
+      warn "profile 匹配率 <70%——内核已演进，建议重新采样重建 profile"
+    fi
+  fi
+fi
 # ===== 编译器参数官方工具链支持验证（-### dry-run + 最小编译） =====
 info "编译器参数支持验证（ZyCromerZ clang 19 官方工具链）:"
 # 1. CPU 目标（Oryon）
