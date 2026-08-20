@@ -224,8 +224,8 @@ if [ -n "$AFDO_PROFILE" ]; then
   else
     echo "  ✓ AutoFDO 全套（-fprofile-sample-use / -fprofile-sample-accurate / -fdebug-info-for-profiling / fs-discriminator / propagate-iterations=300）" | tee -a "$LOG_FILE"
   fi
-  # LTO 链接期二次应用：--lto-sample-profile 工具链接受性验证（空链接 dry-run）
-  if ld.lld --lto-sample-profile="$AFDO_PROFILE" -r -o /dev/null /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
+  # LTO 链接期二次应用：--lto-sample-profile 工具链接受性验证（空链接 dry-run，-m 指定架构）
+  if ld.lld -m aarch64elf --lto-sample-profile="$AFDO_PROFILE" -r -o /dev/null /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
     echo "  ✗ --lto-sample-profile 不被链接器支持！" | tee -a "$LOG_FILE"
     exit 1
   else
