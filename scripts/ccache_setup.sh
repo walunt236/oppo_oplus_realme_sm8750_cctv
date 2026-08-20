@@ -29,7 +29,7 @@ echo "CCACHE_IS_KERNEL_COMPILING=true" >> "$GITHUB_ENV"
 echo "CCACHE_IGNOREOPTIONS=--sysroot*" >> "$GITHUB_ENV"
 echo "CCACHE_SLOPPINESS=file_macro,time_macros,include_file_mtime,include_file_ctime,pch_defines,system_headers,locale" >> "$GITHUB_ENV"
 # 日志仅在 ccache_debug 开启时写入，避免 9.6GB 级别的无上限增长与写日志 I/O 开销
-if [[ "$CCACHE_DEBUG" == "true" ]]; then
+if [[ "$CCACHE_DEBUG_INPUT" == "true" ]]; then
   echo "CCACHE_LOGFILE=$GITHUB_WORKSPACE/kernel_workspace/ccache.log" >> "$GITHUB_ENV"
 fi
 if ccache --help 2>&1 | grep -q 'depend_mode'; then

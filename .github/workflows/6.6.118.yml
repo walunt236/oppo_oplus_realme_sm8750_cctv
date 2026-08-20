@@ -120,7 +120,7 @@ jobs:
       BASEBAND_GUARD: ${{ inputs.baseband_guard }}
       RCU_NOCB_ENABLE: ${{ inputs.rcu_nocb_enable }}
       CCACHE_UPDATE: ${{ inputs.ccache_update }}
-      CCACHE_DEBUG: ${{ inputs.ccache_debug }}
+      CCACHE_DEBUG_INPUT: ${{ inputs.ccache_debug }}
       KERNEL_SUFFIX_INPUT: ${{ inputs.kernel_suffix }}
       DIAGNOSIS: ${{ inputs.diagnosis }}
       O3_SELECTIVE: ${{ inputs.o3_selective }}
