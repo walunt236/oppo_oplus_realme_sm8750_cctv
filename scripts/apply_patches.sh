@@ -125,7 +125,8 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
       exit 1
     }
 
-    # 注：nr_subpages/res 声明保留——补丁代码引用它们（删除会导致未声明编译错误）
+    # 删除预处理插入的声明（4 空格缩进）——补丁自带 tab 缩进声明，锚定区分防重复
+    sed -i '/^    unsigned int nr_subpages = __PAGE_SIZE \/ PAGE_SIZE;$/d; /^    pagemap_entry_t \*res = NULL;$/d' ./fs/proc/task_mmu.c || true
 
     patch -p1 -N -F 3 < 69_hide_stuff.patch || true
     cd ..
