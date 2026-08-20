@@ -166,7 +166,7 @@ OEMDEPENDS
 
 # ===== cmdline 注入 =====
 info "对 init/main.c 注入 cmdline..."
-cd kernel_workspace/common
+cd common
 TARGET_MAIN="init/main.c"
 
 if [ ! -f "$TARGET_MAIN" ]; then
@@ -188,7 +188,6 @@ sed -i 's/#define MAX_FLUSH_RETRIES 200/#define MAX_FLUSH_RETRIES 8/' fs/f2fs/ch
 info "F2FS检查点优化完成"
 
 # ===== 网络功能增强（纯 defconfig 注入） =====
-cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
 CONFIG_NETFILTER_XT_TARGET_HL=y
 CONFIG_NETFILTER_XT_MATCH_HL=y
@@ -237,7 +236,7 @@ NETCFG
 
 # ===== Droidspaces 配置块 =====
 if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
-  cd kernel_workspace/common
+  cd common
   cat >> ./arch/arm64/configs/gki_defconfig << 'DSCFG'
 CONFIG_PID_NS=y
 CONFIG_IPC_NS=y
@@ -258,14 +257,12 @@ DSCFG
 fi
 
 # ===== ADIOS 配置块 =====
-cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
 CONFIG_MQ_IOSCHED_ADIOS=y
 CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y
 ADIOSCFG
 
 # ===== 版本固化 =====
-cd kernel_workspace
 echo "CONFIG_LOCALVERSION_AUTO=y" >> ./common/arch/arm64/configs/gki_defconfig
 
 LOCALVER="-${KERNEL_SUFFIX}"
@@ -285,7 +282,6 @@ sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
 # ===== HZ=300 =====
 info "启用 HZ=300..."
-cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ300CFG'
 # CONFIG_HZ_250 is not set
 CONFIG_HZ_300=y

@@ -154,6 +154,7 @@ if [[ "$DIAGNOSIS" == "true" ]]; then
   exit 0
 fi
 
+cd "$GITHUB_WORKSPACE"
 WORKDIR="$(pwd)"
 CLANG_DIR_NAME="Clang-19.0.0git-20240723"
 

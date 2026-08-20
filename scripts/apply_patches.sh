@@ -141,7 +141,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
 fi
 
 # ===== lz4/zstd =====
-cd kernel_workspace/common
+cd common
 CACHE_DIR="$HOME/.cache_patches/zram_patches"
 mkdir -p "$HOME/.cache_patches"
 
@@ -186,9 +186,9 @@ else
   exit 1
 fi
 
-# ============ lz4kd ============
+# ===== lz4kd =====
 if [[ "$LZ4KD_ENABLE" == "true" ]]; then
-  cd kernel_workspace/common
+  cd common
   CACHE_DIR="$HOME/.cache_patches/sukisu_patches"
   mkdir -p "$HOME/.cache_patches"
 
@@ -410,7 +410,7 @@ info "风驰引擎补丁注入完成"
 # ============ Droidspaces ============
 if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
   info "启用 Droidspaces 容器支持..."
-  cd kernel_workspace/common
+  cd common
   fetch_repo_file "droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch" fix_sysvipc_kabi_6_7_8.patch
   patch -p1 -F 3 < fix_sysvipc_kabi_6_7_8.patch || true
   fetch_repo_file "droidspaces_patch/fix_oplus_bsp_midas.patch" fix_oplus_bsp_midas.patch
@@ -430,9 +430,8 @@ if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
   fi
 fi
 
-# ============ ADIOS ============
+# ===== ADIOS =====
 info "启用 ADIOS I/O 调度器..."
-cd kernel_workspace
 # block 4 文件：Kconfig.iosched/Makefile/adios.c/elevator.c（6.6 兼容已验证）
 fetch_repo_file "other_patch/adios/adios_block_only.patch" /tmp/adios.patch
 if ( cd ./common && patch -p1 -F 3 < /tmp/adios.patch ); then
@@ -442,19 +441,17 @@ else
   exit 1
 fi
 
-# ============ Re-Kernel ============
+# ===== Re-Kernel =====
 if [[ "$REKERNEL_ENABLE" == "true" ]]; then
   info "启用 Re-Kernel 支持..."
-  cd kernel_workspace
   echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 fi
 
-# ============ Baseband-guard ============
+# ===== Baseband-guard =====
 if [[ "$BASEBAND_GUARD" == "true" ]]; then
   info "启用基带保护..."
-  cd kernel_workspace
   echo "CONFIG_BBG=y" >> ./common/arch/arm64/configs/gki_defconfig
-  cd ./common
+  cd common
   # 两步执行（下载到文件再执行，非管道）：来源 cctv18/Baseband-guard（用户决策保留）
   curl -fSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/baseband_setup.sh \
     https://github.com/cctv18/Baseband-guard/raw/master/setup.sh || {
@@ -468,9 +465,9 @@ if [[ "$BASEBAND_GUARD" == "true" ]]; then
   sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 fi
 
-# ============ BBRv3 ============
+# ===== BBRv3 =====
 info "应用 BBRv3 补丁..."
-cd kernel_workspace/common
+cd common
 curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \
   "https://api.github.com/repos/WildKernels/kernel_patches/contents/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android15-6.6.patch?ref=main" | \
   python3 -c "import sys,json,base64;open('bbrv3.patch','wb').write(base64.b64decode(json.load(sys.stdin)['content']))"
@@ -484,8 +481,8 @@ else
   exit 1
 fi
 
-# ============ 调度器优化（16ms PELT / NEXT_BUDDY / HRTICK / SIS_PROP） ============
-cd kernel_workspace/common
+# ===== 调度器优化（16ms PELT / NEXT_BUDDY / HRTICK / SIS_PROP） =====
+cd common
 
 # PELT 半衰期 32ms -> 16ms
 cat > kernel/sched/sched-pelt.h << 'PELTEOF'
