@@ -485,6 +485,9 @@ else
   exit 1
 fi
 
+echo "CONFIG_TCP_CONG_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
+echo "CONFIG_DEFAULT_BBR3=y" >> ./arch/arm64/configs/gki_defconfig
+
 # ===== 调度器优化（16ms PELT / NEXT_BUDDY / HRTICK / SIS_PROP） =====
 cd "$GITHUB_WORKSPACE/kernel_workspace/common"
 
