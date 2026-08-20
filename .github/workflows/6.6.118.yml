@@ -1434,6 +1434,12 @@ jobs:
               echo "[ERROR] SECTION_MISMATCH_WARN_ONLY 配置未生效，中止构建" | tee -a "$LOG_FILE"
               exit 1
             fi
+            if grep -q '^CONFIG_LTO_CLANG_THIN=y' out/.config; then
+              echo "[INFO] LTO_CLANG_THIN 配置生效 (ThinLTO——--lto-sample-profile 链接期二次应用前提)" | tee -a "$LOG_FILE"
+            else
+              echo "[ERROR] LTO_CLANG_THIN 未生效，--lto-sample-profile 无法应用" | tee -a "$LOG_FILE"
+              exit 1
+            fi
           fi
 
           if grep -q '^CONFIG_LLVM_POLLY=y' out/.config; then
@@ -1548,10 +1554,16 @@ jobs:
           fi
           # 2. AutoFDO 全套参数（autofdo 构建时）
           if [[ "${{ inputs.autofdo_enable }}" == "true" ]] && [ -n "$AFDO_PROFILE" ]; then
-            if clang -fprofile-sample-use="$AFDO_PROFILE" -fprofile-sample-accurate -fdebug-info-for-profiling -mllvm -enable-fs-discriminator=true -### -c /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
+            if clang -fprofile-sample-use="$AFDO_PROFILE" -fprofile-sample-accurate -fdebug-info-for-profiling -mllvm -enable-fs-discriminator=true -mllvm -sample-profile-max-propagate-iterations=300 -### -c /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
               echo "  ✗ AutoFDO 参数不被工具链支持！" | tee -a "$LOG_FILE"
             else
-              echo "  ✓ AutoFDO 全套（-fprofile-sample-use / -fprofile-sample-accurate / -fdebug-info-for-profiling / fs-discriminator）" | tee -a "$LOG_FILE"
+              echo "  ✓ AutoFDO 全套（-fprofile-sample-use / -fprofile-sample-accurate / -fdebug-info-for-profiling / fs-discriminator / propagate-iterations=300）" | tee -a "$LOG_FILE"
+            fi
+            # LTO 链接期二次应用：--lto-sample-profile 工具链接受性验证（空链接 dry-run）
+            if ld.lld --lto-sample-profile="$AFDO_PROFILE" -mllvm=-enable-fs-discriminator=true -plugin-opt=thinlto -r -o /dev/null /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
+              echo "  ✗ --lto-sample-profile 不被链接器支持！" | tee -a "$LOG_FILE"
+            else
+              echo "  ✓ --lto-sample-profile（ThinLTO 链接期二次应用）" | tee -a "$LOG_FILE"
             fi
           fi
           # 3. 核心优化参数（批量 -### 验证）
@@ -1606,7 +1618,8 @@ jobs:
               if [[ "${{ inputs.autofdo_enable }}" == "true" ]]; then
               # AutoFDO：Makefile.autofdo 经 CLANG_AUTOFDO_PROFILE 注入 -fprofile-sample-use + --lto-sample-profile
               # -fprofile-sample-accurate：自采集 profile 完全新鲜，告知 clang 样本准确，减少保守推断（仅 autofdo 分支）
-              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA -fprofile-sample-accurate" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
+              # -mllvm -sample-profile-max-propagate-iterations=300：样本热度传播迭代（默认 100→300，inline 决策更充分）
+              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA -fprofile-sample-accurate -mllvm -sample-profile-max-propagate-iterations=300" CLANG_AUTOFDO_PROFILE="$AFDO_PROFILE" Image
               else
               make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS="-O3 -Wno-error $KCFLAGS_EXTRA" Image
               fi
