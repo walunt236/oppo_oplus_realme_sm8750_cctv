@@ -46,7 +46,7 @@ CONFIG_ZSMALLOC=y
 CONFIG_CRYPTO_LZ4K=y
 CONFIG_CRYPTO_LZ4KD=y
 CONFIG_CRYPTO_842=y
-# zram 双重压缩：lz4 主算法（新写=常用）+ zstd 冷数据重压缩
+# zram 双重压缩：lz4 主算法 + zstd 冷数据重压缩
 # 冷数据：MULTI_COMP recompression 转 zstd
 CONFIG_ZRAM_DEF_COMP_LZ4=y
 CONFIG_ZRAM_DEF_COMP="lz4"
