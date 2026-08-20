@@ -130,12 +130,12 @@ jobs:
       - name: 同步仓库代码
         run: |
           cd "$GITHUB_WORKSPACE"
-          if [ -d .git ]; then
-            git fetch origin "$GITHUB_REF_NAME" --depth=1 2>/dev/null || git fetch origin main --depth=1
-            git reset --hard FETCH_HEAD
-          else
-            git clone -q --depth=1 "https://github.com/$GITHUB_REPOSITORY.git" .
-          fi
+          git init -q 2>/dev/null || true
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git -c http.version=HTTP/1.1 fetch origin main --depth=1 2>/dev/null || \
+            git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 fetch origin main --depth=1
+          git reset --hard FETCH_HEAD
 
       - name: 环境初始化（依赖/源码/工具链）
         id: init_env
