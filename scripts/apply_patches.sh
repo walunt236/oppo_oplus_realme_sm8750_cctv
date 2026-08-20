@@ -125,7 +125,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
       exit 1
     }
 
-    sed -i -e '/unsigned int nr_subpages = __PAGE_SIZE \/ PAGE_SIZE;/d' -e '/pagemap_entry_t \*res = NULL;/d' ./fs/proc/task_mmu.c || true
+    # 注：nr_subpages/res 声明保留——补丁代码引用它们（删除会导致未声明编译错误）
 
     patch -p1 -N -F 3 < 69_hide_stuff.patch || true
     cd ..
