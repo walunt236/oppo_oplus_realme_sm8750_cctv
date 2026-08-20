@@ -2,7 +2,6 @@
 # ============================================================
 # config_inject.sh — 配置注入域：defconfig 核心块 / cmdline /
 #                   F2FS / 网络配置 / 版本固化 / HZ
-# 原工作流步骤：配置核心扩展 ~ 添加制作名称（配置注入部分）
 # ============================================================
 set -e
 source "$(dirname "$0")/common.sh"
@@ -65,7 +64,7 @@ echo "CONFIG_HEADERS_INSTALL=n" >> $DCFG
 # 注意：WATERMARK_SCALE_FACTOR 无 Kconfig 符号（OEM Kconfig 已删，defconfig 注入被
 # kconfig merge 静默丢弃，.config/Image 中从未出现——2026-08-17 校验实证）。
 # 运行时生效路径：设备端 service.sh 写 /proc/sys/vm/watermark_scale_factor=150
-# AutoFDO 默认开启：配置注入
+# AutoFDO 配置注入
 echo "CONFIG_AUTOFDO_CLANG=y" >> $DCFG
 # AutoFDO 内联决策变化会触发 modpost section mismatch（如 __list_add 内联进 init 路径引用 .init.data）——
 # 官方开关：mismatch 降级为警告（生命周期同源，安全）
@@ -199,7 +198,7 @@ fi
 sed -i 's/#define MAX_FLUSH_RETRIES 200/#define MAX_FLUSH_RETRIES 8/' fs/f2fs/checkpoint.c
 info "F2FS检查点优化完成"
 
-# ============ 网络功能增强（默认开启，纯 defconfig 注入） ============
+# ============ 网络功能增强（纯 defconfig 注入） ============
 cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'NETCFG'
 CONFIG_NETFILTER_XT_TARGET_HL=y
@@ -269,7 +268,7 @@ DSCFG
   fi
 fi
 
-# ============ ADIOS 配置块（默认开启） ============
+# ============ ADIOS 配置块 ============
 cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'ADIOSCFG'
 CONFIG_MQ_IOSCHED_ADIOS=y
@@ -289,13 +288,13 @@ fi
 sed -i '/^CONFIG_LOCALVERSION=/d' ./common/arch/arm64/configs/gki_defconfig
 echo "CONFIG_LOCALVERSION=\"${LOCALVER}\"" >> ./common/arch/arm64/configs/gki_defconfig
 
-# setlocalversion: 替换任意位置的 echo "$res" 语句，不再假设它是文件最后一行
+# setlocalversion 替换任意位置的 echo "$res"
 for f in ./common/scripts/setlocalversion; do
   sed -i 's|^echo "\$res"$|echo "'"${LOCALVER}"'"|' "$f"
 done
 sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 
-# ============ HZ=300（默认开启） ============
+# ============ HZ=300 ============
 info "启用 HZ=300..."
 cd kernel_workspace
 cat >> ./common/arch/arm64/configs/gki_defconfig << 'HZ300CFG'

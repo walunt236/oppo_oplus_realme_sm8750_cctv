@@ -1,7 +1,6 @@
 #!/bin/bash
 # ============================================================
 # build_kernel.sh — 增量钳制 / 构建配置 / 工具链验证 / 编译 / IKCFG 校验
-# 原工作流步骤：增量编译mtime钳制 ~ 编译完整内核镜像
 # ============================================================
 set -e
 source "$(dirname "$0")/common.sh"
@@ -33,7 +32,7 @@ export PATH="/usr/lib/ccache:$PATH"
 
 cd kernel_workspace/common
 
-# 默认增量编译（保留 out/ 复用已编译对象）；clean_build=true 时强制全量
+# 默认增量编译（保留 out/ 复用）；clean_build=true 时强制全量
 if [[ "$CLEAN_BUILD" == "true" ]]; then
   info "clean_build 开启，删除 out/ 执行全量重建..."
   rm -rf out

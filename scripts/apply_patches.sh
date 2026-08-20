@@ -3,7 +3,6 @@
 # apply_patches.sh — 源码修改域：KernelSU / SUSFS / lz4/lz4kd /
 #                   风驰引擎批 / Droidspaces / ADIOS / ReKernel /
 #                   Baseband-guard / BBRv3 / 调度器优化
-# 原工作流步骤：添加KernelSU ~ 调度器优化（补丁应用部分）
 # ============================================================
 set -e
 source "$(dirname "$0")/common.sh"
@@ -15,7 +14,6 @@ rm -rf common/drivers/kernelsu
 
 if [[ "$KSU_TYPE" == "sukisu" || "$KSU_TYPE" == "resukisu" ]]; then
   info "配置 ReSukiSU..."
-  # 动态增量：本地仓库存在则增量拉取（上游无更新秒过），否则全量克隆
   if [ -d KernelSU/.git ]; then
     info "[秒过] ReSukiSU 仓库已存在，增量同步..."
     if git -C KernelSU fetch origin main 2>/dev/null; then
@@ -89,7 +87,7 @@ else
   echo "ksuver=none" >> "$GITHUB_OUTPUT"
 fi
 
-# ============ SUSFS（上游唯一源 cctv18/susfs4oki 保留） ============
+# ============ SUSFS（上游唯一源 cctv18/susfs4oki） ============
 if [[ "$SUSFS_ENABLE" == "true" ]]; then
   if [[ "$KSU_TYPE" != "none" ]]; then
     info "添加 susfs 补丁..."
@@ -109,7 +107,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
     rm -rf susfs4ksu
     cp -r "$SUSFS_CACHE_DIR" susfs4ksu
 
-    # 缓存 69_hide_stuff.patch 避免重复网络下载（api contents 纯直连）
+    # 69_hide_stuff.patch 本地缓存化（api contents 纯直连）
     HIDE_PATCH="$HOME/.cache_patches/69_hide_stuff.patch"
     if [ ! -f "$HIDE_PATCH" ]; then
       fetch_repo_file "other_patch/69_hide_stuff.patch" "$HIDE_PATCH"
@@ -146,7 +144,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
   fi
 fi
 
-# ============ lz4/zstd（默认开启；补丁未生效即停摆） ============
+# ============ lz4/zstd ============
 cd kernel_workspace/common
 CACHE_DIR="$HOME/.cache_patches/zram_patches"
 mkdir -p "$HOME/.cache_patches"
@@ -184,7 +182,7 @@ cp "$ACCEL_DIR/lz4accel.h" fs/f2fs/lz4armv8/
 git apply --reject --whitespace=nowarn 001-lz4.patch || true
 patch -p1 -t -F 3 < 002-zstd.patch || true
 
-# 严格校验：lz4 1.10 关键文件/内容必须就位（LZ4_FAST_DEC_LOOP = 1.10 特征），否则停摆
+# 严格校验：LZ4_FAST_DEC_LOOP（1.10 特征）+ lz4armv8.S 必须就位
 if [ -f lib/lz4/lz4_compress.c ] && grep -q 'LZ4_FAST_DEC_LOOP' lib/lz4/lz4_compress.c && [ -f lib/lz4/lz4armv8/lz4armv8.S ]; then
   info "lz4 1.10 补丁生效 (FAST_DEC_LOOP + lz4armv8.S 已就位)"
 else
@@ -237,7 +235,7 @@ else
   git clone --depth=1 https://github.com/WildKernels/kernel_patches.git "$WILD_DIR"
 fi
 
-# 上游目录结构可能变动：优先 oneplus/hmbird，未命中则全仓搜索兜底
+# 优先 oneplus/hmbird，未命中则全仓搜索兜底（上游目录结构可能变动）
 PATCH_FILE=$(find "$WILD_DIR/oneplus/hmbird/" -maxdepth 1 -name "fengchi_OP13_*.patch" 2>/dev/null | head -n 1)
 if [ -z "$PATCH_FILE" ]; then
   warn "oneplus/hmbird 目录未找到风驰补丁，开始全仓搜索..."
@@ -413,7 +411,7 @@ fi
 
 info "风驰引擎补丁注入完成"
 
-# ============ Droidspaces（补丁域） ============
+# ============ Droidspaces ============
 if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
   info "启用 Droidspaces 容器支持..."
   cd kernel_workspace/common
@@ -436,10 +434,10 @@ if [[ "$DROIDSPACES_ENABLE" != "false" ]]; then
   fi
 fi
 
-# ============ ADIOS（默认开启；补丁失败即停摆） ============
+# ============ ADIOS ============
 info "启用 ADIOS I/O 调度器..."
 cd kernel_workspace
-# 应用 ADIOS 补丁（block 4 文件：Kconfig.iosched/Makefile/adios.c/elevator.c，6.6 兼容已验证）
+# block 4 文件：Kconfig.iosched/Makefile/adios.c/elevator.c（6.6 兼容已验证）
 fetch_repo_file "other_patch/adios/adios_block_only.patch" /tmp/adios.patch
 if ( cd ./common && patch -p1 -F 3 < /tmp/adios.patch ); then
   info "ADIOS 补丁应用成功"
@@ -455,7 +453,7 @@ if [[ "$REKERNEL_ENABLE" == "true" ]]; then
   echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 fi
 
-# ============ Baseband-guard（用户决策：保持自动拉取最新） ============
+# ============ Baseband-guard ============
 if [[ "$BASEBAND_GUARD" == "true" ]]; then
   info "启用基带保护..."
   cd kernel_workspace
@@ -474,7 +472,7 @@ if [[ "$BASEBAND_GUARD" == "true" ]]; then
   sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 fi
 
-# ============ BBRv3（默认开启；补丁失败即停摆） ============
+# ============ BBRv3 ============
 info "应用 BBRv3 补丁..."
 cd kernel_workspace/common
 curl -fsSL --retry 3 --retry-delay 5 -H "Authorization: token $GH_TOKEN" \

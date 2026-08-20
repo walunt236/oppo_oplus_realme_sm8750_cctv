@@ -1,7 +1,6 @@
 #!/bin/bash
 # ============================================================
 # init_env.sh — 环境依赖 + 源码初始化 + 工具链（Clang19/build-tools 官方源）
-# 原工作流步骤：安装环境依赖+初始化源码仓库及llvm-Clang19工具链
 # ============================================================
 set -e
 source "$(dirname "$0")/common.sh"
@@ -57,7 +56,7 @@ fi
 # OEM 分支唯一来源：后续 Android 大版本由它动态推导
 OEM_BRANCH="oneplus/sm8750_b_16.0.0_oneplus_13"
 
-# 网络密集操作并行化：AOSP 标签查询先后台启动，与 OEM/vendor 拉取重叠
+# AOSP 标签查询与 OEM/vendor 拉取并行
 mkdir -p "$HOME/.cache_patches"
 info "后台预查询 AOSP 最新标签..."
 ( glr ls-remote --tags --sort=-v:refname https://android.googlesource.com/kernel/common 'refs/tags/android15-6.6.*_r00' | head -1 | awk '{print $2}' | sed 's|refs/tags/||' > "$HOME/.cache_patches/latest_aosp_tag" ) &
@@ -154,7 +153,7 @@ OEM_SUBLEVEL=${OEM_SUBLEVEL:-89}
 OEM_EXTRAVERSION=$(sed -n 's/^EXTRAVERSION\s*=\s*\(.*\)/\1/p' Makefile)
 OEM_EXTRAVERSION=${OEM_EXTRAVERSION// /}
 
-# 版本号全部由实际源码 Makefile 动态推导（替代顶层静态占位符）
+# 版本号全部由实际源码 Makefile 动态推导
 echo "KERNEL_VERSION=${OEM_VERSION}.${OEM_PATCHLEVEL}" >> "$GITHUB_ENV"
 echo "SUB_VERSION=${OEM_SUBLEVEL}${OEM_EXTRAVERSION}" >> "$GITHUB_ENV"
 echo "CCACHE_KEY=ccache-ecsv3-${OEM_VERSION}.${OEM_PATCHLEVEL}" >> "$GITHUB_ENV"
@@ -184,7 +183,6 @@ echo "kernel_name=$KERNEL_NAME_VAL" >> "$GITHUB_OUTPUT"
 
 cd ..
 
-# 恢复原始的 Clang 19 参数
 CLANG_DIR_NAME="Clang-19.0.0git-20240723"
 CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz"
 

@@ -1,8 +1,6 @@
 #!/bin/bash
 # ============================================================
 # package.sh — KPM 修补 / AnyKernel3 打包 / 本地保存 / 工作区清理
-# 原工作流步骤：应用KPM并修补内核 ~ 本地工作区定时清理
-# 变更：AnyKernel3 改克隆 walunt236/AnyKernel3（自托管 fork）
 # ============================================================
 set -e
 source "$(dirname "$0")/common.sh"
@@ -40,7 +38,6 @@ fi
 # ============ AnyKernel3 打包 ============
 cd kernel_workspace
 CLONE_OK=0
-# 动态增量：本地已有 AnyKernel3 仓库则增量拉取，失败时直接用本地版本（模板用旧版无碍）
 if [ -d AnyKernel3/.git ]; then
   info "AnyKernel3 仓库已存在，增量同步..."
   if git -C AnyKernel3 fetch --depth=1 origin && git -C AnyKernel3 reset --hard FETCH_HEAD; then
@@ -65,7 +62,7 @@ if [[ $CLONE_OK -ne 1 ]]; then
   error "AnyKernel3 克隆失败，终止打包"
   exit 1
 fi
-# 保留 .git 供下次增量拉取（zip 用 ./* 通配符，不会包含隐藏目录）
+# zip 用 ./* 通配符，.git 不打包但保留供下次增量拉取
 cd AnyKernel3
 cp ../common/out/arch/arm64/boot/Image ./Image
 if [[ ! -f ./Image ]]; then
