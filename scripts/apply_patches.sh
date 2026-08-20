@@ -433,6 +433,7 @@ fi
 
 # ===== ADIOS =====
 info "启用 ADIOS I/O 调度器..."
+cd "$GITHUB_WORKSPACE/kernel_workspace"
 # block 4 文件：Kconfig.iosched/Makefile/adios.c/elevator.c（6.6 兼容已验证）
 fetch_repo_file "other_patch/adios/adios_block_only.patch" /tmp/adios.patch
 if ( cd ./common && patch -p1 -F 3 < /tmp/adios.patch ); then
@@ -445,6 +446,7 @@ fi
 # ===== Re-Kernel =====
 if [[ "$REKERNEL_ENABLE" == "true" ]]; then
   info "启用 Re-Kernel 支持..."
+  cd "$GITHUB_WORKSPACE/kernel_workspace"
   echo "CONFIG_REKERNEL=y" >> ./common/arch/arm64/configs/gki_defconfig
 fi
 
