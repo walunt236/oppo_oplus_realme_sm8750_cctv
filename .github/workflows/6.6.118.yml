@@ -127,6 +127,16 @@ jobs:
       CLEAN_BUILD: ${{ inputs.clean_build }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - name: 同步仓库代码
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          if [ -d .git ]; then
+            git fetch origin "$GITHUB_REF_NAME" --depth=1 2>/dev/null || git fetch origin main --depth=1
+            git reset --hard FETCH_HEAD
+          else
+            git clone -q --depth=1 "https://github.com/$GITHUB_REPOSITORY.git" .
+          fi
+
       - name: 环境初始化（依赖/源码/工具链）
         id: init_env
         run: bash "$GITHUB_WORKSPACE/scripts/init_env.sh"
