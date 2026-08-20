@@ -4,7 +4,7 @@ set -e
 source "$(dirname "$0")/common.sh"
 
 # ===== 增量编译 mtime 钳制 =====
-cd kernel_workspace/common
+cd "$GITHUB_WORKSPACE/kernel_workspace/common"
 # 源码树指纹 = git status porcelain 哈希
 PATCH_HASH=$(git status --porcelain 2>/dev/null | md5sum | cut -d' ' -f1)
 echo "PATCH_HASH=$PATCH_HASH" >> "$GITHUB_ENV"
@@ -28,8 +28,6 @@ CLANG_DIR_NAME="Clang-19.0.0git-20240723"
 export PATH="$HOME/.toolchains/build-tools-r510928/build-tools/bin:$PATH"
 export PATH="$HOME/.toolchains/$CLANG_DIR_NAME/bin:$PATH"
 export PATH="/usr/lib/ccache:$PATH"
-
-cd kernel_workspace/common
 
 # 默认增量；clean_build=true 强制全量
 if [[ "$CLEAN_BUILD" == "true" ]]; then
