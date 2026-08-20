@@ -196,14 +196,15 @@ if [ -n "$AFDO_PROFILE" ] && [ -f /home/dev/pgo/vmlinux ]; then
   PROFDATA="$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-profdata"
   NM="$HOME/.toolchains/Clang-19.0.0git-20240723/bin/llvm-nm"
   "$PROFDATA" show -sample "$AFDO_PROFILE" 2>/dev/null | grep '^Function: ' | awk '{print $2}' | sed 's/:.*//' | sort -u > /tmp/afdo_funcs.txt
-  "$NM" --defined-only /home/dev/pgo/vmlinux 2>/dev/null | awk '$3 ~ /^[tT]$/ {print $4}' | sort -u > /tmp/vmlinux_funcs.txt
+  "$NM" --defined-only /home/dev/pgo/vmlinux 2>/dev/null | awk '$2 ~ /^[tT]$/ {print $3}' | sort -u > /tmp/vmlinux_funcs.txt
   MATCH=$(comm -12 /tmp/afdo_funcs.txt /tmp/vmlinux_funcs.txt | wc -l)
   TOTAL=$(wc -l < /tmp/afdo_funcs.txt)
   if [ "$TOTAL" -gt 0 ]; then
     RATE=$(awk -v m="$MATCH" -v t="$TOTAL" 'BEGIN{printf "%.1f", m*100/t}')
     info "AutoFDO profile 符号匹配率: $RATE% ($MATCH/$TOTAL)"
-    if awk -v r="$RATE" 'BEGIN{exit !(r < 70)}'; then
-      warn "profile 匹配率 <70%——内核已演进，建议重新采样重建 profile"
+    # 阈值 50%：profile 含 inline 函数（无符号表条目），正常水平 ~58%
+    if awk -v r="$RATE" 'BEGIN{exit !(r < 50)}'; then
+      warn "profile 匹配率 <50%——内核已演进，建议重新采样重建 profile"
     fi
   fi
 fi
@@ -224,7 +225,7 @@ if [ -n "$AFDO_PROFILE" ]; then
     echo "  ✓ AutoFDO 全套（-fprofile-sample-use / -fprofile-sample-accurate / -fdebug-info-for-profiling / fs-discriminator / propagate-iterations=300）" | tee -a "$LOG_FILE"
   fi
   # LTO 链接期二次应用：--lto-sample-profile 工具链接受性验证（空链接 dry-run）
-  if ld.lld --lto-sample-profile="$AFDO_PROFILE" -mllvm=-enable-fs-discriminator=true -plugin-opt=thinlto -r -o /dev/null /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
+  if ld.lld --lto-sample-profile="$AFDO_PROFILE" -r -o /dev/null /dev/null 2>&1 | grep -qE "error|unknown|not supported"; then
     echo "  ✗ --lto-sample-profile 不被链接器支持！" | tee -a "$LOG_FILE"
     exit 1
   else
