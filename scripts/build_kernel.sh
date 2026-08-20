@@ -20,6 +20,7 @@ else
 fi
 
 # ===== 构建内核配置 =====
+cd "$GITHUB_WORKSPACE/kernel_workspace/common"
 WORKDIR="$(pwd)"
 CLANG_DIR_NAME="Clang-19.0.0git-20240723"
 
@@ -129,7 +130,7 @@ fi
 
 # ===== 选择性 -O3 =====
 if [[ "$O3_SELECTIVE" == "true" ]]; then
-  cd kernel_workspace/common
+  cd "$GITHUB_WORKSPACE/kernel_workspace/common"
   for TARGET_DIR in lib crypto; do
     if [ -d "$TARGET_DIR" ] && ! grep -q 'polly-vectorizer=stripmine' "$TARGET_DIR/Makefile"; then
       echo 'subdir-ccflags-y += -O3 -mllvm -polly -mllvm -polly-vectorizer=stripmine' >> $TARGET_DIR/Makefile
