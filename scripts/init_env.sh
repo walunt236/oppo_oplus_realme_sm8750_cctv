@@ -191,6 +191,7 @@ if [ ! -d "$TC_DIR/bin" ]; then
   info "检测到 Clang 19 未缓存或版本更新，开始下载..."
   rm -rf "$TC_DIR"
   mkdir -p "$TC_DIR"
+  rm -f clang19.tar.gz*  # 清 aria2c 中断分片（曾累积 4.7G 残留）
   aria2c -s16 -x16 -k1M "$CLANG_URL" -o clang19.tar.gz
   tar -xzf clang19.tar.gz -C "$TC_DIR" && rm -f clang19.tar.gz
 else
@@ -202,6 +203,7 @@ if [ ! -d "$BT_DIR/build-tools/bin" ]; then
   info "检测到 build-tools 未缓存或布局不符，从 Android 官方源下载..."
   rm -rf "$BT_DIR"
   mkdir -p "$BT_DIR/build-tools"
+  rm -f build-tools*.tar.gz*  # 清 aria2c 中断分片（曾累积 18G 残留）
   aria2c -s16 -x16 -k1M \
     "https://android.googlesource.com/platform/prebuilts/build-tools/+archive/refs/heads/main/linux-x86.tar.gz" \
     -o build-tools.tar.gz
