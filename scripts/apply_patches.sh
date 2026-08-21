@@ -138,11 +138,15 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
     info "为原版 KernelSU 添加补丁..."
     cp ./susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
     cd ./KernelSU
-    # 预处理：新 KernelSU 的 ksu_app_profile_init 不在 susfs 补丁上下文，临时移除防 hunk 失配
-    sed -i '/^    ksu_app_profile_init();$/d' kernel/core/init.c || true
-    patch -p1 < 10_enable_susfs_for_ksu.patch || true
-    # 后处理：恢复 app profile 初始化（补丁未涉及，上游新增）
-    sed -i '/^    ksu_sucompat_init();$/a \    ksu_app_profile_init();' kernel/core/init.c || true
+    # 先试上游补丁；失败则适配 KernelSU 新结构后重试（新 KernelSU 的 ksu_app_profile_init 不在补丁上下文）
+    if ! patch -p1 < 10_enable_susfs_for_ksu.patch; then
+      warn "susfs 补丁首次应用失败，适配 KernelSU 新结构后重试..."
+      git restore kernel/core/init.c
+      sed -i '/^    ksu_app_profile_init();$/d' kernel/core/init.c
+      patch -p1 < 10_enable_susfs_for_ksu.patch || true
+    fi
+    # 补回 app profile 初始化（上游新增，补丁未涉及；已存在则不重复）
+    grep -q '^    ksu_app_profile_init();$' kernel/core/init.c || sed -i '/^    ksu_sucompat_init();$/a \    ksu_app_profile_init();' kernel/core/init.c
     grep -q "susfs_init" kernel/core/init.c && grep -q "ksu_app_profile_init" kernel/core/init.c || { error "KSU/susfs init.c 适配失败，中止"; exit 1; }
   fi
 fi
