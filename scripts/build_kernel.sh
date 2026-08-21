@@ -289,19 +289,24 @@ make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="cca
 # 校验 Image 内嵌配置（IKCFG）与 .config 一致
 if [ -f out/arch/arm64/boot/Image ] && strings -a out/arch/arm64/boot/Image | grep -qa "IKCFG_ST"; then
   IKCFG_TEXT=$(perl -e 'open(F,"<",$ARGV[0]); local $/; $d=<F>; close F; $d =~ /IKCFG_ST(.*?)IKCFG_ED/s; open(G,"|-","gzip -dc 2>/dev/null"); print G $1; close G;' out/arch/arm64/boot/Image 2>/dev/null)
-  if echo "$IKCFG_TEXT" | grep -q '^CONFIG_ZRAM_MEMORY_TRACKING=y'; then
+  if grep -q '^CONFIG_ZRAM_MEMORY_TRACKING=y' <<< "$IKCFG_TEXT"; then
     info "Image 内嵌配置校验通过 (ZRAM_MEMORY_TRACKING=y)"
   else
     error "Image 内嵌配置缺少 ZRAM_MEMORY_TRACKING，产物配置陈旧，中止"
     exit 1
   fi
   # 产物级 FDO 校验：Image 内嵌配置必须含 AUTOFDO_CLANG（防 .config 假阳性/编译期失效）
-  if echo "$IKCFG_TEXT" | grep -q '^CONFIG_AUTOFDO_CLANG=y'; then
+  if grep -q '^CONFIG_AUTOFDO_CLANG=y' <<< "$IKCFG_TEXT"; then
     info "Image 内嵌配置校验通过 (AUTOFDO_CLANG=y——FDO 编译确认)"
   else
     error "Image 内嵌配置缺少 AUTOFDO_CLANG，FDO 未实际生效，中止"
     exit 1
   fi
+  # 默认开启三件套产物级断言（防注入被后续改动静默丢弃）
+  for cfg in CONFIG_HZ_300 CONFIG_TCP_CONG_BBR3 CONFIG_IP_SET; do
+    grep -q "^$cfg=y" <<< "$IKCFG_TEXT" || { error "Image 内嵌配置缺少 $cfg，产物配置陈旧，中止"; exit 1; }
+  done
+  info "Image 内嵌配置校验通过 (HZ_300/BBR3/IP_SET)"
 fi
 
 info "内核镜像编译完成"

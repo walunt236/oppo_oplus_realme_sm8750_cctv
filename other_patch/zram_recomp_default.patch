@@ -150,4 +150,4 @@
 +++ b/include/linux/zstd_lib.h
 @@ -113,1 +113,1 @@
 -#  define ZSTD_CLEVEL_DEFAULT 3
-+#  define ZSTD_CLEVEL_DEFAULT 9
++#  define ZSTD_CLEVEL_DEFAULT 6

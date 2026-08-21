@@ -124,6 +124,10 @@ if [[ "$RUNNER_TYPE" == "self-hosted" ]]; then
 
   if [ -n "$TARGET_DIR" ]; then
     mkdir -p "$TARGET_DIR"
+    if [ -f "$TARGET_DIR/$AK3_NAME" ]; then
+      mv -f "$TARGET_DIR/$AK3_NAME" "$TARGET_DIR/$AK3_NAME.prev"
+      info "旧包已备份: $AK3_NAME.prev"
+    fi
     cp "../$AK3_NAME" "$TARGET_DIR/"
     info "已成功保存至本地路径: $TARGET_DIR/$AK3_NAME"
   else
