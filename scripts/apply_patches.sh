@@ -147,6 +147,9 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
     fi
     # 补回 app profile 初始化（上游新增，补丁未涉及；已存在则不重复）
     grep -q '^    ksu_app_profile_init();$' kernel/core/init.c || sed -i '/^    ksu_sucompat_init();$/a \    ksu_app_profile_init();' kernel/core/init.c
+    # 恢复 app_profile 依赖的 hook 组件编译（susfs 补丁按旧 KernelSU 移除，新 KernelSU 需要）
+    grep -q "hook/arm64/patch_memory.o" kernel/Kbuild || sed -i '/^kernelsu-objs += hook\/setuid_hook.o$/a kernelsu-objs += hook/arm64/patch_memory.o' kernel/Kbuild
+    grep -q "infra/symbol_resolver.o" kernel/Kbuild || sed -i '/^kernelsu-objs += infra\/su_mount_ns.o$/a kernelsu-objs += infra/symbol_resolver.o' kernel/Kbuild
     grep -q "susfs_init" kernel/core/init.c && grep -q "ksu_app_profile_init" kernel/core/init.c || { error "KSU/susfs init.c 适配失败，中止"; exit 1; }
   fi
 fi
