@@ -180,7 +180,7 @@ export KBUILD_BUILD_HOST="ubuntu-build"
 mkdir -p "$HOME/.thinlto-cache"
 cat << 'EOF' > ld-wrapper
 #!/bin/sh
-exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" --lto-O3 "$@"
+exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc --all)" "$@"
 EOF
 chmod +x ld-wrapper
 
