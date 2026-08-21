@@ -67,13 +67,11 @@ elif [[ "$KSU_TYPE" == "ksu" ]]; then
   else
     git clone -b main https://github.com/tiann/KernelSU.git KernelSU
   fi
-  # 32591 在 OEM 内核实机不开机（susfs 有无均复现），锁定 32589 已验证版本；定位后删除下行
-  git -C KernelSU checkout af62466b 2>/dev/null || warn "KernelSU 兼容锁定失败，继续用最新"
   ln -sf "$(realpath --relative-to=common/drivers "$PWD/KernelSU/kernel")" common/drivers/kernelsu
   grep -q "kernelsu" common/drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> common/drivers/Makefile
   grep -q "drivers/kernelsu/Kconfig" common/drivers/Kconfig || sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" common/drivers/Kconfig
   cd ./KernelSU
-  KSU_COMMITS=$(git rev-list --count af62466b 2>/dev/null || echo 0)
+  KSU_COMMITS=$(curl -sI --retry 3 --retry-delay 5 "https://api.github.com/repos/tiann/KernelSU/commits?sha=main&per_page=1" | grep -i "link:" | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p')
   KSU_COMMITS=${KSU_COMMITS:-0}
   KSU_VERSION=$(expr "$KSU_COMMITS" + 30000)
   echo "KSUVER=$KSU_VERSION" >> "$GITHUB_ENV"
