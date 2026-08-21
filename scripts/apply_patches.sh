@@ -67,11 +67,13 @@ elif [[ "$KSU_TYPE" == "ksu" ]]; then
   else
     git clone -b main https://github.com/tiann/KernelSU.git KernelSU
   fi
+  # susfs 兼容锁定：4a92049e 重构 app_profile（无 NULL 检查的符号扫描）susfs 未适配，实机 bootloop；susfs 适配后删除下行
+  git -C KernelSU checkout af62466b 2>/dev/null || warn "KernelSU 兼容锁定失败，继续用最新"
   ln -sf "$(realpath --relative-to=common/drivers "$PWD/KernelSU/kernel")" common/drivers/kernelsu
   grep -q "kernelsu" common/drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> common/drivers/Makefile
   grep -q "drivers/kernelsu/Kconfig" common/drivers/Kconfig || sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" common/drivers/Kconfig
   cd ./KernelSU
-  KSU_COMMITS=$(curl -sI --retry 3 --retry-delay 5 "https://api.github.com/repos/tiann/KernelSU/commits?sha=main&per_page=1" | grep -i "link:" | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p')
+  KSU_COMMITS=$(git rev-list --count af62466b 2>/dev/null || echo 0)
   KSU_COMMITS=${KSU_COMMITS:-0}
   KSU_VERSION=$(expr "$KSU_COMMITS" + 30000)
   echo "KSUVER=$KSU_VERSION" >> "$GITHUB_ENV"
@@ -145,12 +147,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
       sed -i '/^    ksu_app_profile_init();$/d' kernel/core/init.c
       patch -p1 < 10_enable_susfs_for_ksu.patch || true
     fi
-    # 补回 app profile 初始化（上游新增，补丁未涉及；已存在则不重复）
-    grep -q '^    ksu_app_profile_init();$' kernel/core/init.c || sed -i '/^    ksu_sucompat_init();$/a \    ksu_app_profile_init();' kernel/core/init.c
-    # 恢复 app_profile 依赖的 hook 组件编译（susfs 补丁按旧 KernelSU 移除，新 KernelSU 需要）
-    grep -q "hook/arm64/patch_memory.o" kernel/Kbuild || sed -i '/^kernelsu-objs += hook\/setuid_hook.o$/a kernelsu-objs += hook/arm64/patch_memory.o' kernel/Kbuild
-    grep -q "infra/symbol_resolver.o" kernel/Kbuild || sed -i '/^kernelsu-objs += infra\/su_mount_ns.o$/a kernelsu-objs += infra/symbol_resolver.o' kernel/Kbuild
-    grep -q "susfs_init" kernel/core/init.c && grep -q "ksu_app_profile_init" kernel/core/init.c || { error "KSU/susfs init.c 适配失败，中止"; exit 1; }
+    grep -q "susfs_init" kernel/core/init.c || { error "KSU/susfs init.c 适配失败，中止"; exit 1; }
   fi
 fi
 
