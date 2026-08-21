@@ -67,13 +67,11 @@ elif [[ "$KSU_TYPE" == "ksu" ]]; then
   else
     git clone -b main https://github.com/tiann/KernelSU.git KernelSU
   fi
-  # susfs 兼容锁定：4a92049e 重构 app_profile（无 NULL 检查的符号扫描）susfs 未适配，实机 bootloop；susfs 适配后删除下行
-  git -C KernelSU checkout af62466b 2>/dev/null || warn "KernelSU 兼容锁定失败，继续用最新"
   ln -sf "$(realpath --relative-to=common/drivers "$PWD/KernelSU/kernel")" common/drivers/kernelsu
   grep -q "kernelsu" common/drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> common/drivers/Makefile
   grep -q "drivers/kernelsu/Kconfig" common/drivers/Kconfig || sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" common/drivers/Kconfig
   cd ./KernelSU
-  KSU_COMMITS=$(git rev-list --count af62466b 2>/dev/null || echo 0)
+  KSU_COMMITS=$(curl -sI --retry 3 --retry-delay 5 "https://api.github.com/repos/tiann/KernelSU/commits?sha=main&per_page=1" | grep -i "link:" | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p')
   KSU_COMMITS=${KSU_COMMITS:-0}
   KSU_VERSION=$(expr "$KSU_COMMITS" + 30000)
   echo "KSUVER=$KSU_VERSION" >> "$GITHUB_ENV"
@@ -140,14 +138,7 @@ if [[ "$SUSFS_ENABLE" == "true" ]]; then
     info "为原版 KernelSU 添加补丁..."
     cp ./susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
     cd ./KernelSU
-    # 先试上游补丁；失败则适配 KernelSU 新结构后重试（新 KernelSU 的 ksu_app_profile_init 不在补丁上下文）
-    if ! patch -p1 < 10_enable_susfs_for_ksu.patch; then
-      warn "susfs 补丁首次应用失败，适配 KernelSU 新结构后重试..."
-      git restore kernel/core/init.c
-      sed -i '/^    ksu_app_profile_init();$/d' kernel/core/init.c
-      patch -p1 < 10_enable_susfs_for_ksu.patch || true
-    fi
-    grep -q "susfs_init" kernel/core/init.c || { error "KSU/susfs init.c 适配失败，中止"; exit 1; }
+    patch -p1 < 10_enable_susfs_for_ksu.patch || true
   fi
 fi
 
