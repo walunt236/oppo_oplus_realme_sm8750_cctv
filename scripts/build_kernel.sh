@@ -184,7 +184,7 @@ exec ld.lld --thinlto-cache-dir="$HOME/.thinlto-cache" --thinlto-jobs="$(nproc -
 EOF
 chmod +x ld-wrapper
 
-KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=40 -falign-functions=32 -falign-loops=32 -mllvm -enable-gvn-hoist -mllvm -enable-load-pre -mllvm -polly-opt-outer-coincidence=true -mllvm -inline-threshold=300 -mllvm -inlinehint-threshold=500 -mllvm -enable-loopinterchange=true -mllvm -enable-ipra -mllvm -enable-phi-of-ops -mllvm -enable-dse-partial-store-merging -mllvm -enable-aarch64-lsr-cost-opt -mllvm -enable-aarch64-or-like-select"
+KCFLAGS_EXTRA="-mcpu=oryon-1 -moutline-atomics -fno-math-errno -fno-strict-aliasing -fno-semantic-interposition -mllvm -enable-misched=true -mllvm -import-instr-limit=300 -falign-functions=32 -falign-loops=32 -mllvm -enable-gvn-hoist -mllvm -enable-load-pre -mllvm -polly-opt-outer-coincidence=true -mllvm -inline-threshold=300 -mllvm -inlinehint-threshold=500 -mllvm -enable-loopinterchange=true -mllvm -enable-ipra -mllvm -enable-phi-of-ops -mllvm -enable-dse-partial-store-merging -mllvm -enable-aarch64-lsr-cost-opt -mllvm -enable-aarch64-or-like-select -mllvm -vectorizer-min-trip-count=2"
 
 info "核心编译器版本检查："
 clang --version | head -n 1
@@ -244,7 +244,7 @@ for flag in "-O3" "-falign-functions=32" "-falign-loops=32" "-moutline-atomics" 
   fi
 done
 # 4. -mllvm LLVM pass 参数（最小编译验证——LLVM 层接受检查）
-for m in enable-misched import-instr-limit enable-gvn-hoist enable-load-pre polly-opt-outer-coincidence inline-threshold inlinehint-threshold enable-loopinterchange enable-ipra enable-phi-of-ops enable-dse-partial-store-merging enable-aarch64-lsr-cost-opt enable-aarch64-or-like-select; do
+for m in enable-misched import-instr-limit enable-gvn-hoist enable-load-pre polly-opt-outer-coincidence inline-threshold inlinehint-threshold enable-loopinterchange enable-ipra enable-phi-of-ops enable-dse-partial-store-merging enable-aarch64-lsr-cost-opt enable-aarch64-or-like-select vectorizer-min-trip-count; do
   if echo 'int f(int x){return x+1;}' | clang -x c - -fsyntax-only -mllvm -$m=1 2>&1 | grep -qE "error|unknown"; then
     echo "  ✗ -mllvm -$m 不被工具链支持！" | tee -a "$LOG_FILE"
   else
