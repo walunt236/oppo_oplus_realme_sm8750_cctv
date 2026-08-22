@@ -1,5 +1,5 @@
 ### AnyKernel3 Ramdisk Mod Script
-## osm0sis @ xda-developers — 一加13 适配 overlay（walunt236 自控）
+## osm0sis @ xda-developers — 一加13
 
 ### AnyKernel setup
 # global properties
@@ -46,7 +46,6 @@ sync
 sleep 0.5
 chmod -R 755 $AKHOME/tools
 
-# zram 模块安装（KSUD 注入）
 if [ -f "$AKHOME/zram.zip" ]; then
     MODULE_PATH="$AKHOME/zram.zip"
     KSUD_PATH="/data/adb/ksud"
@@ -61,7 +60,6 @@ else
     ui_print "ZRAM module Not Found, skipping ZRAM module installation..."
 fi
 
-# kpn 模块安装（KSUD 注入）
 if [ -f "$AKHOME/kpn.zip" ]; then
     MODULE_PATH="$AKHOME/kpn.zip"
     KSUD_PATH="/data/adb/ksud"
