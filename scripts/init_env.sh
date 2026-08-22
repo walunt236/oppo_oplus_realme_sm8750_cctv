@@ -221,6 +221,9 @@ if [ ! -d "$BT_DIR/build-tools/bin" ]; then
 else
   info "[秒过] build-tools 工具链已存在本地缓存，直接复用！"
 fi
+# main 滚动版 bison 无配套宏目录（kconfig 构建失败），无条件剔除用系统 bison
+rm -f "$BT_DIR/build-tools/bin/bison"
+
 
 if [[ "$RUNNER_TYPE" == "ubuntu-latest" ]]; then
   if ! dpkg -l binutils python3 libssl-dev libelf-dev >/dev/null 2>&1; then
