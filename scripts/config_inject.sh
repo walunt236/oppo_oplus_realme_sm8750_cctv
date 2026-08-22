@@ -174,7 +174,7 @@ if [ ! -f "$TARGET_MAIN" ]; then
   exit 1
 fi
 
-sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable panic=30 page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 skew_tick=0 random.trust_cpu=on kfence.sample_interval=0 loglevel=3 transparent_hugepage=madvise irqchip.gicv3_pseudo_nmi=1", sizeof(boot_command_line));' "$TARGET_MAIN"
+sed -i '/setup_arch(&command_line);/a \    strlcat(boot_command_line, " schedstats=disable panic=30 page_alloc.shuffle=1 cryptomgr.notests rcutree.blimit=1024 workqueue.power_efficient=1 skew_tick=0 random.trust_cpu=on kfence.sample_interval=0 loglevel=3 transparent_hugepage=madvise", sizeof(boot_command_line));' "$TARGET_MAIN"
 
 if grep -q "strlcat.*boot_command_line" "$TARGET_MAIN"; then
   info "cmdline 注入成功"
@@ -187,15 +187,6 @@ fi
 cd "$GITHUB_WORKSPACE/kernel_workspace/common"
 sed -i 's/#define MAX_FLUSH_RETRIES 200/#define MAX_FLUSH_RETRIES 8/' fs/f2fs/checkpoint.c
 info "F2FS检查点优化完成"
-
-# ===== 实验性功能（伪 NMI + RSEQ/MM_CID） =====
-cd "$GITHUB_WORKSPACE/kernel_workspace"
-cat >> ./common/arch/arm64/configs/gki_defconfig << 'EXP'
-CONFIG_ARM64_PSEUDO_NMI=y
-CONFIG_RSEQ=y
-CONFIG_SCHED_MM_CID=y
-EXP
-info "实验性功能注入完成（PSEUDO_NMI/RSEQ/MM_CID）"
 
 # ===== 网络功能增强（纯 defconfig 注入） =====
 cd "$GITHUB_WORKSPACE/kernel_workspace"
