@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       runner_type:
-        description: '编译节点'
+        description: '编译机'
         required: true
         type: choice
         default: 'self-hosted'
@@ -12,7 +12,7 @@ on:
           - 'self-hosted'
           - 'ubuntu-latest'
       ksu_type:
-        description: 'KernelSU 类型'
+        description: 'KernelSU类型'
         required: true
         type: choice
         default: 'ksu'
@@ -23,12 +23,12 @@ on:
           - 'ksu'
           - 'none'
       susfs_enable:
-        description: '是否开启 susfs 隐藏'
+        description: '集成susfs'
         required: true
         type: boolean
         default: false
       kpm_enable:
-        description: '是否开启 kpm'
+        description: '集成kpm'
         required: true
         type: choice
         default: 'false'
@@ -37,12 +37,12 @@ on:
           - 'builtin'
           - 'kpn'
       lz4kd_enable:
-        description: '是否安装 LZ4KD 补丁'
+        description: '集成LZ4KD补丁'
         required: true
         type: boolean
         default: true
       droidspaces_enable:
-        description: '是否启用Droidspaces容器支持'
+        description: '集成Droidspaces容器支持'
         required: true
         type: choice
         default: 'false'
@@ -51,17 +51,17 @@ on:
           - 'standard'
           - 'extend'
       rekernel_enable:
-        description: '是否启用Re-Kernel支持'
+        description: 'Re-Kernel支持'
         required: true
         type: boolean
         default: false
       baseband_guard:
-        description: '是否开启基带保护'
+        description: '基带保护'
         required: true
         type: boolean
         default: false
       rcu_nocb_enable:
-        description: '开启 RCU_NOCB_CPU (减少软中断抢占UI线)'
+        description: 'RCU_NOCB_CPU'
         required: true
         type: boolean
         default: true
@@ -71,7 +71,7 @@ on:
         type: boolean
         default: false
       ccache_debug:
-        description: '是否上传 Ccache调试日志'
+        description: '上传Ccache调试日志'
         required: true
         type: boolean
         default: false
@@ -81,17 +81,17 @@ on:
         type: string
         default: ''
       diagnosis:
-        description: '诊断模式：仅生成并导出config (默认关闭，启用时不编译镜像)'
+        description: '诊断模式：仅生成并导出config'
         required: true
         type: boolean
         default: false
       o3_selective:
-        description: '选择性-O3'
+        description: 'O3'
         required: true
         type: boolean
         default: true
       clean_build:
-        description: '强制全量重建（默认关闭，增量编译保留 out/ 目录）'
+        description: '强制干净构建'
         required: true
         type: boolean
         default: false
@@ -175,19 +175,19 @@ jobs:
           AFDO_DIR="$HOME/.cache_patches/afdo"
           mkdir -p "$AFDO_DIR"
           if [ ! -s "$AFDO_DIR/kernel.afdo" ]; then
-            echo "[ERROR] AutoFDO profile 缺失——不再自动下载官方 profile（android15-6.6 官方 profile 与 OEM 内核不兼容，已两次实机 bootloop）" | tee -a "$LOG_FILE"
-            echo "[ERROR] 请先部署自采集 profile：设备采样 → build_afdo.py 解析 → llvm-profdata merge → cp 到 $AFDO_DIR/kernel.afdo" | tee -a "$LOG_FILE"
-            echo "[ERROR] 注意：云端 runner（ubuntu-latest）无持久缓存，AutoFDO 构建仅 self-hosted 可用" | tee -a "$LOG_FILE"
+            echo "[ERROR] AutoFDO profile 缺失" | tee -a "$LOG_FILE"
+            echo "[ERROR] 请先自采集 profile：设备采样 → build_afdo.py 解析 → llvm-profdata merge → cp 到 $AFDO_DIR/kernel.afdo" | tee -a "$LOG_FILE"
+            echo "[ERROR] 注意：云端 runner（ubuntu-latest）无长期缓存，AutoFDO 构建仅 self-hosted 可用" | tee -a "$LOG_FILE"
             exit 1
           fi
-          # ccache 键含命令行路径——profile 文件名带内容哈希，内容变化时路径变 → 缓存键自动失效（防 stale 对象复用）
+
           AFDO_HASH=$(md5sum "$AFDO_DIR/kernel.afdo" | cut -c1-8)
           AFDO_LINK="$AFDO_DIR/kernel-$AFDO_HASH.afdo"
           ln -sf kernel.afdo "$AFDO_LINK"
           echo "AFDO_PROFILE=$AFDO_LINK" >> $GITHUB_ENV
           echo "[INFO] AutoFDO profile 就绪: $AFDO_LINK (hash=$AFDO_HASH)" | tee -a "$LOG_FILE"
 
-      - name: 编译内核（配置校验/工具链验证/IKCFG 产物校验）
+      - name: 编译内核
         if: ${{ !inputs.diagnosis }}
         run: bash "$GITHUB_WORKSPACE/scripts/build_kernel.sh"
 
@@ -217,7 +217,7 @@ jobs:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
 
-      - name: 打包发布（KPM/AnyKernel3/本地保存/清理）
+      - name: 打包发布
         if: ${{ !inputs.diagnosis }}
         id: create_zip
         run: bash "$GITHUB_WORKSPACE/scripts/package.sh"
@@ -229,7 +229,7 @@ jobs:
           name: ccache-debug-log
           path: ${{ github.workspace }}/kernel_workspace/ccache.log
 
-      - name: 上传 ZIP 工件 (仅云端)
+      - name: 上传 ZIP (仅云端)
         if: ${{ !inputs.diagnosis && inputs.runner_type == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v7
         with:
@@ -247,7 +247,7 @@ jobs:
           RELEASE_TITLE="OnePlus13 内核 v${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} [${{ inputs.ksu_type }}]"
 
           BUILD_TIME="$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
-          RELEASE_NOTES="🎉 **一加13 内核编译完成**
+          RELEASE_NOTES=" **一加13 内核编译完成**
           - **构建时间**: ${BUILD_TIME}
           - **KernelSU**: ${{ inputs.ksu_type }} (${{ env.KSUVER }})
           - **SUSFS**: ${{ inputs.susfs_enable }}
