@@ -66,6 +66,24 @@ fi
 cd AnyKernel3
 # 一加13 适配 overlay（官方模板 + 自控适配，官方更新直接合并）
 cp -r "$GITHUB_WORKSPACE/ak3_overlay/"* . 2>/dev/null || true
+# 工具：Magisk 官方源拉取 arm64（busybox/magiskboot），失败回退 overlay 内置
+TOOL_CACHE="$HOME/.cache_patches/ak3tools"
+mkdir -p "$TOOL_CACHE"
+MAGISK_TAG=$(curl -fsSL --retry 2 --connect-timeout 10 --max-time 20 "https://api.github.com/repos/topjohnwu/Magisk/releases/latest" 2>/dev/null | grep -oE '"tag_name": *"[^"]+"' | head -1 | cut -d'"' -f4)
+MAGISK_TAG=${MAGISK_TAG:-v30.7}
+if [ ! -s "$TOOL_CACHE/magisk-$MAGISK_TAG.apk" ]; then
+  curl -fSL --retry 3 --retry-delay 5 --retry-all-errors --connect-timeout 15 --max-time 180 -o "$TOOL_CACHE/magisk-$MAGISK_TAG.apk" "https://github.com/topjohnwu/Magisk/releases/download/$MAGISK_TAG/Magisk-$MAGISK_TAG.apk" 2>/dev/null || warn "Magisk 下载失败，回退内置工具"
+fi
+if [ -s "$TOOL_CACHE/magisk-$MAGISK_TAG.apk" ]; then
+  if (cd "$TOOL_CACHE" && unzip -o -q "magisk-$MAGISK_TAG.apk" "lib/arm64-v8a/libmagiskboot.so" "lib/arm64-v8a/libbusybox.so" -d magisk-ext && \
+      install -m 755 magisk-ext/lib/arm64-v8a/libmagiskboot.so "$GITHUB_WORKSPACE/kernel_workspace/AnyKernel3/tools/magiskboot" && \
+      install -m 755 magisk-ext/lib/arm64-v8a/libbusybox.so "$GITHUB_WORKSPACE/kernel_workspace/AnyKernel3/tools/busybox"); then
+    info "AK3 工具已更新（Magisk $MAGISK_TAG arm64）"
+  else
+    warn "Magisk 工具提取失败，回退内置版本"
+  fi
+  rm -rf "$TOOL_CACHE/magisk-ext"
+fi
 cp ../common/out/arch/arm64/boot/Image ./Image
 if [[ ! -f ./Image ]]; then
   error "未找到内核镜像文件"
